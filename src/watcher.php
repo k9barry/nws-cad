@@ -16,6 +16,7 @@ $logger = Logger::getInstance();
 
 try {
     $logger->info("Starting NWS CAD File Watcher Service");
+    $logger->info("Using Aegis CAD XML Parser for New World Systems format");
     
     $watcher = new FileWatcher();
     $watcher->start();

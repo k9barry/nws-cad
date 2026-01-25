@@ -16,7 +16,7 @@ class FileWatcher
     private int $interval;
     private string $filePattern;
     private array $processedFiles = [];
-    private XmlParser $parser;
+    private AegisXmlParser $parser;
     private $logger;
     private bool $running = true;
 
@@ -26,7 +26,7 @@ class FileWatcher
         $this->watchFolder = $config->get('watcher.folder');
         $this->interval = $config->get('watcher.interval');
         $this->filePattern = $config->get('watcher.file_pattern');
-        $this->parser = new XmlParser();
+        $this->parser = new AegisXmlParser();
         $this->logger = Logger::getInstance();
 
         // Ensure watch folder exists
