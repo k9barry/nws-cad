@@ -127,7 +127,10 @@ class XmlParser
                 'event_id' => md5($filePath . time()),
                 'event_type' => 'xml_import',
                 'event_time' => date('Y-m-d H:i:s'),
+                'location' => '',
                 'description' => 'Full XML import',
+                'priority' => '',
+                'status' => 'imported',
                 'xml_data' => json_encode($this->xmlToArray($xml)),
             ];
             $this->insertEvent($eventData);
@@ -143,16 +146,37 @@ class XmlParser
      */
     private function extractEventData(SimpleXMLElement $event): array
     {
+        // Convert ISO 8601 datetime to MySQL format
+        $timeStr = (string)($event->time ?? $event->timestamp ?? '');
+        $eventTime = $this->parseDateTime($timeStr);
+        
         return [
             'event_id' => (string)($event->id ?? $event['id'] ?? md5((string)$event->asXML())),
             'event_type' => (string)($event->type ?? $event['type'] ?? 'unknown'),
-            'event_time' => (string)($event->time ?? $event->timestamp ?? date('Y-m-d H:i:s')),
+            'event_time' => $eventTime,
             'location' => (string)($event->location ?? ''),
             'description' => (string)($event->description ?? ''),
             'priority' => (string)($event->priority ?? ''),
             'status' => (string)($event->status ?? 'pending'),
             'xml_data' => json_encode($this->xmlToArray($event)),
         ];
+    }
+
+    /**
+     * Parse datetime string to database format
+     */
+    private function parseDateTime(string $dateTime): string
+    {
+        if (empty($dateTime)) {
+            return date('Y-m-d H:i:s');
+        }
+        
+        try {
+            $dt = new \DateTime($dateTime);
+            return $dt->format('Y-m-d H:i:s');
+        } catch (\Exception $e) {
+            return date('Y-m-d H:i:s');
+        }
     }
 
     /**

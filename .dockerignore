@@ -1,0 +1,10 @@
+.git
+.gitignore
+data
+logs
+watch
+tmp
+vendor
+.env
+README.md
+.dockerignore
