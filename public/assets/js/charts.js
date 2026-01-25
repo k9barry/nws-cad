@@ -31,7 +31,7 @@ const ChartManager = {
         
         const defaultOptions = {
             responsive: true,
-            maintainAspectRatio: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: {
                     display: options.showLegend !== false,

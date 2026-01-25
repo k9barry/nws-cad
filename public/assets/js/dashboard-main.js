@@ -167,14 +167,9 @@
     /**
      * View call details (called from map popup)
      */
-    window.viewCallDetails = async function(callId) {
-        try {
-            const call = await Dashboard.apiRequest(`/calls/${callId}`);
-            // For now, just show an alert - could open a modal
-            alert(`Call Details:\nID: ${call.id}\nType: ${call.call_type}\nStatus: ${call.status}`);
-        } catch (error) {
-            Dashboard.showError('Failed to load call details');
-        }
+    window.viewCallDetails = function(callId) {
+        // Navigate to calls page with call detail - or show toast for now
+        Dashboard.showToast(`View full call details on the Calls page or click <a href="/calls">here</a>`, 'info');
     };
     
     // Initial load

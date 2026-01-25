@@ -116,7 +116,7 @@ $pageTitle = ucfirst($page);
         <div class="container-fluid text-center text-muted">
             <small>
                 NWS CAD Dashboard &copy; <?= date('Y') ?> | 
-                <a href="https://github.com/yourusername/nws-cad" target="_blank">Documentation</a> |
+                <a href="https://github.com/k9barry/nws-cad" target="_blank">Documentation</a> |
                 API Status: <span id="api-status" class="badge bg-secondary">Checking...</span>
             </small>
         </div>

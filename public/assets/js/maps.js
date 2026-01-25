@@ -9,8 +9,11 @@ const MapManager = {
     
     /**
      * Initialize a map
+     * Default center can be configured via window.MAP_DEFAULT_CENTER or uses US geographic center
      */
-    initMap(containerId, center = [37.7749, -122.4194], zoom = 12) {
+    initMap(containerId, center = null, zoom = 12) {
+        // Use configured center or default to US geographic center (Lebanon, Kansas)
+        center = center || window.MAP_DEFAULT_CENTER || [39.8283, -98.5795];
         if (this.maps[containerId]) {
             return this.maps[containerId];
         }

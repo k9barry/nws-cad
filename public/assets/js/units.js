@@ -91,8 +91,8 @@
         try {
             const unitsWithLocation = [];
             
-            for (const unit of units.slice(0, 50)) { // Limit to 50 for performance
-                // Mock location data - in production, this would come from GPS/AVL
+            // Filter units with valid GPS coordinates (limit to 50 for performance)
+            for (const unit of units.slice(0, 50)) {
                 if (unit.latitude && unit.longitude) {
                     unitsWithLocation.push(unit);
                 }
