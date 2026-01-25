@@ -8,13 +8,21 @@ namespace NwsCad\Security;
  * Rate Limiter
  * 
  * Simple in-memory rate limiter for API endpoints.
- * For production use, consider Redis or Memcached for distributed systems.
+ * 
+ * WARNING: This implementation uses static arrays which can grow indefinitely
+ * in long-running processes. For production use, consider:
+ * - Redis or Memcached for distributed systems
+ * - Database-backed storage for persistence
+ * - Regular cleanup via scheduled tasks
+ * 
+ * This implementation includes automatic cleanup to prevent memory leaks.
  */
 class RateLimiter
 {
     private static array $requests = [];
     private static int $maxRequests = 60; // per window
     private static int $windowSeconds = 60; // 1 minute
+    private static int $maxStoredIdentifiers = 1000; // Limit to prevent memory issues
 
     /**
      * Check if a request is allowed based on rate limiting
@@ -30,7 +38,10 @@ class RateLimiter
         $window = $windowSeconds ?? self::$windowSeconds;
         $now = time();
 
-        // Initialize or clean up old requests
+        // Periodic cleanup to prevent memory leaks
+        self::cleanupOldEntries($window);
+
+        // Initialize or clean up old requests for this identifier
         if (!isset(self::$requests[$identifier])) {
             self::$requests[$identifier] = [];
         }
@@ -41,6 +52,22 @@ class RateLimiter
             fn($timestamp) => ($now - $timestamp) < $window
         );
 
+        // Clean up empty identifier
+        if (empty(self::$requests[$identifier])) {
+            unset(self::$requests[$identifier]);
+        }
+
+        // Check if we've exceeded storage limit
+        if (count(self::$requests) >= self::$maxStoredIdentifiers) {
+            // Remove oldest identifier entries
+            self::pruneOldestIdentifiers();
+        }
+
+        // Reinitialize if cleaned up
+        if (!isset(self::$requests[$identifier])) {
+            self::$requests[$identifier] = [];
+        }
+
         // Check if limit exceeded
         if (count(self::$requests[$identifier]) >= $max) {
             return false;
@@ -50,6 +77,64 @@ class RateLimiter
         self::$requests[$identifier][] = $now;
 
         return true;
+    }
+
+    /**
+     * Clean up old entries to prevent memory leaks
+     *
+     * @param int $window Time window in seconds
+     * @return void
+     */
+    private static function cleanupOldEntries(int $window): void
+    {
+        $now = time();
+        
+        foreach (self::$requests as $identifier => $timestamps) {
+            // Remove old timestamps
+            self::$requests[$identifier] = array_filter(
+                $timestamps,
+                fn($timestamp) => ($now - $timestamp) < $window
+            );
+            
+            // Remove empty identifiers
+            if (empty(self::$requests[$identifier])) {
+                unset(self::$requests[$identifier]);
+            }
+        }
+    }
+
+    /**
+     * Prune oldest identifier entries when storage limit reached
+     *
+     * @return void
+     */
+    private static function pruneOldestIdentifiers(): void
+    {
+        if (empty(self::$requests)) {
+            return;
+        }
+
+        // Sort by oldest timestamp
+        $identifierAges = [];
+        foreach (self::$requests as $identifier => $timestamps) {
+            if (!empty($timestamps)) {
+                $identifierAges[$identifier] = min($timestamps);
+            }
+        }
+
+        asort($identifierAges);
+
+        // Remove oldest 20% of identifiers
+        $toRemove = (int)(self::$maxStoredIdentifiers * 0.2);
+        $removed = 0;
+
+        foreach (array_keys($identifierAges) as $identifier) {
+            if ($removed >= $toRemove) {
+                break;
+            }
+            unset(self::$requests[$identifier]);
+            $removed++;
+        }
     }
 
     /**

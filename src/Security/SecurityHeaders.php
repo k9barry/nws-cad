@@ -34,18 +34,26 @@ class SecurityHeaders
     /**
      * Set Content-Security-Policy header
      *
-     * @param string|null $policy Custom CSP policy (default: restrictive policy)
+     * Note: Default policy includes 'unsafe-inline' and 'unsafe-eval' for compatibility
+     * with libraries like Chart.js and Leaflet.js. In production, consider:
+     * - Using nonce-based CSP for inline scripts
+     * - Migrating to external script files
+     * - Using strict-dynamic for modern browsers
+     *
+     * @param string|null $policy Custom CSP policy (default: permissive for dashboard compatibility)
      * @return void
      */
     public static function setContentSecurityPolicy(?string $policy = null): void
     {
         if ($policy === null) {
+            // Permissive policy for dashboard with CDN libraries
+            // TODO: Tighten in production with nonces or external scripts
             $policy = implode('; ', [
                 "default-src 'self'",
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com",
-                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com",
-                "img-src 'self' data: https: http:",
-                "font-src 'self' data: https://cdn.jsdelivr.net",
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://*.cloudflare.com",
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://fonts.googleapis.com",
+                "img-src 'self' data: https://cdn.jsdelivr.net https://*.tile.openstreetmap.org",
+                "font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com",
                 "connect-src 'self'",
                 "frame-ancestors 'none'",
                 "base-uri 'self'",

@@ -201,24 +201,37 @@ class InputValidator
     /**
      * Validate a phone number (flexible format)
      *
+     * Note: This is a basic validation that may be too restrictive for
+     * international formats. For production use with international numbers,
+     * consider using a library like libphonenumber-for-php.
+     *
      * @param mixed $input The input to validate
+     * @param bool $preserveFormatting Whether to preserve original formatting (default: false)
      * @return string|null Validated phone number or null if invalid
      */
-    public static function validatePhone($input): ?string
+    public static function validatePhone($input, bool $preserveFormatting = false): ?string
     {
         if ($input === null || $input === '') {
             return null;
         }
 
-        // Remove all non-digit characters except + for international
-        $phone = preg_replace('/[^0-9+]/', '', (string)$input);
+        $original = (string)$input;
 
-        // Check if we have at least 10 digits (US standard)
-        if (strlen(str_replace('+', '', $phone)) < 10) {
+        // Remove all non-digit characters except + for international
+        $digitsOnly = preg_replace('/[^0-9+]/', '', $original);
+
+        // Check if we have at least 10 digits (US/international minimum)
+        if (strlen(str_replace('+', '', $digitsOnly)) < 10) {
             return null;
         }
 
-        return $phone;
+        // Check for valid format (only digits, +, spaces, hyphens, parentheses)
+        if (!preg_match('/^[\d\s\+\-\(\)]+$/', $original)) {
+            return null;
+        }
+
+        // Return formatted or digits-only version
+        return $preserveFormatting ? trim($original) : $digitsOnly;
     }
 
     /**
