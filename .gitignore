@@ -35,3 +35,11 @@ Thumbs.db
 
 # Composer lock (optional - uncomment if needed)
 # composer.lock
+
+# Test coverage reports
+/coverage/
+.phpunit.cache/
+.phpunit.result.cache
+
+# Test artifacts
+/tests/tmp/
