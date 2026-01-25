@@ -133,12 +133,19 @@ $pageTitle = ucfirst($page);
     
     <!-- Custom JS -->
     <script>
-        // Global configuration
+        // Detect if we're in Codespaces and use the correct URL
+        const isCodespaces = window.location.hostname.includes('github.dev') || window.location.hostname.includes('githubpreview.dev');
+        const baseUrl = isCodespaces 
+            ? window.location.origin  // Use the current origin in Codespaces
+            : 'http://localhost:8080'; // Use localhost for local development
+        
         window.APP_CONFIG = {
-            apiBaseUrl: '<?= $apiBaseUrl ?>',
+            apiBaseUrl: baseUrl + '/api',
             currentPage: '<?= $page ?>',
             refreshInterval: 30000 // 30 seconds
         };
+        
+        console.log('APP_CONFIG initialized:', window.APP_CONFIG);
     </script>
     <script src="/assets/js/dashboard.js"></script>
     <script src="/assets/js/maps.js"></script>

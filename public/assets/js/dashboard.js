@@ -35,7 +35,7 @@ const Dashboard = {
             if (data.success) {
                 return data.data;
             } else {
-                throw new Error(data.message || 'API request failed');
+                throw new Error(data.error || 'API request failed');
             }
         } catch (error) {
             console.error('API Request Error:', error);
@@ -129,6 +129,24 @@ const Dashboard = {
     },
     
     /**
+     * Calculate time ago
+     */
+    timeAgo(dateString) {
+        if (!dateString) return 'N/A';
+        
+        const date = new Date(dateString);
+        const now = new Date();
+        const seconds = Math.floor((now - date) / 1000);
+        
+        if (seconds < 60) return 'Just now';
+        if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+        if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+        if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+        
+        return this.formatDate(dateString);
+    },
+    
+    /**
      * Format duration
      */
     formatDuration(seconds) {
@@ -148,167 +166,67 @@ const Dashboard = {
     },
     
     /**
-     * Calculate time ago
+     * Get priority badge HTML
      */
-    timeAgo(dateString) {
-        if (!dateString) return 'N/A';
-        
-        const date = new Date(dateString);
-        const now = new Date();
-        const seconds = Math.floor((now - date) / 1000);
-        
-        const intervals = {
-            year: 31536000,
-            month: 2592000,
-            week: 604800,
-            day: 86400,
-            hour: 3600,
-            minute: 60
+    getPriorityBadge(priority) {
+        const badges = {
+            '1': '<span class="badge bg-danger">Priority 1</span>',
+            '2': '<span class="badge bg-warning">Priority 2</span>',
+            '3': '<span class="badge bg-info">Priority 3</span>',
+            '4': '<span class="badge bg-secondary">Priority 4</span>'
         };
-        
-        for (const [unit, value] of Object.entries(intervals)) {
-            const interval = Math.floor(seconds / value);
-            if (interval >= 1) {
-                return `${interval} ${unit}${interval > 1 ? 's' : ''} ago`;
-            }
-        }
-        
-        return 'Just now';
+        return badges[priority] || '<span class="badge bg-secondary">Unknown</span>';
     },
     
     /**
      * Get status badge HTML
      */
     getStatusBadge(status) {
-        const statusMap = {
-            'active': 'status-active',
-            'pending': 'status-pending',
-            'closed': 'status-closed',
-            'available': 'bg-success',
-            'enroute': 'bg-warning',
-            'onscene': 'bg-danger',
-            'offduty': 'bg-secondary'
+        const badges = {
+            'open': '<span class="badge bg-warning">Open</span>',
+            'active': '<span class="badge bg-primary">Active</span>',
+            'closed': '<span class="badge bg-success">Closed</span>',
+            'cancelled': '<span class="badge bg-secondary">Cancelled</span>'
         };
-        
-        const className = statusMap[status?.toLowerCase()] || 'bg-secondary';
-        return `<span class="badge ${className}">${status || 'Unknown'}</span>`;
+        return badges[status] || '<span class="badge bg-secondary">' + status + '</span>';
     },
     
     /**
-     * Get priority badge HTML
+     * Setup auto-refresh for a function
      */
-    getPriorityBadge(priority) {
-        const className = `priority-${priority}`;
-        return `<span class="badge ${className}">P${priority}</span>`;
-    },
-    
-    /**
-     * Export data to CSV
-     */
-    exportToCSV(data, filename = 'export.csv') {
-        if (!data || data.length === 0) {
-            this.showError('No data to export');
-            return;
-        }
-        
-        // Get headers from first object
-        const headers = Object.keys(data[0]);
-        
-        // Build CSV content
-        let csv = headers.join(',') + '\n';
-        
-        data.forEach(row => {
-            const values = headers.map(header => {
-                const value = row[header];
-                // Escape commas and quotes
-                if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-                    return `"${value.replace(/"/g, '""')}"`;
-                }
-                return value ?? '';
-            });
-            csv += values.join(',') + '\n';
-        });
-        
-        // Create download link
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        
-        link.setAttribute('href', url);
-        link.setAttribute('download', filename);
-        link.style.visibility = 'hidden';
-        
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        this.showSuccess('Data exported successfully');
-    },
-    
-    /**
-     * Setup auto-refresh
-     */
-    setupAutoRefresh(callback, interval = null) {
+    setupAutoRefresh(refreshFunction, interval = null) {
         interval = interval || this.config.refreshInterval || 30000;
         
-        if (this.refreshTimers[this.config.currentPage]) {
-            clearInterval(this.refreshTimers[this.config.currentPage]);
+        // Clear existing timer if any
+        if (this.refreshTimers[refreshFunction.name]) {
+            clearInterval(this.refreshTimers[refreshFunction.name]);
         }
         
-        this.refreshTimers[this.config.currentPage] = setInterval(callback, interval);
+        // Set new timer
+        this.refreshTimers[refreshFunction.name] = setInterval(() => {
+            console.log('Auto-refreshing...', refreshFunction.name);
+            refreshFunction();
+        }, interval);
+        
+        console.log(`Auto-refresh enabled (${interval / 1000}s)`);
     },
     
     /**
      * Stop auto-refresh
      */
-    stopAutoRefresh() {
-        if (this.refreshTimers[this.config.currentPage]) {
-            clearInterval(this.refreshTimers[this.config.currentPage]);
-            delete this.refreshTimers[this.config.currentPage];
+    stopAutoRefresh(functionName = null) {
+        if (functionName && this.refreshTimers[functionName]) {
+            clearInterval(this.refreshTimers[functionName]);
+            delete this.refreshTimers[functionName];
+        } else {
+            // Stop all timers
+            Object.values(this.refreshTimers).forEach(timer => clearInterval(timer));
+            this.refreshTimers = {};
         }
-    },
-    
-    /**
-     * Check API status
-     */
-    async checkApiStatus() {
-        try {
-            await this.apiRequest('/');
-            const statusEl = document.getElementById('api-status');
-            if (statusEl) {
-                statusEl.textContent = 'Online';
-                statusEl.className = 'badge bg-success';
-            }
-        } catch (error) {
-            const statusEl = document.getElementById('api-status');
-            if (statusEl) {
-                statusEl.textContent = 'Offline';
-                statusEl.className = 'badge bg-danger';
-            }
-        }
-    },
-    
-    /**
-     * Initialize dashboard
-     */
-    init() {
-        console.log('Dashboard initialized');
-        this.checkApiStatus();
-        
-        // Set up print date
-        document.body.setAttribute('data-print-date', new Date().toLocaleString());
-        
-        // Check API status periodically
-        setInterval(() => this.checkApiStatus(), 60000);
     }
 };
 
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => Dashboard.init());
-} else {
-    Dashboard.init();
-}
-
-// Make Dashboard globally available
+// Export Dashboard object
 window.Dashboard = Dashboard;
+
+console.log('Dashboard core loaded', Dashboard.config);

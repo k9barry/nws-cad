@@ -20,7 +20,7 @@ echo ""
 if ! command -v docker &> /dev/null; then
     echo -e "${RED}Error: Docker is not installed${NC}"
     echo "Please install Docker from https://docs.docker.com/get-docker/"
-    exit 1
+    exit 1sh 
 fi
 
 # Check if Docker Compose is installed

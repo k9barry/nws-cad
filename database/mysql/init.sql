@@ -423,4 +423,23 @@ CREATE TABLE IF NOT EXISTS processed_files (
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-SET FOREIGN_KEY_CHECKS = 1;
+-- ============================================================================
+-- Create database if not exists
+-- ============================================================================
+CREATE DATABASE IF NOT EXISTS nws_cad CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- Use the database
+USE nws_cad;
+
+-- Create user with proper privileges (grants to wildcard host for Docker networking)
+CREATE USER IF NOT EXISTS 'nws_cad_user'@'%' IDENTIFIED BY 'nek8PRNbNxiDQzfR2eGKGw==';
+GRANT ALL PRIVILEGES ON nws_cad.* TO 'nws_cad_user'@'%';
+
+-- Also create for localhost just in case
+CREATE USER IF NOT EXISTS 'nws_cad_user'@'localhost' IDENTIFIED BY 'nek8PRNbNxiDQzfR2eGKGw==';
+GRANT ALL PRIVILEGES ON nws_cad.* TO 'nws_cad_user'@'localhost';
+
+FLUSH PRIVILEGES;
+
+-- Verify user creation
+SELECT User, Host FROM mysql.user WHERE User = 'nws_cad_user';

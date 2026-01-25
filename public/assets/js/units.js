@@ -1,259 +1,110 @@
 /**
  * Units Page Script
- * Handles the units status and tracking page
+ * Handles the units overview and tracking page
  */
 
-(async function() {
+(function() {
     'use strict';
     
-    // Initialize map
-    const map = MapManager.initMap('units-map');
-    let currentFilters = {};
+    console.log('[Units] Script loaded');
     
-    /**
-     * Load unit statistics
-     */
-    async function loadUnitStats() {
-        try {
-            const stats = await Dashboard.apiRequest('/stats/units');
-            
-            document.getElementById('units-available').textContent = stats.available_count || 0;
-            document.getElementById('units-enroute').textContent = stats.enroute_count || 0;
-            document.getElementById('units-onscene').textContent = stats.onscene_count || 0;
-            document.getElementById('units-offduty').textContent = stats.offduty_count || 0;
-            
-        } catch (error) {
-            console.error('Error loading unit stats:', error);
+    async function init() {
+        if (typeof Dashboard === 'undefined') {
+            console.error('[Units] Dashboard object not found, retrying...');
+            setTimeout(init, 100);
+            return;
+        }
+        
+        console.log('[Units] Initializing units page...');
+        await loadUnits();
+        
+        // Setup auto-refresh
+        if (Dashboard.setupAutoRefresh) {
+            Dashboard.setupAutoRefresh(loadUnits);
         }
     }
     
-    /**
-     * Load units list
-     */
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+    
     async function loadUnits() {
-        const params = {
-            per_page: 100,
-            ...currentFilters
-        };
+        console.log('[Units] Loading units...');
         
         try {
-            const units = await Dashboard.apiRequest('/units' + Dashboard.buildQueryString(params));
+            const filters = {
+                page: 1,
+                per_page: 50,
+                sort: 'unit_id',
+                order: 'asc'
+            };
             
-            const tbody = document.getElementById('units-table-body');
+            const url = '/units' + Dashboard.buildQueryString(filters);
+            console.log('[Units] Fetching:', Dashboard.config.apiBaseUrl + url);
             
-            if (!units || units.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="8" class="text-center py-4">
-                            <div class="empty-state">
-                                <i class="bi bi-inbox"></i>
-                                <p>No units found</p>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-                document.getElementById('units-count').textContent = '0';
-                return;
+            const response = await fetch(Dashboard.config.apiBaseUrl + url);
+            const result = await response.json();
+            
+            console.log('[Units] Response:', result);
+            
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to load units');
             }
             
-            tbody.innerHTML = units.map(unit => `
+            const units = result.data || [];
+            console.log('[Units] Loaded', units.length, 'units');
+            
+            // Update count
+            const countEl = document.getElementById('units-count');
+            if (countEl) {
+                countEl.textContent = units.length;
+            }
+            
+            // Render table
+            renderUnitsTable(units);
+            
+        } catch (error) {
+            console.error('[Units] Error loading units:', error);
+            if (Dashboard.showError) {
+                Dashboard.showError('Failed to load units: ' + error.message);
+            }
+        }
+    }
+    
+    function renderUnitsTable(units) {
+        const tbody = document.getElementById('units-table-body');
+        if (!tbody) {
+            console.warn('[Units] Table body not found');
+            return;
+        }
+        
+        if (units.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><i class="bi bi-inbox fs-1 text-muted"></i><p class="text-muted mt-2">No units found</p></td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = units.map(unit => {
+            const status = unit.status || 'unknown';
+            const statusClass = status.toLowerCase() === 'available' ? 'success' : 'warning';
+            
+            return `
                 <tr>
-                    <td><strong>${unit.unit_id || unit.badge_number}</strong></td>
-                    <td>${unit.unit_type || 'N/A'}</td>
-                    <td>${unit.agency || 'N/A'}</td>
-                    <td>${Dashboard.getStatusBadge(unit.status)}</td>
-                    <td>${unit.current_call || '-'}</td>
-                    <td>${unit.personnel_count || 0}</td>
-                    <td>${Dashboard.formatDateTime(unit.last_update)}</td>
-                    <td>
-                        <button class="btn btn-sm btn-primary" onclick="viewUnitDetails(${unit.id})">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                    </td>
+                    <td><strong>${escapeHtml(unit.unit_id || 'N/A')}</strong></td>
+                    <td><span class="badge bg-${statusClass}">${escapeHtml(status.toUpperCase())}</span></td>
+                    <td>${escapeHtml(unit.unit_type || 'N/A')}</td>
+                    <td>${escapeHtml(unit.current_location || 'N/A')}</td>
+                    <td>${unit.assigned_call_id ? `Call #${unit.assigned_call_id}` : 'None'}</td>
+                    <td><small class="text-muted">${unit.last_update ? Dashboard.formatTime(unit.last_update) : 'N/A'}</small></td>
                 </tr>
-            `).join('');
-            
-            document.getElementById('units-count').textContent = units.length;
-            
-            // Update map with unit locations
-            await loadUnitsMap(units);
-            
-        } catch (error) {
-            console.error('Error loading units:', error);
-            Dashboard.showError('Failed to load units');
-        }
-    }
-    
-    /**
-     * Load units on map
-     */
-    async function loadUnitsMap(units) {
-        try {
-            const unitsWithLocation = [];
-            
-            // Filter units with valid GPS coordinates (limit to 50 for performance)
-            for (const unit of units.slice(0, 50)) {
-                if (unit.latitude && unit.longitude) {
-                    unitsWithLocation.push(unit);
-                }
-            }
-            
-            if (unitsWithLocation.length > 0) {
-                MapManager.showUnits('units-map', unitsWithLocation);
-            }
-            
-        } catch (error) {
-            console.error('Error loading units map:', error);
-        }
-    }
-    
-    /**
-     * View unit details
-     */
-    window.viewUnitDetails = async function(unitId) {
-        const modal = new bootstrap.Modal(document.getElementById('unit-detail-modal'));
-        const content = document.getElementById('unit-detail-content');
-        
-        content.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
-        modal.show();
-        
-        try {
-            const [unit, logs, personnel] = await Promise.all([
-                Dashboard.apiRequest(`/units/${unitId}`),
-                Dashboard.apiRequest(`/units/${unitId}/logs`).catch(() => []),
-                Dashboard.apiRequest(`/units/${unitId}/personnel`).catch(() => [])
-            ]);
-            
-            content.innerHTML = `
-                <div class="row">
-                    <div class="col-md-6">
-                        <h5>Unit Information</h5>
-                        <table class="table table-sm">
-                            <tr><th>Unit ID:</th><td>${unit.unit_id || unit.badge_number}</td></tr>
-                            <tr><th>Type:</th><td>${unit.unit_type || 'N/A'}</td></tr>
-                            <tr><th>Status:</th><td>${Dashboard.getStatusBadge(unit.status)}</td></tr>
-                            <tr><th>Agency:</th><td>${unit.agency || 'N/A'}</td></tr>
-                            <tr><th>Current Call:</th><td>${unit.current_call || 'None'}</td></tr>
-                            <tr><th>Last Update:</th><td>${Dashboard.formatDateTime(unit.last_update)}</td></tr>
-                        </table>
-                    </div>
-                    <div class="col-md-6">
-                        <h5>Personnel (${personnel.length})</h5>
-                        ${personnel.length > 0 ? `
-                            <table class="table table-sm">
-                                <thead><tr><th>Name</th><th>Role</th></tr></thead>
-                                <tbody>
-                                    ${personnel.map(p => `
-                                        <tr>
-                                            <td>${p.name}</td>
-                                            <td>${p.role || 'N/A'}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        ` : '<p class="text-muted">No personnel assigned</p>'}
-                    </div>
-                </div>
-                <div class="row mt-3">
-                    <div class="col-12">
-                        <h5>Activity Log (${logs.length})</h5>
-                        ${logs.length > 0 ? 
-                            `<div style="max-height: 300px; overflow-y: auto;">
-                                ${logs.map(log => `
-                                    <div class="card mb-2">
-                                        <div class="card-body py-2">
-                                            <div class="d-flex justify-content-between">
-                                                <strong>${log.action || 'Activity'}</strong>
-                                                <small class="text-muted">${Dashboard.formatDateTime(log.timestamp)}</small>
-                                            </div>
-                                            ${log.details ? `<small>${log.details}</small>` : ''}
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>`
-                            : '<p class="text-muted">No activity logs</p>'}
-                    </div>
-                </div>
             `;
-            
-        } catch (error) {
-            console.error('Error loading unit details:', error);
-            content.innerHTML = '<div class="alert alert-danger">Failed to load unit details</div>';
-        }
-    };
-    
-    /**
-     * Export units to CSV
-     */
-    document.getElementById('export-units-csv')?.addEventListener('click', async function() {
-        try {
-            const params = { ...currentFilters, per_page: 1000 };
-            const units = await Dashboard.apiRequest('/units' + Dashboard.buildQueryString(params));
-            
-            const exportData = units.map(unit => ({
-                'Unit ID': unit.unit_id || unit.badge_number,
-                'Type': unit.unit_type,
-                'Agency': unit.agency,
-                'Status': unit.status,
-                'Current Call': unit.current_call,
-                'Last Update': unit.last_update
-            }));
-            
-            Dashboard.exportToCSV(exportData, `units-${new Date().toISOString().split('T')[0]}.csv`);
-            
-        } catch (error) {
-            Dashboard.showError('Failed to export units');
-        }
-    });
-    
-    /**
-     * Handle filter form submission
-     */
-    document.getElementById('units-filter-form')?.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(this);
-        currentFilters = {};
-        
-        for (const [key, value] of formData.entries()) {
-            if (value) {
-                currentFilters[key] = value;
-            }
-        }
-        
-        loadUnits();
-    });
-    
-    /**
-     * Handle filter reset
-     */
-    document.querySelector('#units-filter-form button[type="reset"]')?.addEventListener('click', function() {
-        currentFilters = {};
-        loadUnits();
-    });
-    
-    /**
-     * Handle refresh button
-     */
-    document.getElementById('refresh-units')?.addEventListener('click', function() {
-        loadUnitStats();
-        loadUnits();
-    });
-    
-    /**
-     * Refresh all data
-     */
-    async function refreshAll() {
-        await Promise.all([
-            loadUnitStats(),
-            loadUnits()
-        ]);
+        }).join('');
     }
     
-    // Initial load
-    await refreshAll();
-    
-    // Setup auto-refresh
-    Dashboard.setupAutoRefresh(refreshAll);
-    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 })();

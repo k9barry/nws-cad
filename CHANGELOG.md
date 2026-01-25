@@ -5,54 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-01-25
 
 ### Added
-- Comprehensive testing infrastructure with PHPUnit
-- Unit tests for all core classes (Config, Database, Logger, AegisXmlParser, API components)
-- Integration tests for API endpoints (Calls, Units, Search, Stats)
-- Performance tests for database queries and API endpoints
-- Security tests (SQL Injection, XSS, XXE prevention)
-- GitHub Actions CI/CD pipeline
-- Automated testing on pull requests
-- Code coverage tracking (80% minimum threshold)
-- Automated changelog generation
-- Semantic versioning support
-- Security scanning (CodeQL, dependency check, SAST)
-- Release automation workflow
+- Dashboard main page with live data refresh
+- Units tracking page with real-time status
+- Analytics page with comprehensive reporting
+- Auto-detection of GitHub Codespaces environment for API URLs
+- Comprehensive JavaScript logging for debugging
+
+### Fixed
+- Dashboard API connection issues in GitHub Codespaces
+- Async/await initialization in dashboard JavaScript
+- API base URL configuration for both local and Codespaces environments
+- Field name mapping to match database schema
 
 ### Changed
-- Updated composer.json with testing dependencies (PHPUnit, Faker, Mockery)
-- Added test bootstrap file with database helpers
-- Enhanced phpunit.xml configuration with multiple test suites
+- Improved error handling in all dashboard pages
+- Enhanced logging throughout JavaScript modules
+- Updated APP_CONFIG to auto-detect environment
 
-### Security
-- Added XXE (XML External Entity) attack prevention tests
-- Added SQL injection prevention tests
-- Added XSS (Cross-Site Scripting) prevention tests
-- Automated security scanning in CI pipeline
-
-## [1.0.0] - 2024-01-25
+## [1.0.0] - 2025-01-18
 
 ### Added
-- Initial release of NWS CAD system
-- XML file monitoring and processing
-- Multi-database support (MySQL/PostgreSQL)
+- Initial release
+- XML file parsing and processing
 - REST API with 19 endpoints
-- Web dashboard with maps and charts
-- Comprehensive logging system
-- Docker containerization
-- Database schema with 13 tables
-
-### Features
-- Real-time CAD XML file processing
-- Call tracking and management
-- Unit tracking and personnel management
-- Location and incident management
-- Search and filtering capabilities
-- Statistical analysis and reporting
-- Comprehensive error handling
-- Transaction support for data integrity
-
-[Unreleased]: https://github.com/k9barry/nws-cad/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/k9barry/nws-cad/releases/tag/v1.0.0
+- MySQL and PostgreSQL support
+- Comprehensive test suite
+- CI/CD pipeline
+- Documentation

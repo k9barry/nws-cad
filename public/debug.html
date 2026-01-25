@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Debug</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #f5f5f5; }
+        .log { padding: 8px; margin: 4px 0; border-radius: 4px; border-left: 4px solid #ccc; background: white; }
+        .error { border-left-color: #dc3545; background: #fee; }
+        .success { border-left-color: #28a745; background: #efe; }
+        .info { border-left-color: #007bff; background: #eef; }
+        .warn { border-left-color: #ffc107; background: #ffc; }
+        h1 { color: #333; }
+        pre { background: #fff; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Dashboard JavaScript Debug Console</h1>
+    <div id="logs"></div>
+    
+    <script>
+        const logsEl = document.getElementById('logs');
+        let logCount = 0;
+        
+        function log(msg, type = 'info', data = null) {
+            logCount++;
+            const div = document.createElement('div');
+            div.className = 'log ' + type;
+            
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            const prefix = `[${timestamp}] #${logCount}`;
+            
+            div.innerHTML = `<strong>${prefix}</strong> ${msg}`;
+            
+            if (data) {
+                const pre = document.createElement('pre');
+                pre.textContent = JSON.stringify(data, null, 2);
+                div.appendChild(pre);
+            }
+            
+            logsEl.appendChild(div);
+            div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+        
+        // Capture all console methods
+        const originalConsole = {
+            log: console.log,
+            error: console.error,
+            warn: console.warn,
+            info: console.info
+        };
+        
+        console.log = function(...args) {
+            originalConsole.log.apply(console, args);
+            log(args.join(' '), 'info');
+        };
+        
+        console.error = function(...args) {
+            originalConsole.error.apply(console, args);
+            log('ERROR: ' + args.join(' '), 'error');
+        };
+        
+        console.warn = function(...args) {
+            originalConsole.warn.apply(console, args);
+            log('WARN: ' + args.join(' '), 'warn');
+        };
+        
+        console.info = function(...args) {
+            originalConsole.info.apply(console, args);
+            log(args.join(' '), 'info');
+        };
+        
+        // Catch all errors
+        window.addEventListener('error', function(e) {
+            log(`💥 UNCAUGHT ERROR: ${e.message}`, 'error', {
+                file: e.filename,
+                line: e.lineno,
+                column: e.colno,
+                stack: e.error?.stack
+            });
+        });
+        
+        window.addEventListener('unhandledrejection', function(e) {
+            log(`💥 UNHANDLED PROMISE REJECTION: ${e.reason}`, 'error', {
+                promise: e.promise,
+                reason: e.reason
+            });
+        });
+        
+        log('🚀 Debug console initialized', 'success');
+        log('Loading APP_CONFIG...');
+        
+        window.APP_CONFIG = {
+            apiBaseUrl: 'http://localhost:8080/api',
+            currentPage: 'dashboard',
+            refreshInterval: 30000
+        };
+        
+        log('✓ APP_CONFIG loaded', 'success', window.APP_CONFIG);
+    </script>
+    
+    <!-- Load the actual dashboard scripts -->
+    <script src="/assets/js/dashboard.js"></script>
+    <script>
+        log('Dashboard.js loaded', typeof Dashboard !== 'undefined' ? 'success' : 'error', {
+            'Dashboard exists': typeof Dashboard !== 'undefined',
+            'Dashboard.config': Dashboard?.config,
+            'Dashboard.apiRequest': typeof Dashboard?.apiRequest
+        });
+    </script>
+    
+    <script src="/assets/js/maps.js"></script>
+    <script>
+        log('maps.js loaded', 'info', {
+            'MapManager exists': typeof MapManager !== 'undefined'
+        });
+    </script>
+    
+    <script src="/assets/js/charts.js"></script>
+    <script>
+        log('charts.js loaded', 'info', {
+            'ChartManager exists': typeof ChartManager !== 'undefined'
+        });
+    </script>
+    
+    <!-- Add minimal DOM elements that dashboard-main.js expects -->
+    <div style="display: none;">
+        <div id="stat-active-calls">0</div>
+        <div id="stat-available-units">0</div>
+        <div id="stat-avg-response">0</div>
+        <div id="stat-calls-today">0</div>
+        <div id="recent-calls"></div>
+        <div id="calls-map"></div>
+        <canvas id="call-types-chart"></canvas>
+        <canvas id="unit-activity-chart"></canvas>
+    </div>
+    
+    <script src="/assets/js/dashboard-main.js"></script>
+    
+    <script>
+        setTimeout(() => {
+            log('⏰ 5 seconds elapsed - checking state', 'info', {
+                'Dashboard': typeof Dashboard !== 'undefined',
+                'MapManager': typeof MapManager !== 'undefined', 
+                'ChartManager': typeof ChartManager !== 'undefined',
+                'viewCallDetails': typeof viewCallDetails !== 'undefined'
+            });
+            
+            // Try manual API call
+            if (typeof Dashboard !== 'undefined' && Dashboard.apiRequest) {
+                log('🔄 Attempting manual API call...', 'info');
+                Dashboard.apiRequest('/stats')
+                    .then(data => {
+                        log('✅ API CALL SUCCESS!', 'success', data);
+                    })
+                    .catch(err => {
+                        log('❌ API CALL FAILED!', 'error', {
+                            message: err.message,
+                            stack: err.stack
+                        });
+                    });
+            } else {
+                log('❌ Dashboard.apiRequest not available', 'error');
+            }
+        }, 5000);
+    </script>
+</body>
+</html>

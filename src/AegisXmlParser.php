@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NwsCad;
 
 use SimpleXMLElement;
@@ -9,6 +11,8 @@ use PDO;
 /**
  * NWS Aegis CAD XML Parser
  * Parses New World Systems Aegis CAD export XML and stores in database
+ *
+ * @package NwsCad
  */
 class AegisXmlParser
 {
@@ -27,23 +31,26 @@ class AegisXmlParser
 
     /**
      * Process an Aegis CAD XML file
+     *
+     * @param string $filePath Path to XML file
+     * @return bool Success status
      */
     public function processFile(string $filePath): bool
     {
-        $filename = basename($filePath);
-        $this->logger->info("Processing Aegis CAD XML file: $filename");
-
         try {
-            // Check if file already processed
-            if ($this->isFileProcessed($filename, $filePath)) {
-                $this->logger->info("File already processed, skipping: $filename");
+            $this->logger->info("Processing Aegis CAD XML file: " . basename($filePath));
+            
+            // Check if already processed
+            if ($this->isFileProcessed(basename($filePath), $filePath)) {
+                $this->logger->info("File already processed, skipping: " . basename($filePath));
                 return true;
             }
-
-            // Load and parse XML
-            $xml = $this->loadXml($filePath);
-            if (!$xml) {
-                throw new Exception("Failed to load XML file");
+            
+            // Load XML with security measures
+            $xml = $this->loadXmlFile($filePath);
+            
+            if ($xml === false) {
+                throw new Exception('Failed to load XML file');
             }
 
             // Register namespaces
@@ -58,12 +65,12 @@ class AegisXmlParser
             $callId = $this->insertCall($xml, $filePath);
 
             // Mark file as processed
-            $this->markFileAsProcessed($filename, $filePath, 1);
+            $this->markFileAsProcessed(basename($filePath), $filePath, 1);
 
             // Commit transaction
             $this->db->commit();
 
-            $this->logger->info("Successfully processed file: $filename (Call ID: $callId)");
+            $this->logger->info("Successfully processed file: " . basename($filePath) . " (Call ID: $callId)");
             return true;
 
         } catch (Exception $e) {
@@ -71,72 +78,79 @@ class AegisXmlParser
                 $this->db->rollBack();
             }
             
-            $this->logger->error("Error processing file $filename: " . $e->getMessage());
+            $this->logger->error("Error processing file " . basename($filePath) . ": " . $e->getMessage());
             $this->logger->error("Stack trace: " . $e->getTraceAsString());
-            $this->markFileAsFailed($filename, $filePath, $e->getMessage());
+            $this->markFileAsFailed(basename($filePath), $filePath, $e->getMessage());
             return false;
         }
     }
 
     /**
      * Load XML file with XXE protection
+     *
+     * @param string $filePath Path to XML file
+     * @return SimpleXMLElement|false
      */
-    private function loadXml(string $filePath): ?SimpleXMLElement
+    private function loadXmlFile(string $filePath): SimpleXMLElement|false
     {
         try {
+            if (!file_exists($filePath)) {
+                $this->logger->error("File does not exist: {$filePath}");
+                return false;
+            }
+            
+            // XXE Protection: In PHP 8.0+, external entity loading is disabled by default
+            // LIBXML_NONET prevents network access during XML parsing
             libxml_use_internal_errors(true);
-            
-            // Disable external entity loading for security
-            $previousValue = libxml_disable_entity_loader(true);
-            
-            $xml = simplexml_load_file($filePath, 'SimpleXMLElement', LIBXML_NOENT | LIBXML_DTDLOAD | LIBXML_DTDATTR);
-            
-            // Restore previous value
-            libxml_disable_entity_loader($previousValue);
+            $xml = simplexml_load_file($filePath, 'SimpleXMLElement', LIBXML_NOCDATA | LIBXML_NONET);
             
             if ($xml === false) {
                 $errors = libxml_get_errors();
-                $errorMsg = "XML parsing errors: " . implode(", ", array_map(
-                    fn($e) => trim($e->message),
-                    $errors
-                ));
+                $errorMessages = array_map(fn($error) => trim($error->message), $errors);
                 libxml_clear_errors();
-                throw new Exception($errorMsg);
+                
+                $this->logger->error("Failed to load XML: " . implode(', ', $errorMessages));
+                return false;
             }
-
+            
+            libxml_clear_errors();
             return $xml;
+            
         } catch (Exception $e) {
-            $this->logger->error("Failed to load XML: " . $e->getMessage());
-            return null;
+            $this->logger->error("Exception loading XML file: " . $e->getMessage());
+            return false;
         }
     }
 
     /**
      * Insert main call record and all child records
+     *
+     * @param SimpleXMLElement $xml XML root element
+     * @param string $filePath Original file path
+     * @return int Database call ID
      */
     private function insertCall(SimpleXMLElement $xml, string $filePath): int
     {
-        // Extract call data
+        // Extract call data with proper type handling
         $callData = [
-            'call_id' => (int)$xml->CallId,
-            'call_number' => (string)$xml->CallNumber,
+            'call_id' => $this->parseInt((string)$xml->CallId),
+            'call_number' => (string)$xml->CallNumber ?: null,
             'call_source' => (string)$xml->CallSource ?: null,
             'caller_name' => (string)$xml->CallerName ?: null,
             'caller_phone' => (string)$xml->CallerPhone ?: null,
             'nature_of_call' => (string)$xml->NatureOfCall ?: null,
             'additional_info' => (string)$xml->AdditionalInfo ?: null,
-            'create_datetime' => $this->parseDateTime((string)$xml->CreateDateTime),
+            'create_datetime' => $this->parseDateTime((string)$xml->CreateDateTime) ?? date('Y-m-d H:i:s'),
             'close_datetime' => $this->parseDateTime((string)$xml->CloseDateTime),
             'created_by' => (string)$xml->CreatedBy ?: null,
             'closed_flag' => $this->parseBoolean((string)$xml->ClosedFlag),
             'canceled_flag' => $this->parseBoolean((string)$xml->CanceledFlag),
-            'alarm_level' => (int)$xml->AlarmLevel ?: null,
+            'alarm_level' => $this->parseInt((string)$xml->AlarmLevel),
             'emd_code' => (string)$xml->EmdCode ?: null,
             'fire_controlled_time' => $this->parseDateTime((string)$xml->FireControlledTime),
             'xml_data' => json_encode($this->xmlToArray($xml))
         ];
 
-        // Insert call
         $sql = "INSERT INTO calls (
             call_id, call_number, call_source, caller_name, caller_phone,
             nature_of_call, additional_info, create_datetime, close_datetime,
@@ -413,9 +427,9 @@ class AegisXmlParser
         }
 
         $sql = "INSERT INTO unit_logs (
-            unit_id, datetime, status
+            unit_id, log_datetime, status
         ) VALUES (
-            :unit_id, :datetime, :status
+            :unit_id, :log_datetime, :status
         )";
 
         $stmt = $this->db->prepare($sql);
@@ -423,7 +437,7 @@ class AegisXmlParser
         foreach ($unit->UnitLogs->UnitLog as $log) {
             $data = [
                 'unit_id' => $unitId,
-                'datetime' => $this->parseDateTime((string)$log->DateTime),
+                'log_datetime' => $this->parseDateTime((string)$log->DateTime),
                 'status' => (string)$log->Status ?: null
             ];
             $stmt->execute($data);
@@ -432,6 +446,10 @@ class AegisXmlParser
 
     /**
      * Insert unit dispositions
+     *
+     * @param SimpleXMLElement $unit Unit XML element
+     * @param int $unitId Database unit ID
+     * @return void
      */
     private function insertUnitDispositions(SimpleXMLElement $unit, int $unitId): void
     {
@@ -440,9 +458,9 @@ class AegisXmlParser
         }
 
         $sql = "INSERT INTO unit_dispositions (
-            unit_id, name, description, datetime, count
+            unit_id, disposition_name, description, count, disposition_datetime
         ) VALUES (
-            :unit_id, :name, :description, :datetime, :count
+            :unit_id, :disposition_name, :description, :count, :disposition_datetime
         )";
 
         $stmt = $this->db->prepare($sql);
@@ -450,10 +468,10 @@ class AegisXmlParser
         foreach ($unit->Dispositions->Disposition as $disp) {
             $data = [
                 'unit_id' => $unitId,
-                'name' => (string)$disp->Name ?: null,
+                'disposition_name' => (string)$disp->Name ?: null,
                 'description' => (string)$disp->Description ?: null,
-                'datetime' => $this->parseDateTime((string)$disp->DateTime),
-                'count' => (int)$disp->Count ?: null
+                'count' => $this->parseInt((string)$disp->Count),
+                'disposition_datetime' => $this->parseDateTime((string)$disp->DateTime)
             ];
             $stmt->execute($data);
         }
@@ -580,6 +598,10 @@ class AegisXmlParser
 
     /**
      * Insert call dispositions
+     *
+     * @param SimpleXMLElement $xml XML root element
+     * @param int $callId Database call ID
+     * @return void
      */
     private function insertCallDispositions(SimpleXMLElement $xml, int $callId): void
     {
@@ -588,9 +610,9 @@ class AegisXmlParser
         }
 
         $sql = "INSERT INTO call_dispositions (
-            call_id, name, description, datetime, count
+            call_id, disposition_name, description, count, disposition_datetime
         ) VALUES (
-            :call_id, :name, :description, :datetime, :count
+            :call_id, :disposition_name, :description, :count, :disposition_datetime
         )";
 
         $stmt = $this->db->prepare($sql);
@@ -598,10 +620,10 @@ class AegisXmlParser
         foreach ($xml->Dispositions->CallDisposition as $disp) {
             $data = [
                 'call_id' => $callId,
-                'name' => (string)$disp->Name ?: null,
+                'disposition_name' => (string)$disp->Name ?: null,
                 'description' => (string)$disp->Description ?: null,
-                'datetime' => $this->parseDateTime((string)$disp->DateTime),
-                'count' => (int)$disp->Count ?: null
+                'count' => $this->parseInt((string)$disp->Count),
+                'disposition_datetime' => $this->parseDateTime((string)$disp->DateTime)
             ];
             $stmt->execute($data);
         }
@@ -617,17 +639,50 @@ class AegisXmlParser
             return null;
         }
         
-        try {
-            $dt = new \DateTime($dateTime);
-            return $dt->format('Y-m-d H:i:s');
-        } catch (\Exception $e) {
-            return null;
+        // Common datetime formats from NWS Aegis
+        $formats = [
+            'Y-m-d\TH:i:s\Z',         // ISO 8601 with Z
+            'Y-m-d\TH:i:s',           // ISO 8601 without timezone
+            'Y-m-d\TH:i:s.u',         // ISO 8601 with microseconds
+            'Y-m-d\TH:i:sP',          // ISO 8601 with timezone
+            'Y-m-d\TH:i:s.uP',        // ISO 8601 with microseconds and timezone
+            'Y-m-d H:i:s',            // Standard MySQL format
+            'm/d/Y H:i:s',            // US format
+            'm/d/Y h:i:s A',          // US format with AM/PM
+        ];
+        
+        foreach ($formats as $format) {
+            $dt = \DateTime::createFromFormat($format, $dateTime);
+            if ($dt !== false) {
+                return $dt->format('Y-m-d H:i:s');
+            }
         }
+        
+        // Try strtotime as fallback
+        try {
+            $timestamp = strtotime($dateTime);
+            if ($timestamp !== false) {
+                return date('Y-m-d H:i:s', $timestamp);
+            }
+        } catch (Exception $e) {
+            $this->logger->warning("Could not parse datetime: '{$dateTime}'");
+        }
+        
+        return null;
     }
 
-    private function parseBoolean($value): bool
+    private function parseBoolean($value): int
     {
-        return in_array(strtolower((string)$value), ['true', '1', 'yes']);
+        $stringValue = strtolower(trim((string)$value));
+        return in_array($stringValue, ['true', '1', 'yes'], true) ? 1 : 0;
+    }
+
+    private function parseInt(?string $value): ?int
+    {
+        if (empty($value) || $value === 'nil' || strpos($value, 'nil="true"') !== false) {
+            return null;
+        }
+        return (int)$value;
     }
 
     private function parseDecimal(?string $value): ?float
@@ -641,7 +696,7 @@ class AegisXmlParser
     private function xmlToArray(SimpleXMLElement $xml): array
     {
         $json = json_encode($xml);
-        return json_decode($json, true);
+        return json_decode($json, true) ?? [];
     }
 
     /**
