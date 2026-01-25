@@ -16,6 +16,16 @@ use Exception;
 class StatsController
 {
     private PDO $db;
+    
+    private const DAY_NAMES = [
+        1 => 'Sunday',
+        2 => 'Monday',
+        3 => 'Tuesday',
+        4 => 'Wednesday',
+        5 => 'Thursday',
+        6 => 'Friday',
+        7 => 'Saturday'
+    ];
 
     public function __construct()
     {
@@ -162,10 +172,9 @@ class StatsController
             $byDayOfWeek = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
             // Map day numbers to names
-            $dayNames = [1 => 'Sunday', 2 => 'Monday', 3 => 'Tuesday', 4 => 'Wednesday', 5 => 'Thursday', 6 => 'Friday', 7 => 'Saturday'];
             $byDayOfWeekNamed = [];
             foreach ($byDayOfWeek as $day => $count) {
-                $byDayOfWeekNamed[$dayNames[$day]] = $count;
+                $byDayOfWeekNamed[self::DAY_NAMES[$day] ?? 'Unknown'] = $count;
             }
 
             // Calls by date (last 30 days if no date range specified)
@@ -601,7 +610,7 @@ class StatsController
         $lower = floor($index);
         $upper = ceil($index);
 
-        if ($lower == $upper) {
+        if ($lower === $upper) {
             return round((float)$values[$lower], 2);
         }
 

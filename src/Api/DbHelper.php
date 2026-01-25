@@ -81,11 +81,11 @@ class DbHelper
         $dbType = Database::getDbType();
         
         if ($dbType === 'pgsql') {
-            return "CONCAT({$first}, ' ', COALESCE({$middle}, ''), ' ', {$last})";
+            return "TRIM(CONCAT({$first}, ' ', COALESCE(NULLIF({$middle}, ''), ''), ' ', {$last}))";
         }
         
         // MySQL
-        return "CONCAT({$first}, ' ', IFNULL({$middle}, ''), ' ', {$last})";
+        return "TRIM(CONCAT({$first}, ' ', IFNULL(NULLIF({$middle}, ''), ''), ' ', {$last}))";
     }
 
     /**
@@ -132,5 +132,36 @@ class DbHelper
         
         // MySQL
         return $value ? '1' : '0';
+    }
+
+    /**
+     * Get Haversine distance formula for coordinate-based search
+     * Returns distance in kilometers
+     * 
+     * @param string $latColumn Column containing latitude
+     * @param string $lngColumn Column containing longitude
+     * @param string $latParam Latitude parameter name (default: :lat)
+     * @param string $lngParam Longitude parameter name (default: :lng)
+     */
+    public static function haversineDistance(string $latColumn, string $lngColumn, string $latParam = ':lat', string $lngParam = ':lng'): string
+    {
+        $earthRadiusKm = 6371;
+        
+        return sprintf(
+            "(%d * acos(
+                cos(radians(%s)) * 
+                cos(radians(%s)) * 
+                cos(radians(%s) - radians(%s)) + 
+                sin(radians(%s)) * 
+                sin(radians(%s))
+            ))",
+            $earthRadiusKm,
+            $latParam,
+            $latColumn,
+            $lngColumn,
+            $lngParam,
+            $latParam,
+            $latColumn
+        );
     }
 }

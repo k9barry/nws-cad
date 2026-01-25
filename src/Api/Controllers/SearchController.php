@@ -5,6 +5,7 @@ namespace NwsCad\Api\Controllers;
 use NwsCad\Database;
 use NwsCad\Api\Request;
 use NwsCad\Api\Response;
+use NwsCad\Api\DbHelper;
 use PDO;
 use Exception;
 
@@ -326,16 +327,8 @@ class SearchController
             // Coordinate-based search (radius search)
             if (isset($filters['lat']) && isset($filters['lng'])) {
                 $radius = isset($filters['radius']) ? (float)$filters['radius'] : 1.0; // default 1km
-                // Haversine formula for distance calculation
-                $where[] = "
-                    (6371 * acos(
-                        cos(radians(:lat)) * 
-                        cos(radians(l.latitude_y)) * 
-                        cos(radians(l.longitude_x) - radians(:lng)) + 
-                        sin(radians(:lat)) * 
-                        sin(radians(l.latitude_y))
-                    )) <= :radius
-                ";
+                $distanceFormula = DbHelper::haversineDistance('l.latitude_y', 'l.longitude_x');
+                $where[] = "{$distanceFormula} <= :radius";
                 $params[':lat'] = (float)$filters['lat'];
                 $params[':lng'] = (float)$filters['lng'];
                 $params[':radius'] = $radius;
