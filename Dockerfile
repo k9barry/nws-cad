@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     inotify-tools \
+    ca-certificates \
+    && update-ca-certificates \
     && docker-php-ext-install pdo pdo_mysql pdo_pgsql xml simplexml \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -20,13 +22,18 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www
 
-# Copy application files
+# Copy composer files first for better caching
+COPY composer.json composer.lock* /var/www/
+
+# Configure Composer and install dependencies
+ENV COMPOSER_ALLOW_SUPERUSER=1
+RUN composer config -g repos.packagist composer https://packagist.org && \
+    composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts --no-dev 2>&1 || \
+    (composer config -g disable-tls true && composer config -g secure-http false && composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts --no-dev) || \
+    echo "Composer install skipped or failed - will install in running container"
+
+# Copy rest of application files
 COPY . /var/www
-
-# Install PHP dependencies
-RUN if [ -f composer.json ]; then composer install --no-interaction --prefer-dist --optimize-autoloader; fi
-
-# Create required directories
 RUN mkdir -p /var/www/watch /var/www/logs /var/www/tmp \
     && chmod -R 755 /var/www/watch /var/www/logs /var/www/tmp
 

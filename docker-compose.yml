@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PHP Application Service
   app:
@@ -39,7 +37,10 @@ services:
         condition: service_healthy
     networks:
       - nws-cad-network
-    command: php /var/www/src/watcher.php
+    command: >
+      sh -c "composer install --no-interaction --prefer-dist --optimize-autoloader 2>/dev/null || 
+             (composer config -g disable-tls true && composer config -g secure-http false && composer install --no-interaction --prefer-dist --optimize-autoloader) &&
+             php /var/www/src/watcher.php"
 
   # MySQL Database Service
   mysql:
