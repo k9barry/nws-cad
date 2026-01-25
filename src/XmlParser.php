@@ -75,13 +75,20 @@ class XmlParser
     }
 
     /**
-     * Load XML file
+     * Load XML file with XXE protection
      */
     private function loadXml(string $filePath): ?SimpleXMLElement
     {
         try {
             libxml_use_internal_errors(true);
-            $xml = simplexml_load_file($filePath);
+            
+            // Disable external entity loading for security
+            $previousValue = libxml_disable_entity_loader(true);
+            
+            $xml = simplexml_load_file($filePath, 'SimpleXMLElement', LIBXML_NOENT | LIBXML_DTDLOAD | LIBXML_DTDATTR);
+            
+            // Restore previous value
+            libxml_disable_entity_loader($previousValue);
             
             if ($xml === false) {
                 $errors = libxml_get_errors();
@@ -124,7 +131,7 @@ class XmlParser
         if ($recordsProcessed === 0) {
             $this->logger->info("No specific events found, storing entire XML");
             $eventData = [
-                'event_id' => md5($filePath . time()),
+                'event_id' => bin2hex(random_bytes(16)), // More secure than md5(filePath . time())
                 'event_type' => 'xml_import',
                 'event_time' => date('Y-m-d H:i:s'),
                 'location' => '',

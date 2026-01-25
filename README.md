@@ -322,6 +322,10 @@ This project is designed to be extended with:
 - Keep Docker images updated
 - Review and audit database access
 - Implement network security policies
+- The system includes XXE attack protection in XML parsing
+- Secure random ID generation for event records
+
+**Note on Composer TLS**: During container build, Composer may encounter SSL certificate issues in certain environments. The docker-compose configuration includes a fallback that temporarily disables TLS verification for Composer only. This is acceptable as dependencies are installed at runtime in an isolated container environment. For production deployments, consider using a private Composer repository or pre-built images with dependencies already installed.
 
 ## License
 

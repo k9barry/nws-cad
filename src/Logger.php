@@ -28,9 +28,20 @@ class Logger
         $config = Config::getInstance();
         $logger = new MonologLogger('nws-cad');
 
-        // Get log level from config
-        $logLevel = strtoupper($config->get('app.log_level', 'info'));
-        $level = constant(MonologLogger::class . '::' . $logLevel);
+        // Get log level from config with validation
+        $logLevelStr = strtoupper($config->get('app.log_level', 'INFO'));
+        $validLevels = [
+            'DEBUG' => MonologLogger::DEBUG,
+            'INFO' => MonologLogger::INFO,
+            'NOTICE' => MonologLogger::NOTICE,
+            'WARNING' => MonologLogger::WARNING,
+            'ERROR' => MonologLogger::ERROR,
+            'CRITICAL' => MonologLogger::CRITICAL,
+            'ALERT' => MonologLogger::ALERT,
+            'EMERGENCY' => MonologLogger::EMERGENCY,
+        ];
+        
+        $level = $validLevels[$logLevelStr] ?? MonologLogger::INFO;
 
         // Log to file with rotation
         $logPath = $config->get('paths.logs') . '/app.log';
