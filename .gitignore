@@ -1,0 +1,45 @@
+# Vendor directory
+/vendor/
+
+# Environment files
+.env
+
+# Log files
+/logs/*.log
+!/logs/.gitkeep
+
+# Watch folder files
+/watch/*
+!/watch/.gitkeep
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+/tmp/*
+!/tmp/.gitkeep
+
+# Database data
+/data/mysql/*
+!/data/mysql/.gitkeep
+/data/postgres/*
+!/data/postgres/.gitkeep
+
+# Composer lock (optional - uncomment if needed)
+# composer.lock
+
+# Test coverage reports
+/coverage/
+.phpunit.cache/
+.phpunit.result.cache
+
+# Test artifacts
+/tests/tmp/

@@ -1,0 +1,133 @@
+services:
+  # PHP Application Service (File Watcher)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.3}
+    container_name: nws-cad-app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+      - ./watch:/var/www/watch
+      - ./logs:/var/www/logs
+    environment:
+      - DB_TYPE=${DB_TYPE:-mysql}
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=${MYSQL_PORT:-3306}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-nws_cad}
+      - MYSQL_USER=${MYSQL_USER:-nws_user}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB:-nws_cad}
+      - POSTGRES_USER=${POSTGRES_USER:-nws_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - APP_ENV=${APP_ENV:-development}
+      - APP_DEBUG=${APP_DEBUG:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-debug}
+      - WATCHER_INTERVAL=${WATCHER_INTERVAL:-5}
+      - WATCHER_FILE_PATTERN=${WATCHER_FILE_PATTERN:-*.xml}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - nws-cad-network
+    command: >
+      sh -c "composer install --no-interaction --prefer-dist --optimize-autoloader 2>/dev/null || 
+             (composer config -g disable-tls true && composer config -g secure-http false && composer install --no-interaction --prefer-dist --optimize-autoloader) &&
+             php /var/www/src/watcher.php"
+
+  # PHP API Service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.3}
+    container_name: nws-cad-api
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+    environment:
+      - DB_TYPE=${DB_TYPE:-mysql}
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=${MYSQL_PORT:-3306}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-nws_cad}
+      - MYSQL_USER=${MYSQL_USER:-nws_user}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB:-nws_cad}
+      - POSTGRES_USER=${POSTGRES_USER:-nws_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - APP_ENV=${APP_ENV:-development}
+      - APP_DEBUG=${APP_DEBUG:-true}
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - nws-cad-network
+    command: >
+      sh -c "composer install --no-interaction --prefer-dist --optimize-autoloader 2>/dev/null || 
+             (composer config -g disable-tls true && composer config -g secure-http false && composer install --no-interaction --prefer-dist --optimize-autoloader) &&
+             php -S 0.0.0.0:8080 -t /var/www/public"
+
+  # MySQL Database Service
+  mysql:
+    image: mysql:8.0
+    container_name: nws-cad-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nws_cad}
+      MYSQL_USER: ${MYSQL_USER:-nws_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ./database/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    networks:
+      - nws-cad-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL Database Service
+  postgres:
+    image: postgres:16
+    container_name: nws-cad-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nws_cad}
+      POSTGRES_USER: ${POSTGRES_USER:-nws_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./database/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - nws-cad-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nws_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  nws-cad-network:
+    driver: bridge

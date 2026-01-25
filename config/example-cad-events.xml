@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<events>
+    <event>
+        <id>CAD-2026-001</id>
+        <type>emergency</type>
+        <time>2026-01-25T14:00:00Z</time>
+        <location>123 Main Street, Anytown, USA</location>
+        <description>Medical emergency - chest pain</description>
+        <priority>high</priority>
+        <status>active</status>
+        <units>
+            <unit id="MEDIC-1" status="dispatched" />
+            <unit id="ENGINE-5" status="en-route" />
+        </units>
+    </event>
+    <event>
+        <id>CAD-2026-002</id>
+        <type>fire</type>
+        <time>2026-01-25T14:15:00Z</time>
+        <location>456 Oak Avenue, Anytown, USA</location>
+        <description>Structure fire - residential</description>
+        <priority>critical</priority>
+        <status>active</status>
+        <units>
+            <unit id="ENGINE-1" status="on-scene" />
+            <unit id="ENGINE-2" status="en-route" />
+            <unit id="LADDER-1" status="dispatched" />
+        </units>
+    </event>
+    <event>
+        <id>CAD-2026-003</id>
+        <type>police</type>
+        <time>2026-01-25T14:30:00Z</time>
+        <location>789 Elm Street, Anytown, USA</location>
+        <description>Traffic accident - injuries reported</description>
+        <priority>medium</priority>
+        <status>pending</status>
+    </event>
+</events>

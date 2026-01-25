@@ -1,0 +1,160 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_mysql, xml, simplexml
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-dev --no-progress --no-interaction
+
+      - name: Get current version
+        id: current_version
+        run: |
+          if [ -f VERSION ]; then
+            CURRENT_VERSION=$(cat VERSION)
+          else
+            CURRENT_VERSION="0.0.0"
+          fi
+          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT_VERSION"
+
+      - name: Calculate next version
+        id: next_version
+        run: |
+          CURRENT="${{ steps.current_version.outputs.version }}"
+          BUMP_TYPE="${{ github.event.inputs.version_bump || 'patch' }}"
+          
+          IFS='.' read -ra VERSION_PARTS <<< "$CURRENT"
+          MAJOR="${VERSION_PARTS[0]}"
+          MINOR="${VERSION_PARTS[1]}"
+          PATCH="${VERSION_PARTS[2]}"
+          
+          case $BUMP_TYPE in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+          
+          NEXT_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          echo "Next version: $NEXT_VERSION"
+
+      - name: Update VERSION file
+        run: |
+          echo "${{ steps.next_version.outputs.version }}" > VERSION
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Generate changelog entry
+        id: changelog
+        run: |
+          VERSION="${{ steps.next_version.outputs.version }}"
+          DATE=$(date +%Y-%m-%d)
+          
+          # Get commits since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --reverse)
+          else
+            COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"- %s (%h)" --reverse)
+          fi
+          
+          # Create changelog entry
+          CHANGELOG_ENTRY="## [$VERSION] - $DATE
+
+### Changes
+$COMMITS
+"
+          
+          # Update CHANGELOG.md
+          if [ -f CHANGELOG.md ]; then
+            # Insert new entry after header
+            sed -i "/# Changelog/a \\
+\\
+$CHANGELOG_ENTRY" CHANGELOG.md
+          else
+            echo "# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+$CHANGELOG_ENTRY" > CHANGELOG.md
+          fi
+
+      - name: Commit changes
+        run: |
+          git add VERSION CHANGELOG.md
+          git commit -m "Release v${{ steps.next_version.outputs.version }}" || echo "No changes to commit"
+          git push origin main
+
+      - name: Create Git tag
+        run: |
+          git tag -a "v${{ steps.next_version.outputs.version }}" -m "Release v${{ steps.next_version.outputs.version }}"
+          git push origin "v${{ steps.next_version.outputs.version }}"
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.next_version.outputs.version }}
+          release_name: Release v${{ steps.next_version.outputs.version }}
+          body: |
+            ## Changes in v${{ steps.next_version.outputs.version }}
+            
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+          draft: false
+          prerelease: false
+
+      - name: Deploy to staging (placeholder)
+        run: |
+          echo "🚀 Deploying v${{ steps.next_version.outputs.version }} to staging..."
+          echo "This is a placeholder for actual deployment steps"
+          echo "Add your deployment commands here (SSH, Docker, K8s, etc.)"

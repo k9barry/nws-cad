@@ -1,0 +1,160 @@
+/*
+ * Print-Friendly Styles
+ * Optimized for printed reports
+ */
+
+@media print {
+    /* Hide non-essential elements */
+    .no-print,
+    .navbar,
+    .btn,
+    button,
+    footer,
+    .modal,
+    .spinner-border {
+        display: none !important;
+    }
+    
+    /* Page setup */
+    @page {
+        margin: 1cm;
+        size: A4;
+    }
+    
+    body {
+        background: white;
+        color: black;
+        font-size: 10pt;
+    }
+    
+    /* Headers */
+    h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid;
+        color: black;
+    }
+    
+    /* Cards */
+    .card {
+        box-shadow: none;
+        border: 1px solid #ddd;
+        page-break-inside: avoid;
+        margin-bottom: 1rem;
+    }
+    
+    .card-header {
+        background: #f5f5f5 !important;
+        border-bottom: 1px solid #ddd;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    /* Tables */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    table thead {
+        display: table-header-group;
+    }
+    
+    table tbody tr {
+        page-break-inside: avoid;
+    }
+    
+    table th,
+    table td {
+        border: 1px solid #ddd;
+        padding: 0.5rem;
+    }
+    
+    table thead th {
+        background: #f5f5f5 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    /* Charts */
+    canvas {
+        max-width: 100%;
+        page-break-inside: avoid;
+    }
+    
+    /* Maps - show placeholder */
+    #calls-map,
+    #units-map {
+        height: 300px !important;
+        border: 1px solid #ddd;
+    }
+    
+    #calls-map::after,
+    #units-map::after {
+        content: "[Map view - see digital version for interactive map]";
+        display: block;
+        text-align: center;
+        padding: 140px 20px;
+        color: #666;
+    }
+    
+    /* Badges */
+    .badge {
+        border: 1px solid #ddd;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    /* Statistics cards */
+    .stat-card {
+        border: 1px solid #ddd;
+        page-break-inside: avoid;
+    }
+    
+    .stat-icon {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    /* Links */
+    a[href]:after {
+        content: " (" attr(href) ")";
+        font-size: 0.8em;
+        color: #666;
+    }
+    
+    a[href^="#"]:after,
+    a[href^="javascript:"]:after {
+        content: "";
+    }
+    
+    /* Ensure colors print */
+    * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    /* Add print header */
+    body::before {
+        content: "NWS CAD Dashboard Report - Generated: " attr(data-print-date);
+        display: block;
+        text-align: center;
+        font-weight: bold;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #000;
+    }
+    
+    /* Pagination */
+    .pagination {
+        display: none;
+    }
+    
+    /* Force page breaks */
+    .page-break {
+        page-break-before: always;
+    }
+    
+    /* Avoid breaks */
+    .no-break {
+        page-break-inside: avoid;
+    }
+}
