@@ -131,11 +131,8 @@ class SearchController
 
             if (isset($filters['person_name'])) {
                 $joins['persons'] = true;
-                $personNameConditions = [
-                    "CONCAT(p.first_name, ' ', p.last_name) LIKE :person_name",
-                    "CONCAT(p.first_name, ' ', p.middle_name, ' ', p.last_name) LIKE :person_name"
-                ];
-                $where[] = '(' . implode(' OR ', $personNameConditions) . ')';
+                $personFullName = DbHelper::concatName('p.first_name', 'p.middle_name', 'p.last_name');
+                $where[] = "{$personFullName} LIKE :person_name";
                 $params[':person_name'] = '%' . $filters['person_name'] . '%';
             }
 
@@ -476,11 +473,8 @@ class SearchController
 
             if (isset($filters['personnel_name'])) {
                 $joins['personnel'] = true;
-                $personnelNameConditions = [
-                    "CONCAT(up.first_name, ' ', up.last_name) LIKE :personnel_name",
-                    "CONCAT(up.first_name, ' ', up.middle_name, ' ', up.last_name) LIKE :personnel_name"
-                ];
-                $where[] = '(' . implode(' OR ', $personnelNameConditions) . ')';
+                $personnelFullName = DbHelper::concatName('up.first_name', 'up.middle_name', 'up.last_name');
+                $where[] = "{$personnelFullName} LIKE :personnel_name";
                 $params[':personnel_name'] = '%' . $filters['personnel_name'] . '%';
             }
 

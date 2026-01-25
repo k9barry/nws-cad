@@ -75,17 +75,18 @@ class DbHelper
 
     /**
      * Get CONCAT function for names based on database type
+     * Properly handles null/empty middle names without double spaces
      */
     public static function concatName(string $first, string $middle, string $last): string
     {
         $dbType = Database::getDbType();
         
         if ($dbType === 'pgsql') {
-            return "TRIM(CONCAT({$first}, ' ', COALESCE(NULLIF({$middle}, ''), ''), ' ', {$last}))";
+            return "TRIM(CONCAT({$first}, ' ', COALESCE({$middle} || ' ', ''), {$last}))";
         }
         
         // MySQL
-        return "TRIM(CONCAT({$first}, ' ', IFNULL(NULLIF({$middle}, ''), ''), ' ', {$last}))";
+        return "TRIM(CONCAT({$first}, ' ', IF({$middle} IS NOT NULL AND {$middle} != '', CONCAT({$middle}, ' '), ''), {$last}))";
     }
 
     /**

@@ -318,13 +318,17 @@ class UnitsController
             $personnel = $stmt->fetchAll();
 
             $formattedPersonnel = array_map(function ($person) {
+                $fullName = trim($person['first_name'] . ' ' . 
+                    ($person['middle_name'] ? $person['middle_name'] . ' ' : '') . 
+                    $person['last_name']);
+                    
                 return [
                     'id' => (int)$person['id'],
                     'name' => [
                         'first' => $person['first_name'],
                         'middle' => $person['middle_name'],
                         'last' => $person['last_name'],
-                        'full' => trim($person['first_name'] . ' ' . $person['middle_name'] . ' ' . $person['last_name'])
+                        'full' => $fullName
                     ],
                     'id_number' => $person['id_number'],
                     'shield_number' => $person['shield_number'],
