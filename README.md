@@ -1,6 +1,6 @@
 # NWS CAD System
 
-A Docker-based PHP system for monitoring, parsing, and storing CAD (Computer-Aided Dispatch) XML data with selectable database backend support.
+A Docker-based PHP system for monitoring, parsing, and storing CAD (Computer-Aided Dispatch) XML data with selectable database backend support and REST API.
 
 ## Features
 
@@ -8,9 +8,28 @@ A Docker-based PHP system for monitoring, parsing, and storing CAD (Computer-Aid
 - 🔄 **Multi-database support** - Choose between MySQL or PostgreSQL
 - 📁 **Automatic file monitoring** - Watches folder for new XML files
 - 📊 **XML parsing and storage** - Automatically parses and stores CAD data
+- 🌐 **REST API** - Complete REST API for accessing CAD data
 - 📝 **Comprehensive logging** - Detailed logs for debugging and monitoring
 - 🔒 **Transaction support** - Ensures data integrity
-- 🚀 **Scalable architecture** - Ready for API and dashboard extensions
+- 🚀 **Scalable architecture** - Ready for dashboard extensions
+
+## Components
+
+### 1. File Watcher Service
+Monitors the `watch/` directory for new XML files and automatically processes them into the database.
+
+### 2. REST API Service
+Provides a complete REST API for accessing CAD data:
+- 19 endpoints for calls, units, search, and statistics
+- Pagination, filtering, and sorting support
+- Geographic search with radius support
+- Response time analytics
+
+### 3. Database
+Comprehensive 13-table schema for NWS Aegis CAD data:
+- Calls, units, personnel, narratives, locations
+- Complete unit lifecycle tracking
+- Full XML preservation for auditing
 
 ## Requirements
 
@@ -43,6 +62,9 @@ DB_TYPE=mysql
 # Set secure passwords
 MYSQL_PASSWORD=your_secure_password
 POSTGRES_PASSWORD=your_secure_password
+
+# API port (default: 8080)
+API_PORT=8080
 ```
 
 ### 3. Start the Services
@@ -53,9 +75,28 @@ docker-compose up -d
 
 # View logs
 docker-compose logs -f app
+
+# View API logs
+docker-compose logs -f api
 ```
 
-### 4. Add XML Files
+### 4. Test the API
+
+```bash
+# Get API info
+curl http://localhost:8080/api/
+
+# List calls
+curl http://localhost:8080/api/calls
+
+# Get call details
+curl http://localhost:8080/api/calls/1
+
+# Search calls
+curl "http://localhost:8080/api/search/calls?call_number=260"
+```
+
+### 5. Add XML Files
 
 Place your XML files in the `watch` folder:
 
@@ -65,11 +106,41 @@ cp your-file.xml watch/
 
 The system will automatically detect, parse, and store the data.
 
+## API Documentation
+
+The REST API provides 19 endpoints for accessing CAD data. See [docs/API.md](docs/API.md) for complete documentation.
+
+### Main Endpoints
+
+**Calls:**
+- `GET /api/calls` - List all calls (with pagination, filtering, sorting)
+- `GET /api/calls/{id}` - Get call details with all related data
+- `GET /api/calls/{id}/units` - Get units for a call
+- `GET /api/calls/{id}/narratives` - Get narratives timeline
+- `GET /api/calls/{id}/location` - Get location details
+
+**Units:**
+- `GET /api/units` - List all units
+- `GET /api/units/{id}` - Get unit details
+- `GET /api/units/{id}/logs` - Get unit status history
+- `GET /api/units/{id}/personnel` - Get unit personnel
+
+**Search:**
+- `GET /api/search/calls` - Advanced call search
+- `GET /api/search/location` - Geographic search with radius
+- `GET /api/search/units` - Unit search
+
+**Statistics:**
+- `GET /api/stats/calls` - Call statistics and analytics
+- `GET /api/stats/units` - Unit performance metrics
+- `GET /api/stats/response-times` - Response time analysis
+
 ## Architecture
 
 ### Services
 
 - **app** - PHP 8.3 application running the file watcher
+- **api** - PHP 8.3 web server running the REST API (port 8080)
 - **mysql** - MySQL 8.0 database (optional, based on DB_TYPE)
 - **postgres** - PostgreSQL 16 database (optional, based on DB_TYPE)
 
@@ -78,20 +149,31 @@ The system will automatically detect, parse, and store the data.
 ```
 nws-cad/
 ├── src/                    # Application source code
+│   ├── Api/               # REST API components
+│   │   ├── Controllers/  # API endpoint controllers
+│   │   ├── Router.php    # Request routing
+│   │   ├── Request.php   # Request parsing
+│   │   └── Response.php  # Response formatting
 │   ├── Config.php         # Configuration manager
 │   ├── Database.php       # Database abstraction layer
 │   ├── Logger.php         # Logging system
-│   ├── XmlParser.php      # XML parsing logic
+│   ├── AegisXmlParser.php # NWS Aegis CAD XML parser
 │   ├── FileWatcher.php    # File monitoring service
-│   └── watcher.php        # Entry point
+│   └── watcher.php        # Watcher entry point
+├── public/                # Public web directory
+│   ├── api.php           # API entry point
+│   └── .htaccess         # Apache rewrite rules
 ├── database/              # Database schemas
 │   ├── mysql/            # MySQL initialization scripts
 │   └── postgres/         # PostgreSQL initialization scripts
+├── docs/                  # Documentation
+│   ├── API.md            # API quick reference
+│   └── IMPLEMENTATION_COMPLETE.md  # Full implementation guide
 ├── watch/                # Watch folder for XML files
 │   ├── processed/       # Successfully processed files
 │   └── failed/          # Failed processing files
 ├── logs/                # Application logs
-├── config/              # Configuration files
+├── samples/             # Sample XML files
 └── docker-compose.yml   # Docker orchestration
 ```
 

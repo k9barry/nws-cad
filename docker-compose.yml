@@ -1,5 +1,5 @@
 services:
-  # PHP Application Service
+  # PHP Application Service (File Watcher)
   app:
     build:
       context: .
@@ -41,6 +41,46 @@ services:
       sh -c "composer install --no-interaction --prefer-dist --optimize-autoloader 2>/dev/null || 
              (composer config -g disable-tls true && composer config -g secure-http false && composer install --no-interaction --prefer-dist --optimize-autoloader) &&
              php /var/www/src/watcher.php"
+
+  # PHP API Service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.3}
+    container_name: nws-cad-api
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+    environment:
+      - DB_TYPE=${DB_TYPE:-mysql}
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=${MYSQL_PORT:-3306}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-nws_cad}
+      - MYSQL_USER=${MYSQL_USER:-nws_user}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB:-nws_cad}
+      - POSTGRES_USER=${POSTGRES_USER:-nws_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - APP_ENV=${APP_ENV:-development}
+      - APP_DEBUG=${APP_DEBUG:-true}
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - nws-cad-network
+    command: >
+      sh -c "composer install --no-interaction --prefer-dist --optimize-autoloader 2>/dev/null || 
+             (composer config -g disable-tls true && composer config -g secure-http false && composer install --no-interaction --prefer-dist --optimize-autoloader) &&
+             php -S 0.0.0.0:8080 -t /var/www/public"
 
   # MySQL Database Service
   mysql:
