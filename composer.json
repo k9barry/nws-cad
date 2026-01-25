@@ -1,0 +1,34 @@
+{
+    "name": "k9barry/nws-cad",
+    "description": "NWS CAD System - XML File Monitoring and Database Storage",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.3",
+        "ext-pdo": "*",
+        "ext-xml": "*",
+        "ext-simplexml": "*",
+        "monolog/monolog": "^3.5"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "NwsCad\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "NwsCad\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": "phpunit",
+        "watch": "php src/watcher.php"
+    }
+}
