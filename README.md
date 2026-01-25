@@ -11,7 +11,10 @@ A Docker-based PHP system for monitoring, parsing, and storing CAD (Computer-Aid
 - 🌐 **REST API** - Complete REST API for accessing CAD data
 - 📝 **Comprehensive logging** - Detailed logs for debugging and monitoring
 - 🔒 **Transaction support** - Ensures data integrity
-- 🚀 **Scalable architecture** - Ready for dashboard extensions
+- 🧪 **Comprehensive testing** - 142+ automated tests with 80% coverage
+- 🔐 **Security testing** - SQL injection, XSS, XXE prevention
+- 🚀 **CI/CD pipeline** - Automated testing and deployment
+- 📈 **Performance benchmarks** - Query and API response time tracking
 
 ## Components
 
@@ -30,6 +33,12 @@ Comprehensive 13-table schema for NWS Aegis CAD data:
 - Calls, units, personnel, narratives, locations
 - Complete unit lifecycle tracking
 - Full XML preservation for auditing
+
+### 4. Testing Infrastructure
+- 142+ automated tests across 4 test suites
+- 80% minimum code coverage requirement
+- Automated CI/CD with GitHub Actions
+- Security vulnerability scanning
 
 ## Requirements
 
@@ -340,11 +349,55 @@ docker-compose exec app composer update
 
 ## Development
 
-### Running Tests
+### Testing Infrastructure
+
+The project includes a comprehensive testing suite with 142+ automated tests:
+
+#### Test Suites
+
+- **Unit Tests** (7 files, 69+ tests) - Core class testing
+- **Integration Tests** (4 files, 25+ tests) - API endpoint testing
+- **Performance Tests** (2 files, 14+ tests) - Query & API benchmarks
+- **Security Tests** (3 files, 34+ tests) - Vulnerability prevention
+
+#### Running Tests
 
 ```bash
-docker-compose exec app composer test
+# Run all tests
+composer test
+
+# Run specific test suites
+composer test:unit           # Unit tests only
+composer test:integration    # Integration tests only
+composer test:performance    # Performance tests
+composer test:security       # Security tests
+
+# Generate coverage report (80% minimum)
+composer test:coverage
 ```
+
+#### Test Requirements
+
+Tests require a test database:
+```bash
+# Create test database (MySQL)
+mysql -u root -p -e "CREATE DATABASE nws_cad_test"
+mysql -u root -p -e "GRANT ALL ON nws_cad_test.* TO 'test_user'@'localhost' IDENTIFIED BY 'test_pass'"
+mysql -u test_user -ptest_pass nws_cad_test < database/schema.sql
+
+# Or in Docker
+docker-compose exec mysql mysql -u root -proot_password -e "CREATE DATABASE nws_cad_test"
+```
+
+#### CI/CD Pipeline
+
+Automated workflows run on every pull request:
+- ✅ All test suites
+- ✅ Code coverage (80% minimum)
+- ✅ Security scans (CodeQL, SAST)
+- ✅ Dependency vulnerability checks
+
+See `docs/TESTING.md` for comprehensive documentation.
 
 ### Access Database
 
