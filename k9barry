@@ -123,7 +123,7 @@ services:
       - CB_SERVER_NAME=NWS CAD Database Manager
       - CB_SERVER_URL=http://localhost:8978
       - CB_ADMIN_NAME=admin
-      - CB_ADMIN_PASSWORD=${DBEAVER_ADMIN_PASSWORD:-admin}
+      - CB_ADMIN_PASSWORD=${DBEAVER_ADMIN_PASSWORD}
     depends_on:
       mysql:
         condition: service_healthy
