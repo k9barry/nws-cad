@@ -104,16 +104,17 @@
         }
         
         /**
-         * Load recent calls
+         * Load active calls (status=open)
          */
         async function loadRecentCalls() {
-            console.log('[Dashboard Main] Loading recent calls...');
+            console.log('[Dashboard Main] Loading active calls...');
             try {
                 const url = '/calls' + Dashboard.buildQueryString({
                     page: 1,
                     per_page: 10,
                     sort: 'create_datetime',
-                    order: 'desc'
+                    order: 'desc',
+                    closed_flag: '0'
                 });
                 
                 console.log('[Dashboard Main] Fetching:', Dashboard.config.apiBaseUrl + url);
@@ -127,7 +128,7 @@
                     throw new Error(result.error || 'API failed');
                 }
                 
-                const calls = result.data || [];
+                const calls = result.data?.items || [];
                 const container = document.getElementById('recent-calls');
                 
                 if (!container) {
@@ -139,18 +140,18 @@
                     container.innerHTML = `
                         <div class="empty-state text-center py-4">
                             <i class="bi bi-inbox fs-1 text-muted"></i>
-                            <p class="text-muted mt-2">No recent calls</p>
+                            <p class="text-muted mt-2">No active calls</p>
                         </div>
                     `;
                 } else {
                     container.innerHTML = calls.map(call => `
                         <div class="recent-call-item p-3 mb-2 border rounded" style="cursor: pointer;" onclick="viewCallDetails(${call.id})">
                             <div class="d-flex justify-content-between align-items-start mb-1">
-                                <div class="fw-bold">${call.nature_of_call || 'Unknown'}</div>
+                                <div class="fw-bold">${call.call_types?.[0] || call.nature_of_call || 'Unknown'}</div>
                                 <small class="text-muted">${Dashboard.formatTime(call.create_datetime)}</small>
                             </div>
                             <div class="text-muted small">
-                                <i class="bi bi-geo-alt"></i> ${call.full_address || call.city || 'No address'}
+                                <i class="bi bi-geo-alt"></i> ${call.location?.address || call.location?.city || 'No address'}
                             </div>
                             <div class="mt-2">
                                 <span class="badge ${call.closed_flag ? 'bg-success' : 'bg-warning'}">
@@ -163,11 +164,11 @@
                     `).join('');
                 }
                 
-                console.log('[Dashboard Main] Recent calls rendered:', calls.length);
+                console.log('[Dashboard Main] Active calls rendered:', calls.length);
             } catch (error) {
-                console.error('[Dashboard Main] Recent calls error:', error);
+                console.error('[Dashboard Main] Active calls error:', error);
                 if (Dashboard.showError) {
-                    Dashboard.showError('Failed to load recent calls');
+                    Dashboard.showError('Failed to load active calls');
                 }
             }
         }
@@ -176,12 +177,14 @@
          * Load map calls
          */
         async function loadCallsMap() {
-            if (!map) {
-                console.log('[Dashboard Main] Map not available, skipping');
+            console.log('[Dashboard Main] Loading map calls...');
+            
+            // Check if map manager is available
+            if (typeof MapManager === 'undefined') {
+                console.error('[Dashboard Main] MapManager not available');
                 return;
             }
             
-            console.log('[Dashboard Main] Loading map calls...');
             try {
                 const url = '/calls' + Dashboard.buildQueryString({
                     page: 1,
@@ -189,24 +192,39 @@
                     closed_flag: 0
                 });
                 
+                console.log('[Dashboard Main] Fetching open calls from:', Dashboard.config.apiBaseUrl + url);
                 const response = await fetch(Dashboard.config.apiBaseUrl + url);
                 const result = await response.json();
                 
-                if (result.success && result.data) {
-                    const callsWithLoc = result.data
-                        .filter(c => c.latitude_y && c.longitude_x)
+                console.log('[Dashboard Main] Map calls response:', result);
+                
+                if (result.success && result.data?.items) {
+                    const callsWithLoc = result.data.items
+                        .filter(c => c.location?.coordinates?.lat && c.location?.coordinates?.lng)
                         .map(c => ({
                             ...c,
-                            latitude: parseFloat(c.latitude_y),
-                            longitude: parseFloat(c.longitude_x),
-                            address: c.full_address || c.city
+                            latitude: parseFloat(c.location.coordinates.lat),
+                            longitude: parseFloat(c.location.coordinates.lng),
+                            address: c.location?.address || c.location?.city
                         }));
                     
-                    console.log('[Dashboard Main] Map calls:', callsWithLoc.length);
+                    console.log('[Dashboard Main] Calls with location:', callsWithLoc.length);
                     
                     if (callsWithLoc.length > 0) {
-                        MapManager.showCalls('calls-map', callsWithLoc);
+                        // Make sure calls-map element exists
+                        const mapElement = document.getElementById('calls-map');
+                        if (mapElement) {
+                            console.log('[Dashboard Main] Showing', callsWithLoc.length, 'calls on map');
+                            MapManager.showCalls('calls-map', callsWithLoc);
+                            console.log('[Dashboard Main] Map updated and centered on calls');
+                        } else {
+                            console.warn('[Dashboard Main] calls-map element not found');
+                        }
+                    } else {
+                        console.log('[Dashboard Main] No calls with location data');
                     }
+                } else {
+                    console.error('[Dashboard Main] API error:', result.error);
                 }
             } catch (error) {
                 console.error('[Dashboard Main] Map calls error:', error);
@@ -226,10 +244,34 @@
             try {
                 const stats = await Dashboard.apiRequest('/stats');
                 
+                // Call volume trends chart (status distribution)
+                if (stats.calls_by_status && document.getElementById('calls-trend-chart')) {
+                    ChartManager.createBarChart('calls-trend-chart', {
+                        labels: ['Open', 'Closed'],
+                        datasets: [{
+                            label: 'Calls',
+                            data: [
+                                stats.calls_by_status.open || 0,
+                                stats.calls_by_status.closed || 0
+                            ],
+                            backgroundColor: [
+                                'rgba(255, 205, 86, 0.6)',
+                                'rgba(75, 192, 192, 0.6)'
+                            ],
+                            borderColor: [
+                                'rgb(255, 205, 86)',
+                                'rgb(75, 192, 192)'
+                            ],
+                            borderWidth: 2
+                        }]
+                    });
+                    console.log('[Dashboard Main] Call volume trend chart created');
+                }
+                
                 // Call types chart
                 if (stats.top_call_types?.length > 0 && document.getElementById('call-types-chart')) {
                     ChartManager.createDoughnutChart('call-types-chart', {
-                        labels: stats.top_call_types.map(t => t.nature_of_call),
+                        labels: stats.top_call_types.map(t => t.call_type || t.nature_of_call || 'Unknown'),
                         datasets: [{
                             data: stats.top_call_types.map(t => t.count),
                             backgroundColor: [

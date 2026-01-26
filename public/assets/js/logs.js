@@ -92,12 +92,14 @@
         console.log('[Logs] Loading log files...');
         
         try {
-            const files = await Dashboard.apiRequest('/logs');
-            console.log('[Logs] Files:', files);
+            const response = await Dashboard.apiRequest('/logs');
+            console.log('[Logs] Files:', response);
+            
+            const files = response?.files || [];
             
             const container = document.getElementById('log-files-list');
             
-            if (!files.files || files.files.length === 0) {
+            if (!files || files.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-4 text-muted">
                         <i class="bi bi-inbox fs-3"></i>
@@ -107,7 +109,7 @@
                 return;
             }
             
-            container.innerHTML = files.files.map(file => `
+            container.innerHTML = files.map(file => `
                 <div class="file-item list-group-item list-group-item-action" data-filename="${file.name}">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>

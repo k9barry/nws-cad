@@ -33,7 +33,7 @@ set_exception_handler(function ($e) {
 });
 
 // Create router
-$router = new Router('/api');
+$router = new Router('/api.php');
 
 // API info endpoint
 $router->get('/', function() {

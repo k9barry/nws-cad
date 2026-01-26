@@ -151,10 +151,18 @@ $pageTitle = ucfirst($page);
             : 'http://localhost:8080'; // Use localhost for local development
         
         window.APP_CONFIG = {
-            apiBaseUrl: baseUrl + '/api',
+            apiBaseUrl: baseUrl + '/api.php',
             currentPage: '<?= $page ?>',
             refreshInterval: 30000 // 30 seconds
         };
+        
+        console.log('[NWS CAD] Configuration loaded:', {
+            isCodespaces: isCodespaces,
+            baseUrl: baseUrl,
+            apiBaseUrl: window.APP_CONFIG.apiBaseUrl,
+            hostname: window.location.hostname,
+            origin: window.location.origin
+        });
         
         // Set DBeaver URL dynamically
         let dbeaverUrl;

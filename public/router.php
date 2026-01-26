@@ -11,7 +11,14 @@ declare(strict_types=1);
 
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
-// API routes - match /api/{endpoint}
+// API routes - match /api.php/{endpoint}
+if (str_starts_with($uri, '/api.php')) {
+    // Let api.php handle all /api.php/* requests
+    require __DIR__ . '/api.php';
+    exit;
+}
+
+// Old API routes format - match /api/{endpoint} (for backward compatibility)
 if (preg_match('#^/api/([a-z_]+)$#', $uri, $matches)) {
     $endpoint = $matches[1];
     $apiFile = __DIR__ . '/api/' . $endpoint . '.php';

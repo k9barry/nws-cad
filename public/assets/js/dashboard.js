@@ -16,6 +16,8 @@ const Dashboard = {
     async apiRequest(endpoint, options = {}) {
         const url = `${this.config.apiBaseUrl}${endpoint}`;
         
+        console.log('[Dashboard] API Request:', url);
+        
         try {
             const response = await fetch(url, {
                 method: options.method || 'GET',
@@ -26,11 +28,14 @@ const Dashboard = {
                 body: options.body ? JSON.stringify(options.body) : undefined
             });
             
+            console.log('[Dashboard] API Response status:', response.status);
+            
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
             const data = await response.json();
+            console.log('[Dashboard] API Response data:', data);
             
             if (data.success) {
                 return data.data;

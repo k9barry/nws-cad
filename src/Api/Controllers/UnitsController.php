@@ -106,7 +106,7 @@ class UnitsController
                 LEFT JOIN unit_personnel up ON u.id = up.unit_id
                 LEFT JOIN unit_logs ul ON u.id = ul.unit_id
                 {$whereClause}
-                GROUP BY u.id
+                GROUP BY u.id, c.call_number, c.nature_of_call, c.create_datetime
                 ORDER BY u.{$sortField} {$sorting['order']}
                 LIMIT :limit OFFSET :offset
             ";

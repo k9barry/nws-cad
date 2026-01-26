@@ -19,7 +19,7 @@ class Router
     /**
      * Register a GET route
      */
-    public function get(string $path, callable $handler): void
+    public function get(string $path, callable|array $handler): void
     {
         $this->addRoute('GET', $path, $handler);
     }
@@ -27,7 +27,7 @@ class Router
     /**
      * Register a POST route
      */
-    public function post(string $path, callable $handler): void
+    public function post(string $path, callable|array $handler): void
     {
         $this->addRoute('POST', $path, $handler);
     }
@@ -35,7 +35,7 @@ class Router
     /**
      * Register a PUT route
      */
-    public function put(string $path, callable $handler): void
+    public function put(string $path, callable|array $handler): void
     {
         $this->addRoute('PUT', $path, $handler);
     }
@@ -43,7 +43,7 @@ class Router
     /**
      * Register a DELETE route
      */
-    public function delete(string $path, callable $handler): void
+    public function delete(string $path, callable|array $handler): void
     {
         $this->addRoute('DELETE', $path, $handler);
     }
@@ -51,7 +51,7 @@ class Router
     /**
      * Add a route
      */
-    private function addRoute(string $method, string $path, callable $handler): void
+    private function addRoute(string $method, string $path, callable|array $handler): void
     {
         $pattern = $this->convertPathToPattern($path);
         $this->routes[] = [
@@ -89,8 +89,26 @@ class Router
                 // Extract named parameters
                 $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
                 
+                // Resolve handler
+                $handler = $route['handler'];
+                
+                // If handler is array [ControllerClass, 'method'], instantiate controller
+                if (is_array($handler) && count($handler) === 2) {
+                    [$class, $method] = $handler;
+                    if (is_string($class) && class_exists($class)) {
+                        $controller = new $class();
+                        $handler = [$controller, $method];
+                    }
+                }
+                
                 // Call handler with parameters
-                call_user_func($route['handler'], $params);
+                // If params is empty, call without arguments
+                // If params has values, pass them as individual arguments
+                if (empty($params)) {
+                    call_user_func($handler);
+                } else {
+                    call_user_func($handler, ...array_values($params));
+                }
                 return;
             }
         }

@@ -135,19 +135,16 @@ class StatsController
         $stmt->execute($params);
         $byStatus = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-        // Top call types
-        $topWhere = $where;
-        $topWhere[] = 'c.nature_of_call IS NOT NULL';
-        $topWhereClause = 'WHERE ' . implode(' AND ', $topWhere);
-        
+        // Top call types from agency_contexts
         $sql = "
             SELECT 
-                c.nature_of_call,
+                ac.call_type,
                 COUNT(*) as count
             FROM calls c
-            {$agencyJoin}
-            {$topWhereClause}
-            GROUP BY c.nature_of_call
+            INNER JOIN agency_contexts ac ON c.id = ac.call_id
+            {$whereClause}
+            AND ac.call_type IS NOT NULL
+            GROUP BY ac.call_type
             ORDER BY count DESC
             LIMIT 10
         ";
@@ -155,7 +152,7 @@ class StatsController
         $stmt->execute($params);
         $topCallTypes = array_map(function($row) {
             return [
-                'nature_of_call' => $row['nature_of_call'],
+                'call_type' => $row['call_type'],
                 'count' => (int)$row['count']
             ];
         }, $stmt->fetchAll());

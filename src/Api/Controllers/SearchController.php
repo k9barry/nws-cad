@@ -200,11 +200,11 @@ class SearchController
                     c.close_datetime,
                     c.closed_flag,
                     c.canceled_flag,
-                    l.full_address,
-                    l.city,
-                    l.state,
-                    l.latitude_y,
-                    l.longitude_x
+                    MAX(l.full_address) as full_address,
+                    MAX(l.city) as city,
+                    MAX(l.state) as state,
+                    MAX(l.latitude_y) as latitude_y,
+                    MAX(l.longitude_x) as longitude_x
                 FROM calls c
                 LEFT JOIN locations l ON c.id = l.call_id
                 {$joinClause}
@@ -531,7 +531,7 @@ class SearchController
                 LEFT JOIN calls c ON u.call_id = c.id
                 {$joinClause}
                 {$whereClause}
-                GROUP BY u.id
+                GROUP BY u.id, c.call_number, c.nature_of_call, c.create_datetime
                 ORDER BY u.assigned_datetime DESC
                 LIMIT :limit OFFSET :offset
             ";

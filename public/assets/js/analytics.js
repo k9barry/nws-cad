@@ -54,23 +54,23 @@
     }
     
     function updateSummaryCards(stats) {
-        const totalCallsEl = document.getElementById('total-calls');
+        const totalCallsEl = document.getElementById('analytics-total-calls');
         if (totalCallsEl) {
             totalCallsEl.textContent = stats.total_calls || 0;
         }
         
-        const avgResponseEl = document.getElementById('avg-response-time');
+        const avgResponseEl = document.getElementById('analytics-avg-response');
         if (avgResponseEl) {
             const avgMin = stats.response_times?.average_minutes;
             avgResponseEl.textContent = avgMin ? `${avgMin} min` : 'N/A';
         }
         
-        const activeUnitsEl = document.getElementById('active-units');
+        const activeUnitsEl = document.getElementById('analytics-active-units');
         if (activeUnitsEl) {
             activeUnitsEl.textContent = stats.total_units || 0;
         }
         
-        const closureRateEl = document.getElementById('closure-rate');
+        const closureRateEl = document.getElementById('analytics-closure-rate');
         if (closureRateEl && stats.calls_by_status) {
             const total = stats.total_calls || 0;
             const closed = stats.calls_by_status.closed || 0;
@@ -82,12 +82,12 @@
     function createCharts(stats) {
         console.log('[Analytics] Creating charts...');
         
-        // Call types chart
+        // Call types chart (for distribution)
         if (stats.top_call_types && stats.top_call_types.length > 0) {
-            const chartEl = document.getElementById('call-types-chart');
+            const chartEl = document.getElementById('analytics-distribution-chart');
             if (chartEl) {
-                ChartManager.createDoughnutChart('call-types-chart', {
-                    labels: stats.top_call_types.map(t => t.nature_of_call),
+                ChartManager.createDoughnutChart('analytics-distribution-chart', {
+                    labels: stats.top_call_types.map(t => t.nature_of_call || 'Unknown'),
                     datasets: [{
                         data: stats.top_call_types.map(t => t.count),
                         backgroundColor: [
@@ -100,15 +100,15 @@
                         ]
                     }]
                 });
-                console.log('[Analytics] Call types chart created');
+                console.log('[Analytics] Distribution chart created');
             }
         }
         
         // Status chart
         if (stats.calls_by_status) {
-            const statusChartEl = document.getElementById('call-status-chart');
+            const statusChartEl = document.getElementById('analytics-volume-chart');
             if (statusChartEl) {
-                ChartManager.createBarChart('call-status-chart', {
+                ChartManager.createBarChart('analytics-volume-chart', {
                     labels: ['Open', 'Closed', 'Canceled'],
                     datasets: [{
                         label: 'Call Status',
@@ -124,15 +124,15 @@
                         ]
                     }]
                 });
-                console.log('[Analytics] Status chart created');
+                console.log('[Analytics] Volume chart created');
             }
         }
         
         // Response times chart
         if (stats.response_times) {
-            const responseChartEl = document.getElementById('response-times-chart');
+            const responseChartEl = document.getElementById('analytics-response-chart');
             if (responseChartEl) {
-                ChartManager.createBarChart('response-times-chart', {
+                ChartManager.createBarChart('analytics-response-chart', {
                     labels: ['Min', 'Average', 'Max'],
                     datasets: [{
                         label: 'Response Time (minutes)',
@@ -150,6 +150,22 @@
                 });
                 console.log('[Analytics] Response times chart created');
             }
+        }
+        
+        // Update top call types list
+        const topCallsEl = document.getElementById('top-call-types');
+        if (topCallsEl && stats.top_call_types && stats.top_call_types.length > 0) {
+            topCallsEl.innerHTML = stats.top_call_types.map((type, idx) => `
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-primary me-2">${idx + 1}</span>
+                            ${type.nature_of_call || 'Unknown'}
+                        </div>
+                        <span class="badge bg-secondary">${type.count}</span>
+                    </div>
+                </div>
+            `).join('');
         }
         
         console.log('[Analytics] All charts created');

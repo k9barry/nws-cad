@@ -101,7 +101,7 @@
         <div class="card">
             <div class="card-header bg-white">
                 <h5 class="card-title mb-0">
-                    <i class="bi bi-clock-history"></i> Recent Calls
+                    <i class="bi bi-telephone"></i> Active Calls
                 </h5>
             </div>
             <div class="card-body p-0">

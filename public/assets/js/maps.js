@@ -45,7 +45,10 @@ const MapManager = {
      * Add a call marker to the map
      */
     addCallMarker(containerId, call) {
+        console.log('[MapManager] Adding call marker:', {containerId, callId: call.id, lat: call.latitude, lng: call.longitude});
+        
         if (!this.maps[containerId] || !call.latitude || !call.longitude) {
+            console.warn('[MapManager] Cannot add marker - missing map or coordinates');
             return;
         }
         
@@ -53,8 +56,11 @@ const MapManager = {
         const lon = parseFloat(call.longitude);
         
         if (isNaN(lat) || isNaN(lon)) {
+            console.error('[MapManager] Invalid coordinates:', lat, lon);
             return;
         }
+        
+        console.log('[MapManager] Creating marker at:', lat, lon);
         
         // Choose marker icon based on priority
         const iconColor = this.getCallIconColor(call.priority);
@@ -71,6 +77,7 @@ const MapManager = {
             .bindPopup(this.createCallPopup(call))
             .addTo(this.markers[containerId]);
         
+        console.log('[MapManager] Marker added successfully');
         return marker;
     },
     
@@ -178,12 +185,36 @@ const MapManager = {
      * Fit map to show all markers
      */
     fitToMarkers(containerId) {
-        if (!this.markers[containerId] || this.markers[containerId].getLayers().length === 0) {
+        console.log('[MapManager] Fitting map to markers for:', containerId);
+        
+        if (!this.markers[containerId]) {
+            console.error('[MapManager] No markers layer found for:', containerId);
             return;
         }
         
-        const bounds = this.markers[containerId].getBounds();
-        this.maps[containerId].fitBounds(bounds, { padding: [50, 50] });
+        const layers = this.markers[containerId].getLayers();
+        console.log('[MapManager] Number of markers:', layers.length);
+        
+        if (layers.length === 0) {
+            console.warn('[MapManager] No markers to fit to');
+            return;
+        }
+        
+        try {
+            // Create a FeatureGroup from the layers to get bounds
+            const group = L.featureGroup(layers);
+            const bounds = group.getBounds();
+            console.log('[MapManager] Bounds:', bounds);
+            
+            if (bounds.isValid()) {
+                this.maps[containerId].fitBounds(bounds, { padding: [50, 50] });
+                console.log('[MapManager] Map fitted to bounds successfully');
+            } else {
+                console.error('[MapManager] Invalid bounds');
+            }
+        } catch (error) {
+            console.error('[MapManager] Error fitting bounds:', error);
+        }
     },
     
     /**

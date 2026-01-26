@@ -22,7 +22,9 @@
         };
         
         try {
-            const calls = await Dashboard.apiRequest('/calls' + Dashboard.buildQueryString(params));
+            const response = await Dashboard.apiRequest('/calls' + Dashboard.buildQueryString(params));
+            const calls = response?.items || [];
+            const pagination = response?.pagination || {};
             
             const tbody = document.getElementById('calls-table-body');
             
@@ -43,13 +45,13 @@
             
             tbody.innerHTML = calls.map(call => `
                 <tr>
-                    <td>${call.id}</td>
-                    <td>${Dashboard.formatDateTime(call.received_time)}</td>
-                    <td>${call.call_type || 'N/A'}</td>
-                    <td>${call.address || 'N/A'}</td>
-                    <td>${call.agency || 'N/A'}</td>
-                    <td>${Dashboard.getPriorityBadge(call.priority)}</td>
-                    <td>${Dashboard.getStatusBadge(call.status)}</td>
+                    <td>${call.call_number}</td>
+                    <td>${Dashboard.formatDateTime(call.create_datetime)}</td>
+                    <td>${call.call_types?.[0] || 'N/A'}</td>
+                    <td>${call.location?.address || 'N/A'}</td>
+                    <td>${call.agency_types?.[0] || 'N/A'}</td>
+                    <td><span class="badge bg-info">Normal</span></td>
+                    <td><span class="badge ${call.closed_flag ? 'bg-success' : 'bg-warning'}">${call.closed_flag ? 'Closed' : 'Open'}</span></td>
                     <td>${call.unit_count || 0}</td>
                     <td>
                         <button class="btn btn-sm btn-primary" onclick="viewCallDetails(${call.id})">
@@ -59,13 +61,15 @@
                 </tr>
             `).join('');
             
-            document.getElementById('calls-count').textContent = calls.length;
+            document.getElementById('calls-count').textContent = pagination.total || calls.length;
             
             // Update pagination info
+            const start = ((pagination.current_page || 1) - 1) * (pagination.per_page || 30) + 1;
+            const end = start + calls.length - 1;
             document.getElementById('pagination-info').textContent = 
-                `Showing ${(page - 1) * 30 + 1}-${(page - 1) * 30 + calls.length} calls`;
+                `Showing ${start}-${end} of ${pagination.total || calls.length} calls`;
             
-            updatePagination(page, calls.length >= 30);
+            updatePagination(pagination.current_page || page, pagination.has_more || false);
             
         } catch (error) {
             console.error('Error loading calls:', error);

@@ -41,7 +41,7 @@
                 order: 'asc'
             };
             
-            const url = '/api/units' + Dashboard.buildQueryString(filters);
+            const url = '/units' + Dashboard.buildQueryString(filters);
             console.log('[Units] Fetching:', Dashboard.config.apiBaseUrl + url);
             
             const response = await fetch(Dashboard.config.apiBaseUrl + url);
@@ -53,7 +53,7 @@
                 throw new Error(result.error || 'Failed to load units');
             }
             
-            const units = result.data || [];
+            const units = result.data?.items || [];
             console.log('[Units] Loaded', units.length, 'units');
             
             // Update count
@@ -61,6 +61,24 @@
             if (countEl) {
                 countEl.textContent = units.length;
             }
+            
+            // Update stats
+            let available = 0, enroute = 0, onscene = 0, offduty = 0;
+            units.forEach(u => {
+                if (u.timestamps?.clear) offduty++;
+                else if (u.timestamps?.arrive && !u.timestamps?.clear) onscene++;
+                else if (u.timestamps?.enroute && !u.timestamps?.arrive) enroute++;
+                else if (u.timestamps?.dispatch) available++;
+            });
+            
+            const availEl = document.getElementById('units-available');
+            if (availEl) availEl.textContent = available;
+            const enrouteEl = document.getElementById('units-enroute');
+            if (enrouteEl) enrouteEl.textContent = enroute;
+            const onsceneEl = document.getElementById('units-onscene');
+            if (onsceneEl) onsceneEl.textContent = onscene;
+            const offdtyEl = document.getElementById('units-offduty');
+            if (offdtyEl) offdtyEl.textContent = offduty;
             
             // Render table
             renderUnitsTable(units);
@@ -86,17 +104,24 @@
         }
         
         tbody.innerHTML = units.map(unit => {
-            const status = unit.status || 'unknown';
-            const statusClass = status.toLowerCase() === 'available' ? 'success' : 'warning';
+            const hasClearTime = unit.timestamps?.clear;
+            const statusClass = hasClearTime ? 'secondary' : 'success';
+            const status = hasClearTime ? 'Clear' : 'Active';
             
             return `
                 <tr>
-                    <td><strong>${escapeHtml(unit.unit_id || 'N/A')}</strong></td>
-                    <td><span class="badge bg-${statusClass}">${escapeHtml(status.toUpperCase())}</span></td>
+                    <td><strong>${escapeHtml(unit.unit_number || 'N/A')}</strong></td>
                     <td>${escapeHtml(unit.unit_type || 'N/A')}</td>
-                    <td>${escapeHtml(unit.current_location || 'N/A')}</td>
-                    <td>${unit.assigned_call_id ? `Call #${unit.assigned_call_id}` : 'None'}</td>
-                    <td><small class="text-muted">${unit.last_update ? Dashboard.formatTime(unit.last_update) : 'N/A'}</small></td>
+                    <td>${escapeHtml(unit.jurisdiction || 'N/A')}</td>
+                    <td><span class="badge bg-${statusClass}">${status}</span></td>
+                    <td>${unit.call ? `Call #${unit.call.call_number}` : 'None'}</td>
+                    <td>${unit.personnel_count || 0}</td>
+                    <td><small class="text-muted">${unit.timestamps?.assigned ? Dashboard.formatTime(unit.timestamps.assigned) : 'N/A'}</small></td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="viewUnitDetails(${unit.id})" title="View Details">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </td>
                 </tr>
             `;
         }).join('');
