@@ -32,6 +32,8 @@ Thumbs.db
 !/data/mysql/.gitkeep
 /data/postgres/*
 !/data/postgres/.gitkeep
+/data/dbeaver/*
+!/data/dbeaver/.gitkeep
 
 # Composer lock (optional - uncomment if needed)
 # composer.lock
