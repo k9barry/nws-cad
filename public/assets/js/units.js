@@ -41,7 +41,7 @@
                 order: 'asc'
             };
             
-            const url = '/units' + Dashboard.buildQueryString(filters);
+            const url = '/api/units' + Dashboard.buildQueryString(filters);
             console.log('[Units] Fetching:', Dashboard.config.apiBaseUrl + url);
             
             const response = await fetch(Dashboard.config.apiBaseUrl + url);

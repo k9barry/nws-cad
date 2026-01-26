@@ -257,4 +257,109 @@ class ApiStatsTest extends TestCase
         
         $this->assertCount(2, $results);
     }
+
+    /**
+     * Test aggregate stats endpoint
+     */
+    public function testAggregateStatsEndpoint(): void
+    {
+        // Insert test data
+        $stmt = self::$db->prepare("
+            INSERT INTO calls (call_id, call_number, nature_of_call, create_datetime, closed_flag)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([1, 'CALL-001', 'Medical', '2024-01-01 10:00:00', 0]);
+        $stmt->execute([2, 'CALL-002', 'Fire', '2024-01-01 11:00:00', 1]);
+        $callId1 = 1;
+        $callId2 = 2;
+        
+        // Insert units
+        $stmt = self::$db->prepare("
+            INSERT INTO units (call_id, unit_number, assigned_datetime, dispatch_datetime, arrive_datetime)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$callId1, 'E-101', '2024-01-01 10:00:00', '2024-01-01 10:01:00', '2024-01-01 10:08:00']);
+        $stmt->execute([$callId2, 'E-102', '2024-01-01 11:00:00', '2024-01-01 11:01:00', '2024-01-01 11:09:00']);
+        
+        // Call the controller
+        $controller = new \NwsCad\Api\Controllers\StatsController();
+        
+        ob_start();
+        $controller->index();
+        $output = ob_get_clean();
+        
+        $data = json_decode($output, true);
+        
+        $this->assertTrue($data['success']);
+        $this->assertArrayHasKey('total_calls', $data['data']);
+        $this->assertArrayHasKey('calls_by_status', $data['data']);
+        $this->assertArrayHasKey('top_call_types', $data['data']);
+        $this->assertArrayHasKey('total_units', $data['data']); // Should be at top level
+        $this->assertArrayHasKey('response_times', $data['data']);
+        
+        $this->assertEquals(2, $data['data']['total_calls']);
+        $this->assertIsArray($data['data']['calls_by_status']);
+        $this->assertIsArray($data['data']['top_call_types']);
+        $this->assertIsInt($data['data']['total_units']);
+        $this->assertIsArray($data['data']['response_times']);
+    }
+
+    /**
+     * Test aggregate stats with date filters
+     */
+    public function testAggregateStatsWithFilters(): void
+    {
+        // Insert test data
+        $stmt = self::$db->prepare("
+            INSERT INTO calls (call_id, call_number, create_datetime)
+            VALUES (?, ?, ?)
+        ");
+        $stmt->execute([1, 'CALL-001', '2024-01-01 10:00:00']);
+        $stmt->execute([2, 'CALL-002', '2024-01-10 11:00:00']);
+        
+        // Set filters
+        $_GET['date_from'] = '2024-01-09';
+        $_GET['date_to'] = '2024-01-11';
+        
+        $controller = new \NwsCad\Api\Controllers\StatsController();
+        
+        ob_start();
+        $controller->index();
+        $output = ob_get_clean();
+        
+        $data = json_decode($output, true);
+        
+        $this->assertTrue($data['success']);
+        $this->assertEquals(1, $data['data']['total_calls']); // Only one call in date range
+        
+        // Clean up
+        unset($_GET['date_from']);
+        unset($_GET['date_to']);
+    }
+
+    /**
+     * Test aggregate stats without filters (empty WHERE clause)
+     */
+    public function testAggregateStatsWithoutFilters(): void
+    {
+        // Insert minimal test data
+        $stmt = self::$db->prepare("
+            INSERT INTO calls (call_id, call_number, nature_of_call, create_datetime)
+            VALUES (?, ?, ?, ?)
+        ");
+        $stmt->execute([1, 'CALL-001', 'Test', '2024-01-01 10:00:00']);
+        
+        $controller = new \NwsCad\Api\Controllers\StatsController();
+        
+        ob_start();
+        $controller->index();
+        $output = ob_get_clean();
+        
+        $data = json_decode($output, true);
+        
+        // Should not throw SQL errors with empty WHERE clause
+        $this->assertTrue($data['success']);
+        $this->assertArrayHasKey('total_calls', $data['data']);
+        $this->assertGreaterThanOrEqual(1, $data['data']['total_calls']);
+    }
 }

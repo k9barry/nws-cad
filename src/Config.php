@@ -57,6 +57,7 @@ class Config
                 'env' => $this->env('APP_ENV', 'production'),
                 'debug' => $this->env('APP_DEBUG', 'false') === 'true',
                 'log_level' => $this->env('LOG_LEVEL', 'info'),
+                'logs_enabled' => $this->env('APP_LOGS_ENABLED', 'false') === 'true',
             ],
             'watcher' => [
                 'folder' => $this->env('WATCH_FOLDER', __DIR__ . '/../watch'),

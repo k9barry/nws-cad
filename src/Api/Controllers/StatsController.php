@@ -33,6 +33,218 @@ class StatsController
     }
 
     /**
+     * Get aggregate statistics (combines calls, units, and response times)
+     * GET /api/stats
+     */
+    public function index(): void
+    {
+        try {
+            $filters = Request::filters([
+                'date_from',
+                'date_to',
+                'agency_type',
+                'jurisdiction'
+            ]);
+
+            // Get calls stats
+            $callsStats = $this->getCallsStats($filters);
+            
+            // Get units stats
+            $unitsStats = $this->getUnitsStats($filters);
+            
+            // Get response times stats
+            $responseStats = $this->getResponseStats($filters);
+
+            // Combine all stats - merge units stats at top level for dashboard compatibility
+            $aggregateStats = array_merge(
+                $callsStats,
+                $unitsStats,
+                ['response_times' => $responseStats]
+            );
+
+            Response::success($aggregateStats);
+        } catch (Exception $e) {
+            Response::error('Failed to retrieve aggregate statistics: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get call statistics (internal method)
+     */
+    private function getCallsStats(array $filters): array
+    {
+        $where = [];
+        $params = [];
+
+        // Date range filter
+        if (isset($filters['date_from'])) {
+            $where[] = "c.create_datetime >= :date_from";
+            $params[':date_from'] = $filters['date_from'];
+        }
+
+        if (isset($filters['date_to'])) {
+            $where[] = "c.create_datetime <= :date_to";
+            $params[':date_to'] = $filters['date_to'];
+        }
+
+        // Agency type filter
+        $agencyJoin = '';
+        if (isset($filters['agency_type'])) {
+            $agencyJoin = "INNER JOIN agency_contexts ac ON c.id = ac.call_id";
+            $where[] = "ac.agency_type = :agency_type";
+            $params[':agency_type'] = $filters['agency_type'];
+        }
+
+        // Jurisdiction filter
+        if (isset($filters['jurisdiction'])) {
+            if (!$agencyJoin) {
+                $agencyJoin = "INNER JOIN agency_contexts ac ON c.id = ac.call_id";
+            }
+            $where[] = "ac.jurisdiction = :jurisdiction";
+            $params[':jurisdiction'] = $filters['jurisdiction'];
+        }
+
+        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        // Total calls
+        $sql = "
+            SELECT COUNT(DISTINCT c.id) as total
+            FROM calls c
+            {$agencyJoin}
+            {$whereClause}
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $totalCalls = (int)$stmt->fetchColumn();
+
+        // Calls by status
+        $sql = "
+            SELECT 
+                CASE 
+                    WHEN c.canceled_flag = 1 THEN 'canceled'
+                    WHEN c.closed_flag = 1 THEN 'closed'
+                    ELSE 'open'
+                END as status,
+                COUNT(DISTINCT c.id) as count
+            FROM calls c
+            {$agencyJoin}
+            {$whereClause}
+            GROUP BY status
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $byStatus = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        // Top call types
+        $topWhere = $where;
+        $topWhere[] = 'c.nature_of_call IS NOT NULL';
+        $topWhereClause = 'WHERE ' . implode(' AND ', $topWhere);
+        
+        $sql = "
+            SELECT 
+                c.nature_of_call,
+                COUNT(*) as count
+            FROM calls c
+            {$agencyJoin}
+            {$topWhereClause}
+            GROUP BY c.nature_of_call
+            ORDER BY count DESC
+            LIMIT 10
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $topCallTypes = array_map(function($row) {
+            return [
+                'nature_of_call' => $row['nature_of_call'],
+                'count' => (int)$row['count']
+            ];
+        }, $stmt->fetchAll());
+
+        return [
+            'total_calls' => $totalCalls,
+            'calls_by_status' => $byStatus,
+            'top_call_types' => $topCallTypes
+        ];
+    }
+
+    /**
+     * Get units statistics (internal method)
+     */
+    private function getUnitsStats(array $filters): array
+    {
+        $where = [];
+        $params = [];
+
+        if (isset($filters['date_from'])) {
+            $where[] = "u.assigned_datetime >= :date_from";
+            $params[':date_from'] = $filters['date_from'];
+        }
+
+        if (isset($filters['date_to'])) {
+            $where[] = "u.assigned_datetime <= :date_to";
+            $params[':date_to'] = $filters['date_to'];
+        }
+
+        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        // Total units
+        $sql = "SELECT COUNT(DISTINCT u.unit_number) FROM units u {$whereClause}";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $totalUnits = (int)$stmt->fetchColumn();
+
+        return [
+            'total_units' => $totalUnits
+        ];
+    }
+
+    /**
+     * Get response time statistics (internal method)
+     */
+    private function getResponseStats(array $filters): array
+    {
+        $where = [];
+        $params = [];
+
+        if (isset($filters['date_from'])) {
+            $where[] = "u.assigned_datetime >= :date_from";
+            $params[':date_from'] = $filters['date_from'];
+        }
+
+        if (isset($filters['date_to'])) {
+            $where[] = "u.assigned_datetime <= :date_to";
+            $params[':date_to'] = $filters['date_to'];
+        }
+
+        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        // Average response time
+        $responseWhere = $where;
+        $responseWhere[] = 'u.dispatch_datetime IS NOT NULL';
+        $responseWhere[] = 'u.arrive_datetime IS NOT NULL';
+        $responseWhereClause = 'WHERE ' . implode(' AND ', $responseWhere);
+        
+        $responseMinutes = DbHelper::timestampDiff('MINUTE', 'u.dispatch_datetime', 'u.arrive_datetime');
+        $sql = "
+            SELECT 
+                AVG({$responseMinutes}) as avg_minutes,
+                MIN({$responseMinutes}) as min_minutes,
+                MAX({$responseMinutes}) as max_minutes
+            FROM units u
+            {$responseWhereClause}
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $times = $stmt->fetch();
+
+        return [
+            'average_minutes' => round((float)$times['avg_minutes'], 2),
+            'min_minutes' => round((float)$times['min_minutes'], 2),
+            'max_minutes' => round((float)$times['max_minutes'], 2)
+        ];
+    }
+
+    /**
      * Get call statistics
      * GET /api/stats/calls
      */

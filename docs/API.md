@@ -22,6 +22,9 @@ curl http://localhost:8080/api/calls/1
 curl "http://localhost:8080/api/search/calls?call_number=260"
 
 # Get statistics
+curl http://localhost:8080/api/stats
+
+# Or get specific statistics
 curl http://localhost:8080/api/stats/calls
 ```
 
@@ -98,6 +101,7 @@ curl "http://localhost:8080/api/calls?sort=create_datetime&order=desc"
 - `GET /api/search/units` - Unit search
 
 ### Statistics
+- `GET /api/stats` - Aggregate statistics (calls, units, response times combined)
 - `GET /api/stats/calls` - Call statistics
 - `GET /api/stats/units` - Unit statistics
 - `GET /api/stats/response-times` - Response time analytics
