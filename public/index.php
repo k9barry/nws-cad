@@ -92,6 +92,11 @@ $pageTitle = ucfirst($page);
                             <i class="bi bi-file-text"></i> Logs
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="dbeaver-link" href="#" target="_blank" rel="noopener noreferrer">
+                            <i class="bi bi-database"></i> DBeaver
+                        </a>
+                    </li>
                 </ul>
                 <div class="d-flex align-items-center">
                     <span class="navbar-text me-3">
@@ -150,6 +155,13 @@ $pageTitle = ucfirst($page);
             currentPage: '<?= $page ?>',
             refreshInterval: 30000 // 30 seconds
         };
+        
+        // Set DBeaver URL dynamically
+        const dbeaverPort = isCodespaces ? window.location.origin : 'http://localhost:8978';
+        const dbeaverLink = document.getElementById('dbeaver-link');
+        if (dbeaverLink) {
+            dbeaverLink.href = dbeaverPort;
+        }
         
         console.log('APP_CONFIG initialized:', window.APP_CONFIG);
     </script>
