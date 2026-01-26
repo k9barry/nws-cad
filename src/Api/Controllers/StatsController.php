@@ -95,6 +95,15 @@ class StatsController
             $params[':agency_type'] = $filters['agency_type'];
         }
 
+        // Jurisdiction filter
+        if (isset($filters['jurisdiction'])) {
+            if (!$agencyJoin) {
+                $agencyJoin = "INNER JOIN agency_contexts ac ON c.id = ac.call_id";
+            }
+            $where[] = "ac.jurisdiction = :jurisdiction";
+            $params[':jurisdiction'] = $filters['jurisdiction'];
+        }
+
         $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
 
         // Total calls

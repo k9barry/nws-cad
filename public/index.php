@@ -24,6 +24,7 @@ $routes = [
     '/calls' => 'calls',
     '/units' => 'units',
     '/analytics' => 'analytics',
+    '/logs' => 'logs',
 ];
 
 // Get page from route
@@ -84,6 +85,11 @@ $pageTitle = ucfirst($page);
                     <li class="nav-item">
                         <a class="nav-link <?= $page === 'analytics' ? 'active' : '' ?>" href="/analytics">
                             <i class="bi bi-graph-up"></i> Analytics
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $page === 'logs' ? 'active' : '' ?>" href="/logs">
+                            <i class="bi bi-file-text"></i> Logs
                         </a>
                     </li>
                 </ul>
@@ -160,6 +166,8 @@ $pageTitle = ucfirst($page);
         <script src="/assets/js/units.js"></script>
     <?php elseif ($page === 'analytics'): ?>
         <script src="/assets/js/analytics.js"></script>
+    <?php elseif ($page === 'logs'): ?>
+        <script src="/assets/js/logs.js"></script>
     <?php endif; ?>
 </body>
 </html>

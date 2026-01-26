@@ -13,6 +13,7 @@ use NwsCad\Api\Controllers\CallsController;
 use NwsCad\Api\Controllers\UnitsController;
 use NwsCad\Api\Controllers\SearchController;
 use NwsCad\Api\Controllers\StatsController;
+use NwsCad\Api\Controllers\LogsController;
 
 // Enable CORS
 header('Access-Control-Allow-Origin: *');
@@ -83,6 +84,12 @@ $router->get('/stats', [StatsController::class, 'index']);
 $router->get('/stats/calls', [StatsController::class, 'calls']);
 $router->get('/stats/units', [StatsController::class, 'units']);
 $router->get('/stats/response-times', [StatsController::class, 'responseTimes']);
+
+// Logs Controller Routes
+$router->get('/logs', [LogsController::class, 'index']);
+$router->get('/logs/recent', [LogsController::class, 'recent']);
+$router->get('/logs/{filename}', [LogsController::class, 'show']);
+$router->delete('/logs/cleanup', [LogsController::class, 'cleanup']);
 
 // Dispatch request
 try {
