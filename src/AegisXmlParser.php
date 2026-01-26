@@ -134,7 +134,8 @@ class AegisXmlParser
     }
 
     /**
-     * Strip UTF-8 BOM from content
+     * Strip BOM (Byte Order Mark) from content
+     * Handles UTF-8, UTF-16 BE, and UTF-16 LE BOMs
      *
      * @param string $content File content
      * @return string Content without BOM

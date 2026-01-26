@@ -157,10 +157,20 @@ $pageTitle = ucfirst($page);
         };
         
         // Set DBeaver URL dynamically
-        const dbeaverPort = isCodespaces ? window.location.origin : 'http://localhost:8978';
+        let dbeaverUrl;
+        if (isCodespaces) {
+            // For Codespaces, construct the forwarded port URL
+            // Format: https://{codespace-name}-{port}.preview.app.github.dev
+            const hostname = window.location.hostname;
+            dbeaverUrl = window.location.protocol + '//' + hostname.replace(/\.github\.dev$/, '-8978.preview.app.github.dev');
+        } else {
+            // For local development, use localhost with port
+            dbeaverUrl = 'http://localhost:8978';
+        }
+        
         const dbeaverLink = document.getElementById('dbeaver-link');
         if (dbeaverLink) {
-            dbeaverLink.href = dbeaverPort;
+            dbeaverLink.href = dbeaverUrl;
         }
         
         console.log('APP_CONFIG initialized:', window.APP_CONFIG);
