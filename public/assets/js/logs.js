@@ -178,7 +178,7 @@
             
             console.log('[Logs] Data:', data);
             
-            if (!data.data || data.data.length === 0) {
+            if (!data.items || data.items.length === 0) {
                 viewer.innerHTML = `
                     <div class="text-center py-5 text-muted">
                         <i class="bi bi-inbox fs-1"></i>
@@ -190,7 +190,7 @@
             }
             
             // Render log entries
-            viewer.innerHTML = data.data.map(entry => renderLogEntry(entry)).join('');
+            viewer.innerHTML = data.items.map(entry => renderLogEntry(entry)).join('');
             
             // Render pagination
             renderPagination(data.pagination);
@@ -306,14 +306,14 @@
         
         // Previous button
         html += `
-            <li class="page-item ${pagination.page === 1 ? 'disabled' : ''}">
-                <a class="page-link" href="#" data-page="${pagination.page - 1}">Previous</a>
+            <li class="page-item ${pagination.current_page === 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${pagination.current_page - 1}">Previous</a>
             </li>
         `;
         
         // Page numbers
         const maxPages = 5;
-        let startPage = Math.max(1, pagination.page - Math.floor(maxPages / 2));
+        let startPage = Math.max(1, pagination.current_page - Math.floor(maxPages / 2));
         let endPage = Math.min(pagination.total_pages, startPage + maxPages - 1);
         
         if (endPage - startPage < maxPages - 1) {
@@ -322,7 +322,7 @@
         
         for (let i = startPage; i <= endPage; i++) {
             html += `
-                <li class="page-item ${i === pagination.page ? 'active' : ''}">
+                <li class="page-item ${i === pagination.current_page ? 'active' : ''}">
                     <a class="page-link" href="#" data-page="${i}">${i}</a>
                 </li>
             `;
@@ -330,8 +330,8 @@
         
         // Next button
         html += `
-            <li class="page-item ${pagination.page === pagination.total_pages ? 'disabled' : ''}">
-                <a class="page-link" href="#" data-page="${pagination.page + 1}">Next</a>
+            <li class="page-item ${pagination.current_page === pagination.total_pages ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${pagination.current_page + 1}">Next</a>
             </li>
         `;
         

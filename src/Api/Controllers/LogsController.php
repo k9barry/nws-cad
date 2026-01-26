@@ -10,15 +10,38 @@ use Exception;
 /**
  * Logs Controller
  * Handles log viewing endpoints
+ * 
+ * SECURITY NOTE: These endpoints expose application logs which may contain
+ * sensitive information. In production, implement proper authentication/authorization.
+ * For now, logs endpoints can be disabled via environment variable.
  */
 class LogsController
 {
+    /**
+     * Check if logs endpoints are enabled
+     */
+    private function checkAccess(): void
+    {
+        $config = Config::getInstance();
+        $logsEnabled = $config->get('app.logs_enabled', true);
+        
+        // In production, logs should be disabled or require authentication
+        if ($config->get('app.env') === 'production' && !$logsEnabled) {
+            Response::forbidden('Log access is disabled in production');
+        }
+        
+        // TODO: Add proper authentication/authorization here
+        // For example: check for admin role, API key, or session
+    }
+
     /**
      * Get available log files
      * GET /api/logs
      */
     public function index(): void
     {
+        $this->checkAccess();
+        
         try {
             $config = Config::getInstance();
             $logPath = $config->get('paths.logs');
@@ -59,6 +82,8 @@ class LogsController
      */
     public function show(string $filename): void
     {
+        $this->checkAccess();
+        
         try {
             // Validate filename to prevent directory traversal
             if (basename($filename) !== $filename) {
@@ -122,6 +147,8 @@ class LogsController
      */
     public function recent(): void
     {
+        $this->checkAccess();
+        
         try {
             $lines = isset($_GET['lines']) ? (int)$_GET['lines'] : 50;
             $lines = max(1, min(500, $lines));
@@ -207,7 +234,7 @@ class LogsController
 
         try {
             $linecounter = $lines;
-            $pos = -2;
+            $pos = -1;
             $beginning = false;
             $text = [];
 
@@ -219,15 +246,16 @@ class LogsController
                     $linecounter--;
                 }
                 
-                if ($pos == -1) {
+                $text[] = $t;
+                $pos--;
+                
+                $result = fseek($handle, $pos, SEEK_END);
+                if ($result === -1) {
+                    // Reached beginning of file
                     rewind($handle);
                     $beginning = true;
                     break;
                 }
-                
-                $text[] = $t;
-                $pos--;
-                fseek($handle, $pos, SEEK_END);
             }
 
             if ($beginning) {
@@ -246,6 +274,8 @@ class LogsController
      */
     public function cleanup(): void
     {
+        $this->checkAccess();
+        
         try {
             $days = isset($_GET['days']) ? (int)$_GET['days'] : 7;
             $days = max(1, min(90, $days));

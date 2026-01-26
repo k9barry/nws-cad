@@ -55,10 +55,10 @@ class StatsController
             // Get response times stats
             $responseStats = $this->getResponseStats($filters);
 
-            // Combine all stats
+            // Combine all stats - merge units stats at top level for dashboard compatibility
             $aggregateStats = array_merge(
                 $callsStats,
-                ['units' => $unitsStats],
+                $unitsStats,
                 ['response_times' => $responseStats]
             );
 
@@ -136,14 +136,17 @@ class StatsController
         $byStatus = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         // Top call types
+        $topWhere = $where;
+        $topWhere[] = 'c.nature_of_call IS NOT NULL';
+        $topWhereClause = 'WHERE ' . implode(' AND ', $topWhere);
+        
         $sql = "
             SELECT 
                 c.nature_of_call,
                 COUNT(*) as count
             FROM calls c
             {$agencyJoin}
-            {$whereClause}
-            AND c.nature_of_call IS NOT NULL
+            {$topWhereClause}
             GROUP BY c.nature_of_call
             ORDER BY count DESC
             LIMIT 10
@@ -216,6 +219,11 @@ class StatsController
         $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
 
         // Average response time
+        $responseWhere = $where;
+        $responseWhere[] = 'u.dispatch_datetime IS NOT NULL';
+        $responseWhere[] = 'u.arrive_datetime IS NOT NULL';
+        $responseWhereClause = 'WHERE ' . implode(' AND ', $responseWhere);
+        
         $responseMinutes = DbHelper::timestampDiff('MINUTE', 'u.dispatch_datetime', 'u.arrive_datetime');
         $sql = "
             SELECT 
@@ -223,9 +231,7 @@ class StatsController
                 MIN({$responseMinutes}) as min_minutes,
                 MAX({$responseMinutes}) as max_minutes
             FROM units u
-            {$whereClause}
-            AND u.dispatch_datetime IS NOT NULL 
-            AND u.arrive_datetime IS NOT NULL
+            {$responseWhereClause}
         ";
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
