@@ -162,7 +162,15 @@ $pageTitle = ucfirst($page);
             // For Codespaces, construct the forwarded port URL
             // Format: https://{codespace-name}-{port}.preview.app.github.dev
             const hostname = window.location.hostname;
-            dbeaverUrl = window.location.protocol + '//' + hostname.replace(/\.github\.dev$/, '-8978.preview.app.github.dev');
+            // Only apply transformation if hostname actually ends with .github.dev or .githubpreview.dev
+            if (hostname.endsWith('.github.dev')) {
+                dbeaverUrl = window.location.protocol + '//' + hostname.replace(/\.github\.dev$/, '-8978.preview.app.github.dev');
+            } else if (hostname.endsWith('.githubpreview.dev')) {
+                dbeaverUrl = window.location.protocol + '//' + hostname.replace(/\.githubpreview\.dev$/, '-8978.preview.app.githubpreview.dev');
+            } else {
+                // Fallback to origin for unknown Codespaces patterns
+                dbeaverUrl = window.location.origin;
+            }
         } else {
             // For local development, use localhost with port
             dbeaverUrl = 'http://localhost:8978';

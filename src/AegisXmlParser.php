@@ -142,22 +142,23 @@ class AegisXmlParser
      */
     private function stripBOM(string $content): string
     {
-        // UTF-8 BOM is EF BB BF
-        if (substr($content, 0, 3) === "\xEF\xBB\xBF") {
-            $this->logger->debug("Stripped UTF-8 BOM from XML file");
-            return substr($content, 3);
-        }
-        
+        // Check UTF-16 BOMs first (2 bytes) before UTF-8 (3 bytes)
         // UTF-16 BE BOM is FE FF
-        if (substr($content, 0, 2) === "\xFE\xFF") {
+        if (strlen($content) >= 2 && substr($content, 0, 2) === "\xFE\xFF") {
             $this->logger->debug("Stripped UTF-16 BE BOM from XML file");
             return substr($content, 2);
         }
         
         // UTF-16 LE BOM is FF FE
-        if (substr($content, 0, 2) === "\xFF\xFE") {
+        if (strlen($content) >= 2 && substr($content, 0, 2) === "\xFF\xFE") {
             $this->logger->debug("Stripped UTF-16 LE BOM from XML file");
             return substr($content, 2);
+        }
+        
+        // UTF-8 BOM is EF BB BF (3 bytes)
+        if (strlen($content) >= 3 && substr($content, 0, 3) === "\xEF\xBB\xBF") {
+            $this->logger->debug("Stripped UTF-8 BOM from XML file");
+            return substr($content, 3);
         }
         
         return $content;
