@@ -54,7 +54,7 @@
         border-left: 3px solid #0d6efd;
     }
     .log-container {
-        max-height: calc(100vh - 400px);
+        max-height: calc(100vh - var(--log-viewer-offset, 400px));
         overflow-y: auto;
     }
 </style>

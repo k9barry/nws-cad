@@ -61,7 +61,7 @@ class LogsController
     {
         try {
             // Validate filename to prevent directory traversal
-            if (strpos($filename, '..') !== false || strpos($filename, '/') !== false) {
+            if (basename($filename) !== $filename) {
                 Response::error('Invalid filename', 400);
                 return;
             }
@@ -200,42 +200,44 @@ class LogsController
      */
     private function tail(string $filepath, int $lines = 50): string
     {
-        $handle = fopen($filepath, 'r');
+        $handle = @fopen($filepath, 'r');
         if (!$handle) {
-            return '';
+            throw new Exception("Failed to open log file");
         }
 
-        $linecounter = $lines;
-        $pos = -2;
-        $beginning = false;
-        $text = [];
+        try {
+            $linecounter = $lines;
+            $pos = -2;
+            $beginning = false;
+            $text = [];
 
-        fseek($handle, $pos, SEEK_END);
-
-        while ($linecounter > 0) {
-            $t = fgetc($handle);
-            if ($t == "\n") {
-                $linecounter--;
-            }
-            
-            if ($pos == -1) {
-                rewind($handle);
-                $beginning = true;
-                break;
-            }
-            
-            $text[] = $t;
-            $pos--;
             fseek($handle, $pos, SEEK_END);
+
+            while ($linecounter > 0) {
+                $t = fgetc($handle);
+                if ($t == "\n") {
+                    $linecounter--;
+                }
+                
+                if ($pos == -1) {
+                    rewind($handle);
+                    $beginning = true;
+                    break;
+                }
+                
+                $text[] = $t;
+                $pos--;
+                fseek($handle, $pos, SEEK_END);
+            }
+
+            if ($beginning) {
+                $text = array_reverse($text);
+            }
+
+            return implode('', $text);
+        } finally {
+            fclose($handle);
         }
-
-        fclose($handle);
-
-        if ($beginning) {
-            $text = array_reverse($text);
-        }
-
-        return implode('', $text);
     }
 
     /**

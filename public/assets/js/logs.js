@@ -11,6 +11,7 @@
     let currentFile = null;
     let currentPage = 1;
     let currentLevel = null;
+    let currentMode = 'file'; // 'file' or 'recent'
     
     async function init() {
         if (typeof Dashboard === 'undefined') {
@@ -39,7 +40,11 @@
     function setupEventListeners() {
         // Refresh button
         document.getElementById('refresh-btn').addEventListener('click', () => {
-            if (currentFile) {
+            if (currentMode === 'recent') {
+                // Refresh recent view with same parameters
+                const level = currentLevel;
+                viewRecent(50, level);
+            } else if (currentFile) {
                 loadLogFile(currentFile, currentPage);
             } else {
                 loadLogFiles();
@@ -131,6 +136,7 @@
     function selectFile(filename) {
         currentFile = filename;
         currentPage = 1;
+        currentMode = 'file';
         
         // Update active state
         document.querySelectorAll('.file-item').forEach(item => {
@@ -207,6 +213,8 @@
         const title = document.getElementById('current-log-title');
         
         currentFile = null;
+        currentMode = 'recent';
+        currentLevel = level;
         document.querySelectorAll('.file-item').forEach(item => item.classList.remove('active'));
         
         title.textContent = level ? `Recent ${level} Entries` : 'Recent Log Entries';
