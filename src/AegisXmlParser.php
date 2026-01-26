@@ -99,10 +99,21 @@ class AegisXmlParser
                 return false;
             }
             
+            // Read file content and strip BOM if present
+            $content = file_get_contents($filePath);
+            if ($content === false) {
+                $this->logger->error("Failed to read file: {$filePath}");
+                return false;
+            }
+            
+            // Remove UTF-8 BOM (EF BB BF) if present
+            // Many NWS CAD XML exports include BOM which can cause parsing issues
+            $content = $this->stripBOM($content);
+            
             // XXE Protection: In PHP 8.0+, external entity loading is disabled by default
             // LIBXML_NONET prevents network access during XML parsing
             libxml_use_internal_errors(true);
-            $xml = simplexml_load_file($filePath, 'SimpleXMLElement', LIBXML_NOCDATA | LIBXML_NONET);
+            $xml = simplexml_load_string($content, 'SimpleXMLElement', LIBXML_NOCDATA | LIBXML_NONET);
             
             if ($xml === false) {
                 $errors = libxml_get_errors();
@@ -120,6 +131,37 @@ class AegisXmlParser
             $this->logger->error("Exception loading XML file: " . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Strip BOM (Byte Order Mark) from content
+     * Handles UTF-8, UTF-16 BE, and UTF-16 LE BOMs
+     *
+     * @param string $content File content
+     * @return string Content without BOM
+     */
+    private function stripBOM(string $content): string
+    {
+        // Check UTF-16 BOMs first (2 bytes) before UTF-8 (3 bytes)
+        // UTF-16 BE BOM is FE FF
+        if (strlen($content) >= 2 && substr($content, 0, 2) === "\xFE\xFF") {
+            $this->logger->debug("Stripped UTF-16 BE BOM from XML file");
+            return substr($content, 2);
+        }
+        
+        // UTF-16 LE BOM is FF FE
+        if (strlen($content) >= 2 && substr($content, 0, 2) === "\xFF\xFE") {
+            $this->logger->debug("Stripped UTF-16 LE BOM from XML file");
+            return substr($content, 2);
+        }
+        
+        // UTF-8 BOM is EF BB BF (3 bytes)
+        if (strlen($content) >= 3 && substr($content, 0, 3) === "\xEF\xBB\xBF") {
+            $this->logger->debug("Stripped UTF-8 BOM from XML file");
+            return substr($content, 3);
+        }
+        
+        return $content;
     }
 
     /**

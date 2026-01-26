@@ -110,6 +110,34 @@ services:
       timeout: 5s
       retries: 5
 
+  # DBeaver (CloudBeaver) - Web-based Database Manager
+  dbeaver:
+    image: dbeaver/cloudbeaver:latest
+    container_name: nws-cad-dbeaver
+    restart: unless-stopped
+    ports:
+      - "8978:8978"
+    volumes:
+      - ./data/dbeaver:/opt/cloudbeaver/workspace
+    environment:
+      - CB_SERVER_NAME=NWS CAD Database Manager
+      - CB_SERVER_URL=http://localhost:8978
+      - CB_ADMIN_NAME=admin
+      - CB_ADMIN_PASSWORD=${DBEAVER_ADMIN_PASSWORD}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - nws-cad-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8978/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
 networks:
   nws-cad-network:
     driver: bridge

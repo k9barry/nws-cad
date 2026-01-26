@@ -7,8 +7,10 @@ A Docker-based PHP system for monitoring, parsing, and storing CAD (Computer-Aid
 - 🐳 **Docker-based deployment** - Easy setup with Docker Compose
 - 🔄 **Multi-database support** - Choose between MySQL or PostgreSQL
 - 📁 **Automatic file monitoring** - Watches folder for new XML files
-- 📊 **XML parsing and storage** - Automatically parses and stores CAD data
+- 📊 **XML parsing and storage** - Automatically parses and stores CAD data with BOM handling
 - 🌐 **REST API** - Complete REST API for accessing CAD data
+- 🎨 **Web Dashboard** - Visual interface with maps and charts
+- 🗄️ **DBeaver Integration** - Web-based database manager for both databases
 - 📝 **Comprehensive logging** - Detailed logs for debugging and monitoring
 - 🔒 **Transaction support** - Ensures data integrity
 - 🧪 **Comprehensive testing** - 142+ automated tests with 80% coverage
@@ -34,7 +36,22 @@ Comprehensive 13-table schema for NWS Aegis CAD data:
 - Complete unit lifecycle tracking
 - Full XML preservation for auditing
 
-### 4. Testing Infrastructure
+### 4. Web Dashboard
+Interactive web interface for visualizing CAD data:
+- Real-time call monitoring
+- Interactive maps with Leaflet
+- Analytics charts and graphs
+- Direct access to DBeaver database manager
+
+### 5. DBeaver (CloudBeaver)
+Web-based database management tool:
+- Connects to both MySQL and PostgreSQL databases
+- SQL query editor with syntax highlighting
+- Visual data browsing and editing
+- ER diagrams and database structure visualization
+- Accessible from dashboard navigation
+
+### 6. Testing Infrastructure
 - 142+ automated tests across 4 test suites
 - 80% minimum code coverage requirement
 - Automated CI/CD with GitHub Actions
@@ -89,7 +106,18 @@ docker-compose logs -f app
 docker-compose logs -f api
 ```
 
-### 4. Test the API
+### 4. Access the Dashboard
+
+Open your browser and navigate to:
+- **Dashboard**: http://localhost:80
+- **DBeaver (Database Manager)**: http://localhost:8978
+
+For DBeaver:
+1. First login uses default credentials: `admin` / check `.env` for `DBEAVER_ADMIN_PASSWORD`
+2. After login, you can configure connections to both MySQL and PostgreSQL databases
+3. Connection details are in your `.env` file
+
+### 5. Test the API
 
 ```bash
 # Get API info
@@ -105,7 +133,7 @@ curl http://localhost:8080/api/calls/1
 curl "http://localhost:8080/api/search/calls?call_number=260"
 ```
 
-### 5. Add XML Files
+### 6. Add XML Files
 
 Place your XML files in the `watch` folder:
 
@@ -152,6 +180,7 @@ The REST API provides 19 endpoints for accessing CAD data. See [docs/API.md](doc
 - **api** - PHP 8.3 web server running the REST API (port 8080)
 - **mysql** - MySQL 8.0 database (optional, based on DB_TYPE)
 - **postgres** - PostgreSQL 16 database (optional, based on DB_TYPE)
+- **dbeaver** - CloudBeaver web-based database manager (port 8978)
 
 ### Directory Structure
 
@@ -431,6 +460,8 @@ docker-compose exec app php -r "require 'vendor/autoload.php'; var_dump(NwsCad\D
 2. Verify XML is valid
 3. Check logs: `docker-compose logs -f app`
 4. Ensure database is running
+
+**Note on BOM (Byte Order Mark)**: The system automatically handles XML files with UTF-8, UTF-16 BE, and UTF-16 LE byte order marks. NWS CAD XML exports commonly include UTF-8 BOM (`EF BB BF`), which is automatically stripped during parsing to ensure compatibility.
 
 ### Performance Tuning
 
