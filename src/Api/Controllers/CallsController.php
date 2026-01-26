@@ -282,7 +282,6 @@ class CallsController
                 'create_datetime' => $call['create_datetime'],
                 'close_datetime' => $call['close_datetime'],
                 'created_by' => $call['created_by'],
-                'closed_by' => $call['closed_by'],
                 'closed_flag' => (bool)$call['closed_flag'],
                 'canceled_flag' => (bool)$call['canceled_flag'],
                 'alarm_level' => $call['alarm_level'] ? (int)$call['alarm_level'] : null,

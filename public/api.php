@@ -79,6 +79,7 @@ $router->get('/search/location', [SearchController::class, 'location']);
 $router->get('/search/units', [SearchController::class, 'units']);
 
 // Stats Controller Routes
+$router->get('/stats', [StatsController::class, 'index']);
 $router->get('/stats/calls', [StatsController::class, 'calls']);
 $router->get('/stats/units', [StatsController::class, 'units']);
 $router->get('/stats/response-times', [StatsController::class, 'responseTimes']);
