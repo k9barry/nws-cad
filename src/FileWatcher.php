@@ -1,10 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NwsCad;
 
 use Exception;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
 
 /**
  * File Watcher Service
@@ -26,8 +26,14 @@ class FileWatcher
         $this->watchFolder = $config->get('watcher.folder');
         $this->interval = $config->get('watcher.interval');
         $this->filePattern = $config->get('watcher.file_pattern');
-        $this->parser = new AegisXmlParser();
         $this->logger = Logger::getInstance();
+
+        // Wait for database BEFORE creating parser
+        $this->logger->info("Waiting for database to be ready...");
+        $this->waitForDatabase();
+        
+        // Now create parser after database is ready
+        $this->parser = new AegisXmlParser();
 
         // Ensure watch folder exists
         if (!is_dir($this->watchFolder)) {
@@ -43,6 +49,9 @@ class FileWatcher
 
     /**
      * Handle shutdown signals
+     * 
+     * @param int $signal Signal number
+     * @return void
      */
     public function handleSignal(int $signal): void
     {
@@ -52,6 +61,8 @@ class FileWatcher
 
     /**
      * Start watching the folder
+     * 
+     * @return void
      */
     public function start(): void
     {
@@ -87,6 +98,9 @@ class FileWatcher
 
     /**
      * Wait for database to become available
+     * 
+     * @return void
+     * @throws Exception If database connection fails after max retries
      */
     private function waitForDatabase(): void
     {
@@ -109,10 +123,14 @@ class FileWatcher
 
     /**
      * Check for new files in the watch folder
+     * 
+     * @return void
      */
     private function checkForNewFiles(): void
     {
         $files = $this->scanDirectory($this->watchFolder);
+        
+        $this->logger->debug("Found " . count($files) . " files in watch folder");
 
         foreach ($files as $file) {
             if ($this->shouldProcessFile($file)) {
@@ -127,7 +145,11 @@ class FileWatcher
     }
 
     /**
-     * Scan directory for files matching pattern
+     * Scan directory for files matching pattern (non-recursive)
+     * Only scans the root watch folder, excludes subdirectories
+     * 
+     * @param string $directory Directory to scan
+     * @return array<string> Array of file paths
      */
     private function scanDirectory(string $directory): array
     {
@@ -136,14 +158,27 @@ class FileWatcher
         try {
             $pattern = $this->convertGlobToRegex($this->filePattern);
             
-            $iterator = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
-                RecursiveIteratorIterator::SELF_FIRST
-            );
-
-            foreach ($iterator as $file) {
-                if ($file->isFile() && preg_match($pattern, $file->getFilename())) {
-                    $files[] = $file->getPathname();
+            // Only scan the root directory, not subdirectories
+            $items = scandir($directory);
+            
+            if ($items === false) {
+                throw new Exception("Failed to scan directory: $directory");
+            }
+            
+            foreach ($items as $item) {
+                if ($item === '.' || $item === '..') {
+                    continue;
+                }
+                
+                $fullPath = $directory . '/' . $item;
+                
+                // Skip directories (including processed/failed)
+                if (is_dir($fullPath)) {
+                    continue;
+                }
+                
+                if (preg_match($pattern, $item)) {
+                    $files[] = $fullPath;
                 }
             }
         } catch (Exception $e) {
@@ -155,6 +190,9 @@ class FileWatcher
 
     /**
      * Convert glob pattern to regex
+     * 
+     * @param string $glob Glob pattern (e.g., *.xml)
+     * @return string Regular expression pattern
      */
     private function convertGlobToRegex(string $glob): string
     {
@@ -166,42 +204,63 @@ class FileWatcher
 
     /**
      * Check if file should be processed
+     * 
+     * @param string $filePath Full path to file
+     * @return bool True if file should be processed
      */
     private function shouldProcessFile(string $filePath): bool
     {
+        $filename = basename($filePath);
+        
         // Check if file is still being written (size changes)
         if (!$this->isFileStable($filePath)) {
+            $this->logger->debug("File not stable, skipping: $filename");
             return false;
         }
 
         // Check if already processed in this session
         $fileKey = md5($filePath . filesize($filePath) . filemtime($filePath));
         if (isset($this->processedFiles[$fileKey])) {
+            $this->logger->debug("File already processed in this session: $filename");
             return false;
         }
 
+        $this->logger->debug("File ready to process: $filename");
         return true;
     }
 
     /**
      * Check if file size is stable (not being written)
+     * 
+     * @param string $filePath Full path to file
+     * @param int $checkInterval Seconds to wait between size checks
+     * @return bool True if file size is stable
      */
     private function isFileStable(string $filePath, int $checkInterval = 1): bool
     {
         if (!file_exists($filePath)) {
+            $this->logger->debug("File does not exist: $filePath");
             return false;
         }
 
         $size1 = filesize($filePath);
+        $this->logger->debug("File stability check - Initial size: $size1 bytes for " . basename($filePath));
+        
         sleep($checkInterval);
         clearstatcache(true, $filePath);
         $size2 = filesize($filePath);
+        
+        $isStable = $size1 === $size2;
+        $this->logger->debug("File stability check - Final size: $size2 bytes, Stable: " . ($isStable ? 'Yes' : 'No'));
 
-        return $size1 === $size2;
+        return $isStable;
     }
 
     /**
      * Process a single file
+     * 
+     * @param string $filePath Full path to file
+     * @return void
      */
     private function processFile(string $filePath): void
     {
@@ -229,6 +288,9 @@ class FileWatcher
 
     /**
      * Move file to processed folder
+     * 
+     * @param string $filePath Full path to file
+     * @return void
      */
     private function moveToProcessed(string $filePath): void
     {
@@ -249,6 +311,9 @@ class FileWatcher
 
     /**
      * Move file to failed folder
+     * 
+     * @param string $filePath Full path to file
+     * @return void
      */
     private function moveToFailed(string $filePath): void
     {
@@ -269,6 +334,9 @@ class FileWatcher
 
     /**
      * Get unique filename if file already exists
+     * 
+     * @param string $path Desired file path
+     * @return string Unique file path
      */
     private function getUniqueFilename(string $path): string
     {
