@@ -99,6 +99,11 @@ class UnitsController
                     c.call_number,
                     c.nature_of_call,
                     c.create_datetime as call_create_datetime,
+                    (SELECT l.latitude_y FROM locations l WHERE l.call_id = u.call_id LIMIT 1) as latitude_y,
+                    (SELECT l.longitude_x FROM locations l WHERE l.call_id = u.call_id LIMIT 1) as longitude_x,
+                    (SELECT l.full_address FROM locations l WHERE l.call_id = u.call_id LIMIT 1) as full_address,
+                    (SELECT l.city FROM locations l WHERE l.call_id = u.call_id LIMIT 1) as city,
+                    (SELECT l.state FROM locations l WHERE l.call_id = u.call_id LIMIT 1) as state,
                     COUNT(DISTINCT up.id) as personnel_count,
                     COUNT(DISTINCT ul.id) as log_count
                 FROM units u
@@ -135,6 +140,15 @@ class UnitsController
                         'nature_of_call' => $unit['nature_of_call'],
                         'create_datetime' => $unit['call_create_datetime']
                     ],
+                    'latitude_y' => $unit['latitude_y'] ? (float)$unit['latitude_y'] : null,
+                    'longitude_x' => $unit['longitude_x'] ? (float)$unit['longitude_x'] : null,
+                    'full_address' => $unit['full_address'],
+                    'city' => $unit['city'],
+                    'state' => $unit['state'],
+                    'assigned_datetime' => $unit['assigned_datetime'],
+                    'enroute_datetime' => $unit['enroute_datetime'],
+                    'arrive_datetime' => $unit['arrive_datetime'],
+                    'clear_datetime' => $unit['clear_datetime'],
                     'timestamps' => [
                         'assigned' => $unit['assigned_datetime'],
                         'dispatch' => $unit['dispatch_datetime'],

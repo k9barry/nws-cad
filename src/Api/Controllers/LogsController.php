@@ -156,7 +156,21 @@ class LogsController
             $levelFilter = $_GET['level'] ?? null;
 
             $config = Config::getInstance();
-            $logPath = $config->get('paths.logs') . '/app.log';
+            $logDir = $config->get('paths.logs');
+            
+            // Find the most recent log file
+            $logFiles = glob($logDir . '/app-*.log');
+            if (empty($logFiles)) {
+                Response::success(['entries' => []]);
+                return;
+            }
+            
+            // Sort by modification time, most recent first
+            usort($logFiles, function($a, $b) {
+                return filemtime($b) - filemtime($a);
+            });
+            
+            $logPath = $logFiles[0];
 
             if (!file_exists($logPath)) {
                 Response::success(['entries' => []]);
@@ -166,7 +180,6 @@ class LogsController
             // Read last N lines efficiently
             $content = $this->tail($logPath, $lines * 2); // Read more to account for filtering
             $allLines = explode("\n", $content);
-            $allLines = array_reverse($allLines);
             
             // Filter empty lines
             $allLines = array_filter($allLines, function($line) {
@@ -180,8 +193,9 @@ class LogsController
                 });
             }
 
-            // Limit to requested number
-            $allLines = array_slice($allLines, 0, $lines);
+            // Limit to requested number and reverse to show newest first
+            $allLines = array_slice($allLines, -$lines);
+            $allLines = array_reverse($allLines);
 
             // Parse log lines
             $entries = array_map(function($line) {
@@ -258,9 +272,8 @@ class LogsController
                 }
             }
 
-            if ($beginning) {
-                $text = array_reverse($text);
-            }
+            // Always reverse since we read backwards
+            $text = array_reverse($text);
 
             return implode('', $text);
         } finally {

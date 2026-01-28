@@ -39,53 +39,74 @@
     
     function setupEventListeners() {
         // Refresh button
-        document.getElementById('refresh-btn').addEventListener('click', () => {
-            if (currentMode === 'recent') {
-                // Refresh recent view with same parameters
-                const level = currentLevel;
-                viewRecent(50, level);
-            } else if (currentFile) {
-                loadLogFile(currentFile, currentPage);
-            } else {
-                loadLogFiles();
-            }
-        });
+        const refreshBtn = document.getElementById('refresh-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                if (currentMode === 'recent') {
+                    // Refresh recent view with same parameters
+                    const level = currentLevel;
+                    viewRecent(50, level);
+                } else if (currentFile) {
+                    loadLogFile(currentFile, currentPage);
+                } else {
+                    loadLogFiles();
+                }
+            });
+        }
         
         // Quick view buttons
-        document.getElementById('view-recent-btn').addEventListener('click', () => {
-            viewRecent(50, null);
-        });
+        const recentBtn = document.getElementById('view-recent-btn');
+        if (recentBtn) {
+            recentBtn.addEventListener('click', () => {
+                viewRecent(50, null);
+            });
+        }
         
-        document.getElementById('view-errors-btn').addEventListener('click', () => {
-            viewRecent(50, 'ERROR');
-        });
+        const errorsBtn = document.getElementById('view-errors-btn');
+        if (errorsBtn) {
+            errorsBtn.addEventListener('click', () => {
+                viewRecent(50, 'ERROR');
+            });
+        }
         
-        document.getElementById('view-warnings-btn').addEventListener('click', () => {
-            viewRecent(50, 'WARNING');
-        });
+        const warningsBtn = document.getElementById('view-warnings-btn');
+        if (warningsBtn) {
+            warningsBtn.addEventListener('click', () => {
+                viewRecent(50, 'WARNING');
+            });
+        }
         
         // Level filter
-        document.getElementById('level-filter').addEventListener('change', (e) => {
-            currentLevel = e.target.value || null;
-            currentPage = 1;
-            if (currentFile) {
-                loadLogFile(currentFile, currentPage);
-            }
-        });
+        const levelFilter = document.getElementById('level-filter');
+        if (levelFilter) {
+            levelFilter.addEventListener('change', (e) => {
+                currentLevel = e.target.value || null;
+                currentPage = 1;
+                if (currentFile) {
+                    loadLogFile(currentFile, currentPage);
+                }
+            });
+        }
         
         // Per page selector
-        document.getElementById('per-page').addEventListener('change', () => {
-            currentPage = 1;
-            if (currentFile) {
-                loadLogFile(currentFile, currentPage);
-            }
-        });
+        const perPageSelect = document.getElementById('per-page');
+        if (perPageSelect) {
+            perPageSelect.addEventListener('change', () => {
+                currentPage = 1;
+                if (currentFile) {
+                    loadLogFile(currentFile, currentPage);
+                }
+            });
+        }
         
         // Cleanup button
-        document.getElementById('confirm-cleanup-btn').addEventListener('click', async () => {
-            const days = document.getElementById('cleanup-days').value;
-            await cleanupLogs(days);
-        });
+        const confirmCleanupBtn = document.getElementById('confirm-cleanup-btn');
+        if (confirmCleanupBtn) {
+            confirmCleanupBtn.addEventListener('click', async () => {
+                const days = document.getElementById('cleanup-days').value;
+                await cleanupLogs(days);
+            });
+        }
     }
     
     async function loadLogFiles() {

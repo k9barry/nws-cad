@@ -43,6 +43,17 @@ body {
     }
 }
 
+/* Live indicator - GREEN when pulsing */
+span.navbar-text i.bi-circle-fill.pulse::before,
+span.navbar-text i.bi.bi-circle-fill.pulse::before,
+.navbar-text .bi-circle-fill.pulse::before {
+    color: #198754 !important;
+}
+
+.navbar-text .bi-circle-fill {
+    font-size: 0.75rem;
+}
+
 /* Statistics Cards */
 .stat-card {
     border-left: 4px solid;
@@ -461,3 +472,4 @@ footer a:hover {
 .fade-in {
     animation: fadeIn 0.3s ease-in;
 }
+Timestamp: Wed Jan 28 01:35:28 UTC 2026

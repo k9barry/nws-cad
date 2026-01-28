@@ -245,60 +245,86 @@
                 const stats = await Dashboard.apiRequest('/stats');
                 
                 // Call volume trends chart (status distribution)
-                if (stats.calls_by_status && document.getElementById('calls-trend-chart')) {
-                    ChartManager.createBarChart('calls-trend-chart', {
-                        labels: ['Open', 'Closed'],
+                const trendChartEl = document.getElementById('calls-trend-chart');
+                if (trendChartEl) {
+                    if (stats.calls_by_status) {
+                        ChartManager.createBarChart('calls-trend-chart', {
+                            labels: ['Open', 'Closed'],
+                            datasets: [{
+                                label: 'Calls',
+                                data: [
+                                    stats.calls_by_status.open || 0,
+                                    stats.calls_by_status.closed || 0
+                                ],
+                                backgroundColor: [
+                                    'rgba(255, 205, 86, 0.6)',
+                                    'rgba(75, 192, 192, 0.6)'
+                                ],
+                                borderColor: [
+                                    'rgb(255, 205, 86)',
+                                    'rgb(75, 192, 192)'
+                                ],
+                                borderWidth: 2
+                            }]
+                        });
+                        console.log('[Dashboard Main] Call volume trend chart created');
+                    } else {
+                        ChartManager.showEmptyChart('calls-trend-chart', 'No call data available');
+                    }
+                }
+                
+                // Call types chart
+                const typesChartEl = document.getElementById('call-types-chart');
+                if (typesChartEl) {
+                    if (stats.top_call_types?.length > 0) {
+                        ChartManager.createDoughnutChart('call-types-chart', {
+                            labels: stats.top_call_types.map(t => `${t.call_type || t.nature_of_call || 'Unknown'} (${t.count})`),
+                            datasets: [{
+                                data: stats.top_call_types.map(t => t.count),
+                                backgroundColor: [
+                                    'rgb(255, 99, 132)', 'rgb(54, 162, 235)',
+                                    'rgb(255, 205, 86)', 'rgb(75, 192, 192)',
+                                    'rgb(153, 102, 255)', 'rgb(255, 159, 64)'
+                                ]
+                            }]
+                        });
+                        console.log('[Dashboard Main] Call types chart created');
+                    } else {
+                        ChartManager.showEmptyChart('call-types-chart', 'No call type data available');
+                    }
+                }
+                
+                // Unit Activity chart - show unit statistics
+                const unitChartEl = document.getElementById('unit-activity-chart');
+                if (unitChartEl) {
+                    // For now, show total units and dispatch count
+                    // In future, this could query /stats/units for more detailed unit status
+                    const totalUnits = stats.total_units || 0;
+                    const activeCalls = stats.calls_by_status?.open || 0;
+                    
+                    ChartManager.createBarChart('unit-activity-chart', {
+                        labels: ['Total Units', 'Active Calls', 'Closed Calls'],
                         datasets: [{
-                            label: 'Calls',
+                            label: 'Count',
                             data: [
-                                stats.calls_by_status.open || 0,
-                                stats.calls_by_status.closed || 0
+                                totalUnits,
+                                activeCalls,
+                                stats.calls_by_status?.closed || 0
                             ],
                             backgroundColor: [
+                                'rgba(54, 162, 235, 0.6)',
                                 'rgba(255, 205, 86, 0.6)',
                                 'rgba(75, 192, 192, 0.6)'
                             ],
                             borderColor: [
+                                'rgb(54, 162, 235)',
                                 'rgb(255, 205, 86)',
                                 'rgb(75, 192, 192)'
                             ],
                             borderWidth: 2
                         }]
                     });
-                    console.log('[Dashboard Main] Call volume trend chart created');
-                }
-                
-                // Call types chart
-                if (stats.top_call_types?.length > 0 && document.getElementById('call-types-chart')) {
-                    ChartManager.createDoughnutChart('call-types-chart', {
-                        labels: stats.top_call_types.map(t => t.call_type || t.nature_of_call || 'Unknown'),
-                        datasets: [{
-                            data: stats.top_call_types.map(t => t.count),
-                            backgroundColor: [
-                                'rgb(255, 99, 132)', 'rgb(54, 162, 235)',
-                                'rgb(255, 205, 86)', 'rgb(75, 192, 192)',
-                                'rgb(153, 102, 255)', 'rgb(255, 159, 64)'
-                            ]
-                        }]
-                    });
-                    console.log('[Dashboard Main] Call types chart created');
-                }
-                
-                // Status chart
-                if (stats.calls_by_status && document.getElementById('unit-activity-chart')) {
-                    ChartManager.createBarChart('unit-activity-chart', {
-                        labels: ['Open', 'Closed', 'Canceled'],
-                        datasets: [{
-                            label: 'Calls',
-                            data: [
-                                stats.calls_by_status.open,
-                                stats.calls_by_status.closed,
-                                stats.calls_by_status.canceled
-                            ],
-                            backgroundColor: ['rgb(255, 205, 86)', 'rgb(75, 192, 192)', 'rgb(201, 203, 207)']
-                        }]
-                    });
-                    console.log('[Dashboard Main] Status chart created');
+                    console.log('[Dashboard Main] Unit activity chart created');
                 }
             } catch (error) {
                 console.error('[Dashboard Main] Charts error:', error);

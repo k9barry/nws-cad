@@ -211,7 +211,7 @@ const ChartManager = {
         }
         
         return {
-            labels: callStats.by_type.map(item => item.type),
+            labels: callStats.by_type.map(item => `${item.type} (${item.count})`),
             datasets: [{
                 data: callStats.by_type.map(item => item.count),
                 backgroundColor: this.defaultColors.slice(0, callStats.by_type.length)

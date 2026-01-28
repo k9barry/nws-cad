@@ -202,6 +202,8 @@ const Dashboard = {
     setupAutoRefresh(refreshFunction, interval = null) {
         interval = interval || this.config.refreshInterval || 30000;
         
+        console.log('[Dashboard] setupAutoRefresh called for:', refreshFunction.name, 'interval:', interval);
+        
         // Clear existing timer if any
         if (this.refreshTimers[refreshFunction.name]) {
             clearInterval(this.refreshTimers[refreshFunction.name]);
@@ -214,6 +216,11 @@ const Dashboard = {
         }, interval);
         
         console.log(`Auto-refresh enabled (${interval / 1000}s)`);
+        console.log('[Dashboard] Active refresh timers:', Object.keys(this.refreshTimers));
+        
+        // Update live indicator
+        console.log('[Dashboard] Calling updateLiveIndicator(true)...');
+        this.updateLiveIndicator(true);
     },
     
     /**
@@ -228,6 +235,31 @@ const Dashboard = {
             Object.values(this.refreshTimers).forEach(timer => clearInterval(timer));
             this.refreshTimers = {};
         }
+        
+        // Update live indicator
+        const hasActiveTimers = Object.keys(this.refreshTimers).length > 0;
+        this.updateLiveIndicator(hasActiveTimers);
+    },
+    
+    /**
+     * Update live indicator status
+     */
+    updateLiveIndicator(isLive) {
+        const indicator = document.getElementById('live-indicator');
+        if (!indicator) {
+            console.error('[Dashboard] Live indicator element not found!');
+            return;
+        }
+        
+        if (isLive) {
+            // Bright green badge with white text
+            indicator.innerHTML = '<span style="background: #00ff00; color: white; border-radius: 50%; padding: 4px 8px; font-size: 0.75em; display: inline-block; line-height: 1; font-weight: 500; box-shadow: 0 0 8px rgba(0, 255, 0, 0.5);" class="pulse">●</span> <span style="color: white;">Live</span>';
+        } else {
+            // Gray badge when paused
+            indicator.innerHTML = '<span style="background: #6c757d; color: white; border-radius: 50%; padding: 4px 8px; font-size: 0.75em; display: inline-block; line-height: 1; font-weight: 500;">●</span> <span style="color: rgba(255,255,255,0.7);">Paused</span>';
+        }
+        
+        console.log('[Dashboard] Live indicator updated:', isLive ? 'Live (green badge pulsing)' : 'Paused (gray badge)');
     }
 };
 
@@ -235,3 +267,88 @@ const Dashboard = {
 window.Dashboard = Dashboard;
 
 console.log('Dashboard core loaded', Dashboard.config);
+
+// Check API status on load (wait for DOM to be ready)
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkApiStatus);
+} else {
+    checkApiStatus();
+}
+
+async function checkApiStatus() {
+    const statusEl = document.getElementById('api-status');
+    if (!statusEl) {
+        console.warn('[Dashboard] API status element not found');
+        return;
+    }
+    
+    try {
+        console.log('[Dashboard] Checking API status...');
+        const response = await fetch(Dashboard.config.apiBaseUrl + '/stats');
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                statusEl.textContent = 'Online';
+                statusEl.className = 'badge bg-success';
+                console.log('[Dashboard] API is online');
+                
+                // Update live indicator immediately
+                Dashboard.updateLiveIndicator(true);
+                
+                // Start heartbeat monitoring
+                startHeartbeat();
+            } else {
+                throw new Error('API returned error');
+            }
+        } else {
+            throw new Error(`HTTP ${response.status}`);
+        }
+    } catch (error) {
+        console.error('[Dashboard] API status check failed:', error);
+        statusEl.textContent = 'Offline';
+        statusEl.className = 'badge bg-danger';
+        Dashboard.updateLiveIndicator(false);
+    }
+}
+
+/**
+ * Start heartbeat monitoring to check API connectivity
+ */
+function startHeartbeat() {
+    const statusEl = document.getElementById('api-status');
+    
+    // Check API every 30 seconds
+    setInterval(async () => {
+        try {
+            const response = await fetch(Dashboard.config.apiBaseUrl + '/stats', {
+                method: 'GET',
+                cache: 'no-cache'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    if (statusEl) {
+                        statusEl.textContent = 'Online';
+                        statusEl.className = 'badge bg-success';
+                    }
+                    // Always show live indicator when API is online
+                    Dashboard.updateLiveIndicator(true);
+                } else {
+                    throw new Error('Invalid response');
+                }
+            } else {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.warn('[Dashboard] Heartbeat failed:', error);
+            if (statusEl) {
+                statusEl.textContent = 'Offline';
+                statusEl.className = 'badge bg-danger';
+            }
+            Dashboard.updateLiveIndicator(false);
+        }
+    }, 30000); // Every 30 seconds
+}
+

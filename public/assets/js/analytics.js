@@ -34,14 +34,25 @@
         console.log('[Analytics] Loading analytics data...');
         
         try {
-            const stats = await Dashboard.apiRequest('/stats');
+            // Fetch both general stats and detailed call stats (which includes agency data)
+            const [stats, callStats, calls, units] = await Promise.all([
+                Dashboard.apiRequest('/stats'),
+                Dashboard.apiRequest('/stats/calls').catch(() => null),
+                Dashboard.apiRequest('/calls?per_page=100').then(r => r.items || []).catch(() => []),
+                Dashboard.apiRequest('/units?per_page=100').then(r => r.items || []).catch(() => [])
+            ]);
             console.log('[Analytics] Stats:', stats);
+            console.log('[Analytics] Call Stats:', callStats);
             
             // Update summary cards
             updateSummaryCards(stats);
             
-            // Create charts
-            createCharts(stats);
+            // Create charts (pass both stats objects)
+            createCharts(stats, callStats);
+            
+            // Populate top locations and units
+            populateTopLocations(calls);
+            populateTopUnits(units);
             
             console.log('[Analytics] Analytics loaded successfully');
             
@@ -79,7 +90,7 @@
         }
     }
     
-    function createCharts(stats) {
+    function createCharts(stats, callStats) {
         console.log('[Analytics] Creating charts...');
         
         // Call types chart (for distribution)
@@ -87,7 +98,7 @@
             const chartEl = document.getElementById('analytics-distribution-chart');
             if (chartEl) {
                 ChartManager.createDoughnutChart('analytics-distribution-chart', {
-                    labels: stats.top_call_types.map(t => t.nature_of_call || 'Unknown'),
+                    labels: stats.top_call_types.map(t => t.call_type || t.nature_of_call || 'Unknown'),
                     datasets: [{
                         data: stats.top_call_types.map(t => t.count),
                         backgroundColor: [
@@ -152,6 +163,45 @@
             }
         }
         
+        // Calls by Agency chart
+        if (callStats && callStats.by_agency_type) {
+            const agencyChartEl = document.getElementById('analytics-agency-chart');
+            if (agencyChartEl) {
+                // Convert object to array for chart
+                const agencyData = Object.entries(callStats.by_agency_type).map(([agency, count]) => ({
+                    agency: agency || 'Unknown',
+                    count: parseInt(count)
+                })).sort((a, b) => b.count - a.count).slice(0, 10); // Top 10 agencies
+                
+                if (agencyData.length > 0) {
+                    ChartManager.createBarChart('analytics-agency-chart', {
+                        labels: agencyData.map(a => a.agency),
+                        datasets: [{
+                            label: 'Call Count',
+                            data: agencyData.map(a => a.count),
+                            backgroundColor: [
+                                'rgba(13, 110, 253, 0.6)',
+                                'rgba(25, 135, 84, 0.6)',
+                                'rgba(220, 53, 69, 0.6)',
+                                'rgba(13, 202, 240, 0.6)',
+                                'rgba(102, 16, 242, 0.6)',
+                                'rgba(253, 126, 20, 0.6)',
+                                'rgba(32, 201, 151, 0.6)',
+                                'rgba(111, 66, 193, 0.6)',
+                                'rgba(214, 51, 132, 0.6)',
+                                'rgba(255, 193, 7, 0.6)'
+                            ]
+                        }]
+                    });
+                    console.log('[Analytics] Agency chart created');
+                } else {
+                    console.log('[Analytics] No agency data available');
+                }
+            }
+        } else {
+            console.log('[Analytics] No call stats or agency data available');
+        }
+        
         // Update top call types list
         const topCallsEl = document.getElementById('top-call-types');
         if (topCallsEl && stats.top_call_types && stats.top_call_types.length > 0) {
@@ -160,7 +210,7 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <span class="badge bg-primary me-2">${idx + 1}</span>
-                            ${type.nature_of_call || 'Unknown'}
+                            ${type.call_type || type.nature_of_call || 'Unknown'}
                         </div>
                         <span class="badge bg-secondary">${type.count}</span>
                     </div>
@@ -170,4 +220,154 @@
         
         console.log('[Analytics] All charts created');
     }
+    
+    function populateTopLocations(calls) {
+        const topLocationsEl = document.getElementById('top-locations');
+        if (!topLocationsEl) return;
+        
+        // Helper function to escape HTML
+        const escapeHtml = (text) => {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        };
+        
+        // Count calls by location (city)
+        const locationCounts = {};
+        calls.forEach(call => {
+            const location = call.location?.city || call.city || 'Unknown';
+            locationCounts[location] = (locationCounts[location] || 0) + 1;
+        });
+        
+        // Sort and get top 5
+        const topLocations = Object.entries(locationCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+        
+        if (topLocations.length === 0) {
+            topLocationsEl.innerHTML = '<div class="list-group-item text-center text-muted">No location data available</div>';
+            return;
+        }
+        
+        topLocationsEl.innerHTML = topLocations.map(([location, count], idx) => `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge bg-primary me-2">${idx + 1}</span>
+                        ${escapeHtml(location)}
+                    </div>
+                    <span class="badge bg-secondary">${count} calls</span>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    function populateTopUnits(units) {
+        const topUnitsEl = document.getElementById('top-units');
+        if (!topUnitsEl) return;
+        
+        // Helper function to escape HTML
+        const escapeHtml = (text) => {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        };
+        
+        // Count activity by unit number
+        const unitCounts = {};
+        units.forEach(unit => {
+            const unitNumber = unit.unit_number || 'Unknown';
+            unitCounts[unitNumber] = (unitCounts[unitNumber] || 0) + 1;
+        });
+        
+        // Sort and get top 5
+        const topUnits = Object.entries(unitCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+        
+        if (topUnits.length === 0) {
+            topUnitsEl.innerHTML = '<div class="list-group-item text-center text-muted">No unit data available</div>';
+            return;
+        }
+        
+        topUnitsEl.innerHTML = topUnits.map(([unitNumber, count], idx) => `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge bg-primary me-2">${idx + 1}</span>
+                        ${escapeHtml(unitNumber)}
+                    </div>
+                    <span class="badge bg-secondary">${count} calls</span>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    // Export handlers
+    document.getElementById('export-summary-csv')?.addEventListener('click', async function() {
+        try {
+            console.log('[Analytics] Exporting summary to CSV...');
+            const stats = await Dashboard.apiRequest('/stats');
+            
+            // Create CSV content
+            let csv = 'Metric,Value\n';
+            csv += `Total Calls,${stats.total_calls || 0}\n`;
+            csv += `Open Calls,${stats.calls_by_status?.open || 0}\n`;
+            csv += `Closed Calls,${stats.calls_by_status?.closed || 0}\n`;
+            csv += `Canceled Calls,${stats.calls_by_status?.canceled || 0}\n`;
+            csv += `Total Units,${stats.total_units || 0}\n`;
+            csv += `Average Response Time,${stats.response_times?.average_minutes || 0} minutes\n`;
+            
+            // Download CSV
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `analytics_summary_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            
+            if (Dashboard.showSuccess) {
+                Dashboard.showSuccess('Summary exported successfully');
+            }
+        } catch (error) {
+            console.error('[Analytics] Export error:', error);
+            if (Dashboard.showError) {
+                Dashboard.showError('Failed to export summary');
+            }
+        }
+    });
+    
+    document.getElementById('export-detailed-csv')?.addEventListener('click', async function() {
+        try {
+            console.log('[Analytics] Exporting detailed report...');
+            const url = '/calls/export';
+            const response = await fetch(Dashboard.config.apiBaseUrl + url);
+            
+            if (!response.ok) {
+                throw new Error('Export failed');
+            }
+            
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = `analytics_detailed_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            if (Dashboard.showSuccess) {
+                Dashboard.showSuccess('Detailed report exported successfully');
+            }
+        } catch (error) {
+            console.error('[Analytics] Export error:', error);
+            if (Dashboard.showError) {
+                Dashboard.showError('Failed to export detailed report');
+            }
+        }
+    });
 })();

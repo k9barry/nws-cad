@@ -74,7 +74,7 @@ const MapManager = {
         });
         
         const marker = L.marker([lat, lon], { icon })
-            .bindPopup(this.createCallPopup(call))
+            .bindPopup(call.popupContent || this.createCallPopup(call))
             .addTo(this.markers[containerId]);
         
         console.log('[MapManager] Marker added successfully');

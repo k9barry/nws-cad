@@ -50,7 +50,7 @@ $pageTitle = ucfirst($page);
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <!-- Custom CSS -->
-    <link href="/assets/css/dashboard.css" rel="stylesheet">
+    <link href="/assets/css/dashboard.css?v=<?= time() ?>" rel="stylesheet">
     
     <!-- Print CSS -->
     <link href="/assets/css/print.css" rel="stylesheet" media="print">
@@ -99,8 +99,8 @@ $pageTitle = ucfirst($page);
                     </li>
                 </ul>
                 <div class="d-flex align-items-center">
-                    <span class="navbar-text me-3">
-                        <i class="bi bi-circle-fill text-success pulse"></i> Live
+                    <span class="navbar-text me-3" id="live-indicator">
+                        <i class="bi bi-circle-fill text-secondary"></i> Connecting...
                     </span>
                     <button class="btn btn-outline-light btn-sm" onclick="window.print()">
                         <i class="bi bi-printer"></i> Print
@@ -168,17 +168,26 @@ $pageTitle = ucfirst($page);
         let dbeaverUrl;
         if (isCodespaces) {
             // For Codespaces, construct the forwarded port URL
-            // Format: https://{codespace-name}-{port}.preview.app.github.dev
+            // Format: https://{codespace-name}-{port}.app.github.dev
             const hostname = window.location.hostname;
-            // Only apply transformation if hostname actually ends with .github.dev or .githubpreview.dev
-            if (hostname.endsWith('.github.dev')) {
-                dbeaverUrl = window.location.protocol + '//' + hostname.replace(/\.github\.dev$/, '-8978.preview.app.github.dev');
-            } else if (hostname.endsWith('.githubpreview.dev')) {
-                dbeaverUrl = window.location.protocol + '//' + hostname.replace(/\.githubpreview\.dev$/, '-8978.preview.app.githubpreview.dev');
+            
+            // Extract the codespace base name (everything before the first -NNNN)
+            // Example: congenial-succotash-jjg77v7vrxjc5g7p-8080.app-8978.preview.app.github.dev
+            //       -> congenial-succotash-jjg77v7vrxjc5g7p
+            // Then append: -8978.app.github.dev
+            const match = hostname.match(/^([a-z0-9-]+)-\d+\./);
+            if (match) {
+                const baseCodespaceName = match[1] + '-8978.app.github.dev';
+                dbeaverUrl = window.location.protocol + '//' + baseCodespaceName;
             } else {
-                // Fallback to origin for unknown Codespaces patterns
-                dbeaverUrl = window.location.origin;
+                // Fallback: just use current origin with different port (won't work but safer)
+                dbeaverUrl = window.location.origin.replace(/:\d+$/, ':8978');
             }
+            
+            console.log('[NWS CAD] DBeaver URL constructed:', {
+                originalHostname: hostname,
+                dbeaverUrl: dbeaverUrl
+            });
         } else {
             // For local development, use localhost with port
             dbeaverUrl = 'http://localhost:8978';
