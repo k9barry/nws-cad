@@ -267,6 +267,7 @@ class AegisXmlParser
     /**
      * Delete all child records for a call
      * Used when updating an existing call to replace all child data
+     * Relies on database ON DELETE CASCADE constraints for efficiency
      *
      * @param int $callId Database call ID
      * @return void
@@ -275,25 +276,16 @@ class AegisXmlParser
     {
         $this->logger->debug("Deleting existing child records for call ID: $callId");
         
-        // Delete in reverse order of foreign key dependencies
+        // Delete child records directly - ON DELETE CASCADE will handle nested relationships
+        // The order matters: delete records without foreign keys first, then those that reference them
         $this->db->prepare("DELETE FROM call_dispositions WHERE call_id = ?")->execute([$callId]);
         $this->db->prepare("DELETE FROM vehicles WHERE call_id = ?")->execute([$callId]);
         $this->db->prepare("DELETE FROM persons WHERE call_id = ?")->execute([$callId]);
         $this->db->prepare("DELETE FROM narratives WHERE call_id = ?")->execute([$callId]);
         
-        // Delete unit-related records (unit_logs, unit_personnel, unit_dispositions first, then units)
-        $unitsStmt = $this->db->prepare("SELECT id FROM units WHERE call_id = ?");
-        $unitsStmt->execute([$callId]);
-        $units = $unitsStmt->fetchAll();
-        
-        foreach ($units as $unit) {
-            $unitId = $unit['id'];
-            $this->db->prepare("DELETE FROM unit_logs WHERE unit_id = ?")->execute([$unitId]);
-            $this->db->prepare("DELETE FROM unit_personnel WHERE unit_id = ?")->execute([$unitId]);
-            $this->db->prepare("DELETE FROM unit_dispositions WHERE unit_id = ?")->execute([$unitId]);
-        }
-        
+        // Deleting units will cascade to unit_logs, unit_personnel, and unit_dispositions
         $this->db->prepare("DELETE FROM units WHERE call_id = ?")->execute([$callId]);
+        
         $this->db->prepare("DELETE FROM incidents WHERE call_id = ?")->execute([$callId]);
         $this->db->prepare("DELETE FROM locations WHERE call_id = ?")->execute([$callId]);
         $this->db->prepare("DELETE FROM agency_contexts WHERE call_id = ?")->execute([$callId]);

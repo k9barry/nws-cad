@@ -286,6 +286,20 @@ XML;
             $this->assertEquals('John Doe Updated', $call['caller_name'], 'Caller name should be updated');
             $this->assertEquals(1, $call['closed_flag'], 'Closed flag should be updated');
             
+            // Verify child records were also updated by checking location
+            $callId = $db->prepare("SELECT id FROM calls WHERE call_id = ?");
+            $callId->execute([99999]);
+            $callDbId = $callId->fetch()['id'];
+            
+            $locationStmt = $db->prepare("SELECT full_address, house_number, zip FROM locations WHERE call_id = ?");
+            $locationStmt->execute([$callDbId]);
+            $location = $locationStmt->fetch();
+            
+            $this->assertNotEmpty($location, 'Location should exist in database');
+            $this->assertEquals('456 Oak Ave', $location['full_address'], 'Location should be from second file (updated)');
+            $this->assertEquals('456', $location['house_number'], 'House number should be from second file');
+            $this->assertEquals('62702', $location['zip'], 'Zip should be from second file');
+            
             // Clean up
             unlink($firstFilePath);
             unlink($secondFilePath);
