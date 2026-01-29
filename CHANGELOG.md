@@ -13,13 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dynamic calculation of busiest hour from actual call data
 - Dynamic calculation of most active unit from actual units data
 - "Incidents by Jurisdiction" chart replacing "Call Volume Over Time"
+- Unique constraints on units table for (call_id, unit_number)
+- Unique constraints on unit_logs table for (unit_id, log_datetime, status, location)
+- Unique constraints on narratives table for (call_id, create_datetime, create_user, text)
+- Location field to unit_logs table to store log location data
 
 ### Fixed
 - Analytics page stats calculation using correct data sources
 - SQL GROUP BY compatibility with MySQL strict mode
 - API jurisdiction filtering to use incidents table instead of agency_contexts
-- Duplicate call_id constraint violation when processing updated call data
-- File parser now updates existing calls instead of failing on duplicate call_ids
+- XML file processing now appends new data instead of replacing existing records
+- Unit logs and narratives are now preserved when processing updated XML files
+- Units are now updated (UPSERT) rather than deleted and recreated
+
+### Changed
+- XML parser now uses INSERT IGNORE for cumulative child records (narratives, unit_logs)
+- XML parser now uses UPSERT for units to update timestamps without losing child records
+- Removed deleteChildRecords() method that was deleting all child data on updates
+- Database schema updated to support idempotent XML imports
 
 ## [1.1.0] - 2026-01-25
 
