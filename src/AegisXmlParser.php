@@ -455,20 +455,20 @@ class AegisXmlParser
                     :assigned_datetime, :dispatch_datetime, :enroute_datetime, :arrive_datetime,
                     :staged_datetime, :at_patient_datetime, :transport_datetime,
                     :at_hospital_datetime, :depart_hospital_datetime, :clear_datetime
-                ) ON DUPLICATE KEY UPDATE
-                    unit_type = VALUES(unit_type),
-                    is_primary = VALUES(is_primary),
-                    jurisdiction = VALUES(jurisdiction),
-                    assigned_datetime = VALUES(assigned_datetime),
-                    dispatch_datetime = VALUES(dispatch_datetime),
-                    enroute_datetime = VALUES(enroute_datetime),
-                    arrive_datetime = VALUES(arrive_datetime),
-                    staged_datetime = VALUES(staged_datetime),
-                    at_patient_datetime = VALUES(at_patient_datetime),
-                    transport_datetime = VALUES(transport_datetime),
-                    at_hospital_datetime = VALUES(at_hospital_datetime),
-                    depart_hospital_datetime = VALUES(depart_hospital_datetime),
-                    clear_datetime = VALUES(clear_datetime),
+                ) AS new_unit ON DUPLICATE KEY UPDATE
+                    unit_type = new_unit.unit_type,
+                    is_primary = new_unit.is_primary,
+                    jurisdiction = new_unit.jurisdiction,
+                    assigned_datetime = new_unit.assigned_datetime,
+                    dispatch_datetime = new_unit.dispatch_datetime,
+                    enroute_datetime = new_unit.enroute_datetime,
+                    arrive_datetime = new_unit.arrive_datetime,
+                    staged_datetime = new_unit.staged_datetime,
+                    at_patient_datetime = new_unit.at_patient_datetime,
+                    transport_datetime = new_unit.transport_datetime,
+                    at_hospital_datetime = new_unit.at_hospital_datetime,
+                    depart_hospital_datetime = new_unit.depart_hospital_datetime,
+                    clear_datetime = new_unit.clear_datetime,
                     updated_at = CURRENT_TIMESTAMP";
             } else { // pgsql
                 $sql = "INSERT INTO units (
@@ -495,21 +495,18 @@ class AegisXmlParser
                     at_hospital_datetime = EXCLUDED.at_hospital_datetime,
                     depart_hospital_datetime = EXCLUDED.depart_hospital_datetime,
                     clear_datetime = EXCLUDED.clear_datetime,
-                    updated_at = CURRENT_TIMESTAMP";
+                    updated_at = CURRENT_TIMESTAMP
+                RETURNING id";
             }
             
             $stmt = $this->db->prepare($sql);
             $stmt->execute($data);
             
-            // Get the unit_id - for MySQL use lastInsertId, for existing records query by unique key
-            if ($this->db->lastInsertId()) {
-                $unitId = (int)$this->db->lastInsertId();
-            } else {
-                // Unit already existed, get its id
-                $stmt = $this->db->prepare("SELECT id FROM units WHERE call_id = ? AND unit_number = ?");
-                $stmt->execute([$callId, $data['unit_number']]);
-                $unitId = (int)$stmt->fetchColumn();
-            }
+            // Get the unit_id - always query to ensure we get the correct ID
+            // This handles both INSERT and UPDATE cases reliably
+            $stmt = $this->db->prepare("SELECT id FROM units WHERE call_id = ? AND unit_number = ?");
+            $stmt->execute([$callId, $data['unit_number']]);
+            $unitId = (int)$stmt->fetchColumn();
 
             // Insert/update personnel for this unit (will delete and re-insert to handle removals)
             $this->insertUnitPersonnel($unit, $unitId);
@@ -589,7 +586,7 @@ class AegisXmlParser
                 'unit_id' => $unitId,
                 'log_datetime' => $this->parseDateTime((string)$log->DateTime),
                 'status' => (string)$log->Status ?: null,
-                'location' => (string)$log->Location ?: null
+                'location' => (string)$log->Location ?: '' // Empty string instead of null for unique constraint
             ];
             $stmt->execute($data);
         }
@@ -664,7 +661,7 @@ class AegisXmlParser
             $data = [
                 'call_id' => $callId,
                 'create_datetime' => $this->parseDateTime((string)$narrative->CreateDateTime),
-                'create_user' => (string)$narrative->CreateUser ?: null,
+                'create_user' => (string)$narrative->CreateUser ?: '', // Empty string instead of null for unique constraint
                 'narrative_type' => (string)$narrative->Type ?: null,
                 'text' => (string)$narrative->Text ?: null,
                 'restriction' => (string)$narrative->Restriction ?: null

@@ -251,7 +251,7 @@ CREATE TABLE IF NOT EXISTS unit_logs (
     
     log_datetime TIMESTAMP NOT NULL,
     status VARCHAR(100) NOT NULL,
-    location VARCHAR(500),
+    location VARCHAR(500) NOT NULL DEFAULT '',
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
@@ -272,7 +272,7 @@ CREATE TABLE IF NOT EXISTS narratives (
     call_id BIGINT NOT NULL,
     
     create_datetime TIMESTAMP NOT NULL,
-    create_user VARCHAR(100),
+    create_user VARCHAR(100) NOT NULL DEFAULT '',
     narrative_type VARCHAR(50),
     restriction VARCHAR(50),
     text TEXT NOT NULL,

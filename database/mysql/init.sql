@@ -248,7 +248,7 @@ CREATE TABLE IF NOT EXISTS unit_logs (
     
     log_datetime DATETIME NOT NULL,
     status VARCHAR(100) NOT NULL COMMENT 'Dispatched, Arrived, Available, etc.',
-    location VARCHAR(500) COMMENT 'Location information from log',
+    location VARCHAR(500) NOT NULL DEFAULT '' COMMENT 'Location information from log',
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
@@ -268,7 +268,7 @@ CREATE TABLE IF NOT EXISTS narratives (
     call_id BIGINT UNSIGNED NOT NULL,
     
     create_datetime DATETIME NOT NULL,
-    create_user VARCHAR(100),
+    create_user VARCHAR(100) NOT NULL DEFAULT '',
     narrative_type VARCHAR(50) COMMENT 'UserEntry, System, etc.',
     restriction VARCHAR(50) COMMENT 'General, Confidential, etc.',
     text TEXT NOT NULL,
