@@ -205,7 +205,8 @@ CREATE TABLE IF NOT EXISTS units (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE
+    FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
+    UNIQUE (call_id, unit_number)
 );
 
 CREATE INDEX idx_units_call_id ON units(call_id);
@@ -250,10 +251,12 @@ CREATE TABLE IF NOT EXISTS unit_logs (
     
     log_datetime TIMESTAMP NOT NULL,
     status VARCHAR(100) NOT NULL,
+    location VARCHAR(500),
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE
+    FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE,
+    UNIQUE (unit_id, log_datetime, status, location)
 );
 
 CREATE INDEX idx_unit_logs_unit_id ON unit_logs(unit_id);
@@ -276,7 +279,8 @@ CREATE TABLE IF NOT EXISTS narratives (
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE
+    FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
+    UNIQUE (call_id, create_datetime, create_user, text)
 );
 
 CREATE INDEX idx_narratives_call_id ON narratives(call_id);

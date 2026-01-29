@@ -205,6 +205,7 @@ CREATE TABLE IF NOT EXISTS units (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_call_unit (call_id, unit_number),
     INDEX idx_call_id (call_id),
     INDEX idx_unit_number (unit_number),
     INDEX idx_jurisdiction (jurisdiction),
@@ -247,10 +248,12 @@ CREATE TABLE IF NOT EXISTS unit_logs (
     
     log_datetime DATETIME NOT NULL,
     status VARCHAR(100) NOT NULL COMMENT 'Dispatched, Arrived, Available, etc.',
+    location VARCHAR(500) COMMENT 'Location information from log',
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_unit_log (unit_id, log_datetime, status, location(255)),
     INDEX idx_unit_id (unit_id),
     INDEX idx_log_datetime (log_datetime),
     INDEX idx_status (status)
@@ -273,6 +276,7 @@ CREATE TABLE IF NOT EXISTS narratives (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_narrative (call_id, create_datetime, create_user, text(255)),
     INDEX idx_call_id (call_id),
     INDEX idx_create_datetime (create_datetime),
     INDEX idx_create_user (create_user),

@@ -199,13 +199,10 @@ class AegisXmlParser
         $existingCall = $existingCallStmt->fetch();
 
         if ($existingCall) {
-            // Update existing call
-            $this->logger->info("Call ID {$callData['call_id']} already exists, updating record");
+            // Update existing call - child records will be upserted, not deleted
+            $this->logger->info("Call ID {$callData['call_id']} already exists, updating record and adding new child data");
             
             $dbCallId = (int)$existingCall['id'];
-            
-            // Delete existing child records to replace with new data
-            $this->deleteChildRecords($dbCallId);
             
             // Update the call record
             $sql = "UPDATE calls SET
@@ -251,7 +248,7 @@ class AegisXmlParser
             $dbCallId = (int)$this->db->lastInsertId();
         }
 
-        // Insert child records
+        // Upsert child records (insert new, update existing based on unique constraints)
         $this->insertAgencyContexts($xml, $dbCallId);
         $this->insertLocation($xml, $dbCallId);
         $this->insertIncidents($xml, $dbCallId);
@@ -267,29 +264,6 @@ class AegisXmlParser
     /**
      * Delete all child records for a call
      * Used when updating an existing call to replace all child data
-     * Relies on database ON DELETE CASCADE constraints for efficiency
-     *
-     * @param int $callId Database call ID
-     * @return void
-     */
-    private function deleteChildRecords(int $callId): void
-    {
-        $this->logger->debug("Deleting existing child records for call ID: $callId");
-        
-        // Delete child records directly - ON DELETE CASCADE will handle nested relationships
-        // The order matters: delete records without foreign keys first, then those that reference them
-        $this->db->prepare("DELETE FROM call_dispositions WHERE call_id = ?")->execute([$callId]);
-        $this->db->prepare("DELETE FROM vehicles WHERE call_id = ?")->execute([$callId]);
-        $this->db->prepare("DELETE FROM persons WHERE call_id = ?")->execute([$callId]);
-        $this->db->prepare("DELETE FROM narratives WHERE call_id = ?")->execute([$callId]);
-        
-        // Deleting units will cascade to unit_logs, unit_personnel, and unit_dispositions
-        $this->db->prepare("DELETE FROM units WHERE call_id = ?")->execute([$callId]);
-        
-        $this->db->prepare("DELETE FROM incidents WHERE call_id = ?")->execute([$callId]);
-        $this->db->prepare("DELETE FROM locations WHERE call_id = ?")->execute([$callId]);
-        $this->db->prepare("DELETE FROM agency_contexts WHERE call_id = ?")->execute([$callId]);
-    }
 
     /**
      * Insert agency contexts
@@ -439,7 +413,8 @@ class AegisXmlParser
     }
 
     /**
-     * Insert units and related data (personnel, logs, dispositions)
+     * Insert or update units for a call
+     * Uses UPSERT to add new units or update existing ones based on (call_id, unit_number)
      */
     private function insertUnits(SimpleXMLElement $xml, int $callId): void
     {
@@ -447,20 +422,8 @@ class AegisXmlParser
             return;
         }
 
-        $sql = "INSERT INTO units (
-            call_id, unit_number, unit_type, is_primary, jurisdiction,
-            assigned_datetime, dispatch_datetime, enroute_datetime, arrive_datetime,
-            staged_datetime, at_patient_datetime, transport_datetime,
-            at_hospital_datetime, depart_hospital_datetime, clear_datetime
-        ) VALUES (
-            :call_id, :unit_number, :unit_type, :is_primary, :jurisdiction,
-            :assigned_datetime, :dispatch_datetime, :enroute_datetime, :arrive_datetime,
-            :staged_datetime, :at_patient_datetime, :transport_datetime,
-            :at_hospital_datetime, :depart_hospital_datetime, :clear_datetime
-        )";
-
-        $stmt = $this->db->prepare($sql);
-
+        $dbType = Database::getDbType();
+        
         foreach ($xml->AssignedUnits->Unit as $unit) {
             $data = [
                 'call_id' => $callId,
@@ -480,16 +443,81 @@ class AegisXmlParser
                 'clear_datetime' => $this->parseDateTime((string)$unit->ClearDateTime)
             ];
             
+            // Use UPSERT to insert or update unit
+            if ($dbType === 'mysql') {
+                $sql = "INSERT INTO units (
+                    call_id, unit_number, unit_type, is_primary, jurisdiction,
+                    assigned_datetime, dispatch_datetime, enroute_datetime, arrive_datetime,
+                    staged_datetime, at_patient_datetime, transport_datetime,
+                    at_hospital_datetime, depart_hospital_datetime, clear_datetime
+                ) VALUES (
+                    :call_id, :unit_number, :unit_type, :is_primary, :jurisdiction,
+                    :assigned_datetime, :dispatch_datetime, :enroute_datetime, :arrive_datetime,
+                    :staged_datetime, :at_patient_datetime, :transport_datetime,
+                    :at_hospital_datetime, :depart_hospital_datetime, :clear_datetime
+                ) ON DUPLICATE KEY UPDATE
+                    unit_type = VALUES(unit_type),
+                    is_primary = VALUES(is_primary),
+                    jurisdiction = VALUES(jurisdiction),
+                    assigned_datetime = VALUES(assigned_datetime),
+                    dispatch_datetime = VALUES(dispatch_datetime),
+                    enroute_datetime = VALUES(enroute_datetime),
+                    arrive_datetime = VALUES(arrive_datetime),
+                    staged_datetime = VALUES(staged_datetime),
+                    at_patient_datetime = VALUES(at_patient_datetime),
+                    transport_datetime = VALUES(transport_datetime),
+                    at_hospital_datetime = VALUES(at_hospital_datetime),
+                    depart_hospital_datetime = VALUES(depart_hospital_datetime),
+                    clear_datetime = VALUES(clear_datetime),
+                    updated_at = CURRENT_TIMESTAMP";
+            } else { // pgsql
+                $sql = "INSERT INTO units (
+                    call_id, unit_number, unit_type, is_primary, jurisdiction,
+                    assigned_datetime, dispatch_datetime, enroute_datetime, arrive_datetime,
+                    staged_datetime, at_patient_datetime, transport_datetime,
+                    at_hospital_datetime, depart_hospital_datetime, clear_datetime
+                ) VALUES (
+                    :call_id, :unit_number, :unit_type, :is_primary, :jurisdiction,
+                    :assigned_datetime, :dispatch_datetime, :enroute_datetime, :arrive_datetime,
+                    :staged_datetime, :at_patient_datetime, :transport_datetime,
+                    :at_hospital_datetime, :depart_hospital_datetime, :clear_datetime
+                ) ON CONFLICT (call_id, unit_number) DO UPDATE SET
+                    unit_type = EXCLUDED.unit_type,
+                    is_primary = EXCLUDED.is_primary,
+                    jurisdiction = EXCLUDED.jurisdiction,
+                    assigned_datetime = EXCLUDED.assigned_datetime,
+                    dispatch_datetime = EXCLUDED.dispatch_datetime,
+                    enroute_datetime = EXCLUDED.enroute_datetime,
+                    arrive_datetime = EXCLUDED.arrive_datetime,
+                    staged_datetime = EXCLUDED.staged_datetime,
+                    at_patient_datetime = EXCLUDED.at_patient_datetime,
+                    transport_datetime = EXCLUDED.transport_datetime,
+                    at_hospital_datetime = EXCLUDED.at_hospital_datetime,
+                    depart_hospital_datetime = EXCLUDED.depart_hospital_datetime,
+                    clear_datetime = EXCLUDED.clear_datetime,
+                    updated_at = CURRENT_TIMESTAMP";
+            }
+            
+            $stmt = $this->db->prepare($sql);
             $stmt->execute($data);
-            $unitId = (int)$this->db->lastInsertId();
+            
+            // Get the unit_id - for MySQL use lastInsertId, for existing records query by unique key
+            if ($this->db->lastInsertId()) {
+                $unitId = (int)$this->db->lastInsertId();
+            } else {
+                // Unit already existed, get its id
+                $stmt = $this->db->prepare("SELECT id FROM units WHERE call_id = ? AND unit_number = ?");
+                $stmt->execute([$callId, $data['unit_number']]);
+                $unitId = (int)$stmt->fetchColumn();
+            }
 
-            // Insert personnel for this unit
+            // Insert/update personnel for this unit (will delete and re-insert to handle removals)
             $this->insertUnitPersonnel($unit, $unitId);
             
-            // Insert unit logs
+            // Insert unit logs (additive - will use INSERT IGNORE)
             $this->insertUnitLogs($unit, $unitId);
             
-            // Insert unit dispositions
+            // Insert unit dispositions (will delete and re-insert to handle updates)
             $this->insertUnitDispositions($unit, $unitId);
         }
     }
@@ -529,7 +557,7 @@ class AegisXmlParser
     }
 
     /**
-     * Insert unit logs
+     * Insert unit logs (additive - uses INSERT IGNORE to skip duplicates)
      */
     private function insertUnitLogs(SimpleXMLElement $unit, int $unitId): void
     {
@@ -537,11 +565,22 @@ class AegisXmlParser
             return;
         }
 
-        $sql = "INSERT INTO unit_logs (
-            unit_id, log_datetime, status
-        ) VALUES (
-            :unit_id, :log_datetime, :status
-        )";
+        $dbType = Database::getDbType();
+        
+        // Use INSERT IGNORE for MySQL, ON CONFLICT DO NOTHING for PostgreSQL
+        if ($dbType === 'mysql') {
+            $sql = "INSERT IGNORE INTO unit_logs (
+                unit_id, log_datetime, status, location
+            ) VALUES (
+                :unit_id, :log_datetime, :status, :location
+            )";
+        } else { // pgsql
+            $sql = "INSERT INTO unit_logs (
+                unit_id, log_datetime, status, location
+            ) VALUES (
+                :unit_id, :log_datetime, :status, :location
+            ) ON CONFLICT (unit_id, log_datetime, status, location) DO NOTHING";
+        }
 
         $stmt = $this->db->prepare($sql);
 
@@ -549,7 +588,8 @@ class AegisXmlParser
             $data = [
                 'unit_id' => $unitId,
                 'log_datetime' => $this->parseDateTime((string)$log->DateTime),
-                'status' => (string)$log->Status ?: null
+                'status' => (string)$log->Status ?: null,
+                'location' => (string)$log->Location ?: null
             ];
             $stmt->execute($data);
         }
@@ -589,7 +629,7 @@ class AegisXmlParser
     }
 
     /**
-     * Insert narratives
+     * Insert narratives (additive - uses INSERT IGNORE to skip duplicates)
      */
     private function insertNarratives(SimpleXMLElement $xml, int $callId): void
     {
@@ -597,13 +637,26 @@ class AegisXmlParser
             return;
         }
 
-        $sql = "INSERT INTO narratives (
-            call_id, create_datetime, create_user, narrative_type,
-            text, restriction
-        ) VALUES (
-            :call_id, :create_datetime, :create_user, :narrative_type,
-            :text, :restriction
-        )";
+        $dbType = Database::getDbType();
+        
+        // Use INSERT IGNORE for MySQL, ON CONFLICT DO NOTHING for PostgreSQL
+        if ($dbType === 'mysql') {
+            $sql = "INSERT IGNORE INTO narratives (
+                call_id, create_datetime, create_user, narrative_type,
+                text, restriction
+            ) VALUES (
+                :call_id, :create_datetime, :create_user, :narrative_type,
+                :text, :restriction
+            )";
+        } else { // pgsql
+            $sql = "INSERT INTO narratives (
+                call_id, create_datetime, create_user, narrative_type,
+                text, restriction
+            ) VALUES (
+                :call_id, :create_datetime, :create_user, :narrative_type,
+                :text, :restriction
+            ) ON CONFLICT (call_id, create_datetime, create_user, text) DO NOTHING";
+        }
 
         $stmt = $this->db->prepare($sql);
 
