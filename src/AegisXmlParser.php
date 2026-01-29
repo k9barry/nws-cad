@@ -193,21 +193,63 @@ class AegisXmlParser
             'xml_data' => json_encode($this->xmlToArray($xml))
         ];
 
-        $sql = "INSERT INTO calls (
-            call_id, call_number, call_source, caller_name, caller_phone,
-            nature_of_call, additional_info, create_datetime, close_datetime,
-            created_by, closed_flag, canceled_flag, alarm_level, emd_code,
-            fire_controlled_time, xml_data
-        ) VALUES (
-            :call_id, :call_number, :call_source, :caller_name, :caller_phone,
-            :nature_of_call, :additional_info, :create_datetime, :close_datetime,
-            :created_by, :closed_flag, :canceled_flag, :alarm_level, :emd_code,
-            :fire_controlled_time, :xml_data
-        )";
+        // Check if call already exists
+        $existingCallStmt = $this->db->prepare("SELECT id FROM calls WHERE call_id = ?");
+        $existingCallStmt->execute([$callData['call_id']]);
+        $existingCall = $existingCallStmt->fetch();
 
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($callData);
-        $dbCallId = (int)$this->db->lastInsertId();
+        if ($existingCall) {
+            // Update existing call
+            $this->logger->info("Call ID {$callData['call_id']} already exists, updating record");
+            
+            $dbCallId = (int)$existingCall['id'];
+            
+            // Delete existing child records to replace with new data
+            $this->deleteChildRecords($dbCallId);
+            
+            // Update the call record
+            $sql = "UPDATE calls SET
+                call_number = :call_number,
+                call_source = :call_source,
+                caller_name = :caller_name,
+                caller_phone = :caller_phone,
+                nature_of_call = :nature_of_call,
+                additional_info = :additional_info,
+                create_datetime = :create_datetime,
+                close_datetime = :close_datetime,
+                created_by = :created_by,
+                closed_flag = :closed_flag,
+                canceled_flag = :canceled_flag,
+                alarm_level = :alarm_level,
+                emd_code = :emd_code,
+                fire_controlled_time = :fire_controlled_time,
+                xml_data = :xml_data,
+                updated_at = CURRENT_TIMESTAMP
+                WHERE id = :id";
+            
+            $updateData = $callData;
+            $updateData['id'] = $dbCallId;
+            
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($updateData);
+        } else {
+            // Insert new call
+            $sql = "INSERT INTO calls (
+                call_id, call_number, call_source, caller_name, caller_phone,
+                nature_of_call, additional_info, create_datetime, close_datetime,
+                created_by, closed_flag, canceled_flag, alarm_level, emd_code,
+                fire_controlled_time, xml_data
+            ) VALUES (
+                :call_id, :call_number, :call_source, :caller_name, :caller_phone,
+                :nature_of_call, :additional_info, :create_datetime, :close_datetime,
+                :created_by, :closed_flag, :canceled_flag, :alarm_level, :emd_code,
+                :fire_controlled_time, :xml_data
+            )";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($callData);
+            $dbCallId = (int)$this->db->lastInsertId();
+        }
 
         // Insert child records
         $this->insertAgencyContexts($xml, $dbCallId);
@@ -220,6 +262,33 @@ class AegisXmlParser
         $this->insertCallDispositions($xml, $dbCallId);
 
         return $dbCallId;
+    }
+
+    /**
+     * Delete all child records for a call
+     * Used when updating an existing call to replace all child data
+     * Relies on database ON DELETE CASCADE constraints for efficiency
+     *
+     * @param int $callId Database call ID
+     * @return void
+     */
+    private function deleteChildRecords(int $callId): void
+    {
+        $this->logger->debug("Deleting existing child records for call ID: $callId");
+        
+        // Delete child records directly - ON DELETE CASCADE will handle nested relationships
+        // The order matters: delete records without foreign keys first, then those that reference them
+        $this->db->prepare("DELETE FROM call_dispositions WHERE call_id = ?")->execute([$callId]);
+        $this->db->prepare("DELETE FROM vehicles WHERE call_id = ?")->execute([$callId]);
+        $this->db->prepare("DELETE FROM persons WHERE call_id = ?")->execute([$callId]);
+        $this->db->prepare("DELETE FROM narratives WHERE call_id = ?")->execute([$callId]);
+        
+        // Deleting units will cascade to unit_logs, unit_personnel, and unit_dispositions
+        $this->db->prepare("DELETE FROM units WHERE call_id = ?")->execute([$callId]);
+        
+        $this->db->prepare("DELETE FROM incidents WHERE call_id = ?")->execute([$callId]);
+        $this->db->prepare("DELETE FROM locations WHERE call_id = ?")->execute([$callId]);
+        $this->db->prepare("DELETE FROM agency_contexts WHERE call_id = ?")->execute([$callId]);
     }
 
     /**

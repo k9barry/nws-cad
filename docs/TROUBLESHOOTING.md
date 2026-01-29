@@ -137,8 +137,13 @@ docker-compose exec mysql mysql -u nws_user -p -e "
 # Common issues:
 # - Invalid XML structure
 # - Missing required elements
-# - Database constraints violated
+# - Duplicate call_id (fixed in v1.1.1+ - now automatically updates existing calls)
 ```
+
+**Note on Duplicate Calls:**
+CAD systems often send multiple updates for the same call (e.g., unit assignments, status changes). 
+Version 1.1.1+ handles this automatically by updating existing records instead of failing. 
+The system will log "Call ID X already exists, updating record" when processing updates.
 
 ---
 
@@ -409,6 +414,32 @@ sleep 60
 ---
 
 ## Common Error Messages
+
+### "Duplicate entry for key 'calls.uk_call_id'" (Fixed in v1.1.1+)
+
+**Error Message:**
+```
+SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry 'XXXXX' for key 'calls.uk_call_id'
+```
+
+**Background:**
+This error occurred in versions prior to v1.1.1 when CAD systems sent multiple updates for the same call. The system would try to INSERT a new record instead of UPDATE the existing one.
+
+**Fixed:**
+Version 1.1.1+ automatically detects duplicate call_ids and updates the existing record instead of attempting to insert. No configuration changes needed.
+
+**If you're on an older version:**
+1. Upgrade to v1.1.1 or later
+2. Or manually clean up duplicate processed files:
+   ```bash
+   docker-compose exec mysql mysql -u nws_user -p -e "
+     DELETE pf FROM nws_cad.processed_files pf
+     INNER JOIN (
+       SELECT filename, MIN(id) as keep_id
+       FROM nws_cad.processed_files
+       GROUP BY filename HAVING COUNT(*) > 1
+     ) dup ON pf.filename = dup.filename AND pf.id != dup.keep_id;"
+   ```
 
 ### "Call to undefined function mb_strlen()"
 
