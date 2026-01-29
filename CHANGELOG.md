@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Analytics page stats calculation using correct data sources
 - SQL GROUP BY compatibility with MySQL strict mode
 - API jurisdiction filtering to use incidents table instead of agency_contexts
+- Duplicate call_id constraint violation when processing updated call data
+- File parser now updates existing calls instead of failing on duplicate call_ids
 
 ## [1.1.0] - 2026-01-25
 
