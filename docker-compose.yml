@@ -13,6 +13,7 @@ services:
       - ./:/var/www
       - ./watch:/var/www/watch
       - ./logs:/var/www/logs
+      - watchfolder:/var/www/watch
     environment:
       - DB_TYPE=${DB_TYPE:-mysql}
       - MYSQL_HOST=mysql
@@ -141,3 +142,10 @@ services:
 networks:
   nws-cad-network:
     driver: bridge
+
+volumes:
+  watchfolder:
+    driver_opts:
+      type: cifs
+      o: "username=${CIFS_USERNAME},password=${CIFS_PASSWORD},domain=${CIFS_DOMAIN}"
+      device: ${SHARED_FOLDER_PATH}
