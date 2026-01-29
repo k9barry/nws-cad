@@ -262,10 +262,6 @@ class AegisXmlParser
     }
 
     /**
-     * Delete all child records for a call
-     * Used when updating an existing call to replace all child data
-
-    /**
      * Insert agency contexts
      */
     private function insertAgencyContexts(SimpleXMLElement $xml, int $callId): void
@@ -502,11 +498,17 @@ class AegisXmlParser
             $stmt = $this->db->prepare($sql);
             $stmt->execute($data);
             
-            // Get the unit_id - always query to ensure we get the correct ID
-            // This handles both INSERT and UPDATE cases reliably
-            $stmt = $this->db->prepare("SELECT id FROM units WHERE call_id = ? AND unit_number = ?");
-            $stmt->execute([$callId, $data['unit_number']]);
-            $unitId = (int)$stmt->fetchColumn();
+            // Get the unit_id
+            if ($dbType === 'mysql') {
+                // MySQL does not support RETURNING with INSERT ... ON DUPLICATE KEY UPDATE,
+                // so we need to query the id after the upsert.
+                $stmt = $this->db->prepare("SELECT id FROM units WHERE call_id = ? AND unit_number = ?");
+                $stmt->execute([$callId, $data['unit_number']]);
+                $unitId = (int)$stmt->fetchColumn();
+            } else {
+                // PostgreSQL: use the id returned by INSERT ... ON CONFLICT ... DO UPDATE RETURNING id
+                $unitId = (int)$stmt->fetchColumn();
+            }
 
             // Insert/update personnel for this unit (will delete and re-insert to handle removals)
             $this->insertUnitPersonnel($unit, $unitId);
@@ -527,6 +529,10 @@ class AegisXmlParser
         if (!isset($unit->Personnel->UnitPersonnel)) {
             return;
         }
+
+        // Delete existing personnel for this unit to handle removals/updates
+        $deleteStmt = $this->db->prepare("DELETE FROM unit_personnel WHERE unit_id = ?");
+        $deleteStmt->execute([$unitId]);
 
         $sql = "INSERT INTO unit_personnel (
             unit_id, first_name, middle_name, last_name, id_number,
@@ -604,6 +610,10 @@ class AegisXmlParser
         if (!isset($unit->Dispositions->Disposition)) {
             return;
         }
+
+        // Delete existing dispositions for this unit to handle removals/updates
+        $deleteStmt = $this->db->prepare("DELETE FROM unit_dispositions WHERE unit_id = ?");
+        $deleteStmt->execute([$unitId]);
 
         $sql = "INSERT INTO unit_dispositions (
             unit_id, disposition_name, description, count, disposition_datetime
