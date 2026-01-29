@@ -10,6 +10,54 @@
     let currentFilters = {};
     
     /**
+     * Load filter options
+     */
+    async function loadFilterOptions() {
+        try {
+            // Load unique values for filter dropdowns
+            const stats = await Dashboard.apiRequest('/stats');
+            
+            // Populate jurisdiction filter
+            const jurisdictionSelect = document.getElementById('filter-jurisdiction');
+            if (jurisdictionSelect && stats.calls_by_jurisdiction) {
+                stats.calls_by_jurisdiction.forEach(j => {
+                    const option = document.createElement('option');
+                    option.value = j.jurisdiction;
+                    option.textContent = j.jurisdiction;
+                    jurisdictionSelect.appendChild(option);
+                });
+            }
+            
+            // Populate call type filter
+            const callTypeSelect = document.getElementById('filter-call-type');
+            if (callTypeSelect && stats.top_call_types) {
+                stats.top_call_types.forEach(ct => {
+                    const option = document.createElement('option');
+                    option.value = ct.call_type;
+                    option.textContent = ct.call_type;
+                    callTypeSelect.appendChild(option);
+                });
+            }
+            
+            // Populate agency filter (from agency types in stats)
+            const agencySelect = document.getElementById('filter-agency');
+            if (agencySelect) {
+                // Static agency types based on schema
+                const agencyTypes = ['Police', 'Fire', 'EMS'];
+                agencyTypes.forEach(agency => {
+                    const option = document.createElement('option');
+                    option.value = agency;
+                    option.textContent = agency;
+                    agencySelect.appendChild(option);
+                });
+            }
+            
+        } catch (error) {
+            console.error('Error loading filter options:', error);
+        }
+    }
+    
+    /**
      * Load calls list
      */
     async function loadCalls(page = 1) {
@@ -31,7 +79,7 @@
             if (!calls || calls.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="9" class="text-center py-4">
+                        <td colspan="10" class="text-center py-4">
                             <div class="empty-state">
                                 <i class="bi bi-inbox"></i>
                                 <p>No calls found</p>
@@ -42,24 +90,44 @@
                 document.getElementById('calls-count').textContent = '0';
                 return;
             }
-            
-            tbody.innerHTML = calls.map(call => `
-                <tr>
-                    <td>${call.call_number}</td>
-                    <td>${Dashboard.formatDateTime(call.create_datetime)}</td>
-                    <td>${call.call_types?.[0] || 'N/A'}</td>
-                    <td>${call.location?.address || 'N/A'}</td>
-                    <td>${call.agency_types?.[0] || 'N/A'}</td>
-                    <td><span class="badge bg-info">Normal</span></td>
-                    <td><span class="badge ${call.closed_flag ? 'bg-success' : 'bg-warning'}">${call.closed_flag ? 'Closed' : 'Open'}</span></td>
-                    <td>${call.unit_count || 0}</td>
-                    <td>
-                        <button class="btn btn-sm btn-primary" onclick="viewCallDetails(${call.id})">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
+
+            tbody.innerHTML = calls.map(call => {
+                // Get priority display
+                const priority = call.priorities?.[0] || '';
+                const priorityBadge = priority ? `<span class="badge bg-warning">${priority}</span>` : '<span class="badge bg-secondary">N/A</span>';
+                
+                // Get status display
+                const status = call.statuses?.[0] || (call.closed_flag ? 'Closed' : 'Open');
+                let statusBadge = '';
+                if (status.toLowerCase().includes('progress') || status.toLowerCase() === 'open') {
+                    statusBadge = `<span class="badge bg-warning">${status}</span>`;
+                } else if (status.toLowerCase() === 'closed' || call.closed_flag) {
+                    statusBadge = `<span class="badge bg-success">${status}</span>`;
+                } else if (call.canceled_flag) {
+                    statusBadge = '<span class="badge bg-danger">Canceled</span>';
+                } else {
+                    statusBadge = `<span class="badge bg-info">${status}</span>`;
+                }
+                
+                return `
+                    <tr>
+                        <td>${call.call_number}</td>
+                        <td>${Dashboard.formatDateTime(call.create_datetime)}</td>
+                        <td>${call.call_types?.[0] || 'N/A'}</td>
+                        <td>${call.location?.address || 'N/A'}</td>
+                        <td>${call.jurisdictions?.[0] || 'N/A'}</td>
+                        <td>${call.agency_types?.[0] || 'N/A'}</td>
+                        <td>${priorityBadge}</td>
+                        <td>${statusBadge}</td>
+                        <td>${call.unit_count || 0}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="viewCallDetails(${call.id})">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
             
             document.getElementById('calls-count').textContent = pagination.total || calls.length;
             
@@ -352,6 +420,9 @@
     document.getElementById('refresh-calls')?.addEventListener('click', function() {
         loadCalls(currentPage);
     });
+    
+    // Load filter options
+    await loadFilterOptions();
     
     // Initial load
     await loadCalls(1);

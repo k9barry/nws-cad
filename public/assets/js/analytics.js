@@ -8,6 +8,143 @@
     
     console.log('[Analytics] Script loaded');
     
+    let currentDateFrom = null;
+    let currentDateTo = null;
+    let currentAgency = null;
+    let currentJurisdiction = null;
+    
+    /**
+     * Load filter options
+     */
+    async function loadFilterOptions() {
+        try {
+            const stats = await Dashboard.apiRequest('/stats');
+            
+            // Populate jurisdiction filter
+            const jurisdictionSelect = document.getElementById('analytics-jurisdiction');
+            if (jurisdictionSelect && stats.calls_by_jurisdiction) {
+                stats.calls_by_jurisdiction.forEach(j => {
+                    const option = document.createElement('option');
+                    option.value = j.jurisdiction;
+                    option.textContent = j.jurisdiction;
+                    jurisdictionSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('[Analytics] Error loading filter options:', error);
+        }
+    }
+    
+    /**
+     * Set default date range (last 30 days)
+     */
+    function setDefaultDateRange() {
+        const today = new Date();
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+        
+        const dateFromEl = document.getElementById('analytics-date-from');
+        const dateToEl = document.getElementById('analytics-date-to');
+        
+        if (dateFromEl && dateToEl) {
+            currentDateFrom = thirtyDaysAgo.toISOString().split('T')[0];
+            currentDateTo = today.toISOString().split('T')[0];
+            
+            dateFromEl.value = currentDateFrom;
+            dateToEl.value = currentDateTo;
+        }
+    }
+    
+    /**
+     * Handle quick period selection
+     */
+    function setupQuickPeriodSelector() {
+        const quickPeriodEl = document.getElementById('quick-period');
+        if (quickPeriodEl) {
+            quickPeriodEl.addEventListener('change', function() {
+                const value = this.value;
+                const today = new Date();
+                const dateFromEl = document.getElementById('analytics-date-from');
+                const dateToEl = document.getElementById('analytics-date-to');
+                
+                if (!dateFromEl || !dateToEl) return;
+                
+                let fromDate, toDate;
+                
+                switch(value) {
+                    case 'today':
+                        fromDate = toDate = today;
+                        break;
+                    case 'yesterday':
+                        fromDate = toDate = new Date();
+                        fromDate.setDate(today.getDate() - 1);
+                        toDate = fromDate;
+                        break;
+                    case '7days':
+                        fromDate = new Date();
+                        fromDate.setDate(today.getDate() - 7);
+                        toDate = today;
+                        break;
+                    case '30days':
+                        fromDate = new Date();
+                        fromDate.setDate(today.getDate() - 30);
+                        toDate = today;
+                        break;
+                    case 'thismonth':
+                        fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                        toDate = today;
+                        break;
+                    case 'lastmonth':
+                        fromDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                        toDate = new Date(today.getFullYear(), today.getMonth(), 0);
+                        break;
+                    default:
+                        return; // Custom range, do nothing
+                }
+                
+                if (fromDate && toDate) {
+                    dateFromEl.value = fromDate.toISOString().split('T')[0];
+                    dateToEl.value = toDate.toISOString().split('T')[0];
+                    
+                    // Trigger form submission
+                    document.getElementById('analytics-period-form')?.dispatchEvent(new Event('submit'));
+                }
+            });
+        }
+    }
+    
+    /**
+     * Handle period form submission
+     */
+    function setupPeriodForm() {
+        const formEl = document.getElementById('analytics-period-form');
+        if (formEl) {
+            formEl.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const dateFromEl = document.getElementById('analytics-date-from');
+                const dateToEl = document.getElementById('analytics-date-to');
+                const agencyEl = document.getElementById('analytics-agency');
+                const jurisdictionEl = document.getElementById('analytics-jurisdiction');
+                
+                if (dateFromEl && dateToEl) {
+                    currentDateFrom = dateFromEl.value;
+                    currentDateTo = dateToEl.value;
+                    currentAgency = agencyEl?.value || null;
+                    currentJurisdiction = jurisdictionEl?.value || null;
+                    
+                    console.log('[Analytics] Filters updated:', {
+                        dateFrom: currentDateFrom,
+                        dateTo: currentDateTo,
+                        agency: currentAgency,
+                        jurisdiction: currentJurisdiction
+                    });
+                    loadAnalytics();
+                }
+            });
+        }
+    }
+    
     async function init() {
         if (typeof Dashboard === 'undefined' || typeof ChartManager === 'undefined') {
             console.error('[Analytics] Dependencies not found, retrying...');
@@ -16,6 +153,18 @@
         }
         
         console.log('[Analytics] Initializing analytics page...');
+        
+        // Load filter options first
+        await loadFilterOptions();
+        
+        // Set default date range
+        setDefaultDateRange();
+        
+        // Setup event handlers
+        setupQuickPeriodSelector();
+        setupPeriodForm();
+        
+        // Load initial data
         await loadAnalytics();
         
         // Setup auto-refresh with longer interval
@@ -34,21 +183,31 @@
         console.log('[Analytics] Loading analytics data...');
         
         try {
+            // Build query string with date filters if set
+            const params = {};
+            if (currentDateFrom) params.date_from = currentDateFrom + ' 00:00:00';
+            if (currentDateTo) params.date_to = currentDateTo + ' 23:59:59';
+            if (currentAgency) params.agency_type = currentAgency;
+            if (currentJurisdiction) params.jurisdiction = currentJurisdiction;
+            const queryString = Object.keys(params).length > 0 ? Dashboard.buildQueryString(params) : '';
+            
+            console.log('[Analytics] Using filters:', params);
+            
             // Fetch both general stats and detailed call stats (which includes agency data)
             const [stats, callStats, calls, units] = await Promise.all([
-                Dashboard.apiRequest('/stats'),
-                Dashboard.apiRequest('/stats/calls').catch(() => null),
-                Dashboard.apiRequest('/calls?per_page=100').then(r => r.items || []).catch(() => []),
-                Dashboard.apiRequest('/units?per_page=100').then(r => r.items || []).catch(() => [])
+                Dashboard.apiRequest('/stats' + queryString),
+                Dashboard.apiRequest('/stats/calls' + queryString).catch(() => null),
+                Dashboard.apiRequest('/calls?per_page=100' + (queryString ? '&' + queryString.substring(1) : '')).then(r => r.items || []).catch(() => []),
+                Dashboard.apiRequest('/units?per_page=100' + (queryString ? '&' + queryString.substring(1) : '')).then(r => r.items || []).catch(() => [])
             ]);
             console.log('[Analytics] Stats:', stats);
             console.log('[Analytics] Call Stats:', callStats);
             
             // Update summary cards
-            updateSummaryCards(stats);
+            updateSummaryCards(stats, calls, units);
             
             // Create charts (pass both stats objects)
-            createCharts(stats, callStats);
+            createCharts(stats, callStats, calls);
             
             // Populate top locations and units
             populateTopLocations(calls);
@@ -64,7 +223,7 @@
         }
     }
     
-    function updateSummaryCards(stats) {
+    function updateSummaryCards(stats, calls, units) {
         const totalCallsEl = document.getElementById('analytics-total-calls');
         if (totalCallsEl) {
             totalCallsEl.textContent = stats.total_calls || 0;
@@ -74,6 +233,72 @@
         if (avgResponseEl) {
             const avgMin = stats.response_times?.average_minutes;
             avgResponseEl.textContent = avgMin ? `${avgMin} min` : 'N/A';
+        }
+        
+        // Calculate busiest hour
+        const busiestHourEl = document.getElementById('analytics-busiest-hour');
+        const busiestCountEl = document.getElementById('analytics-busiest-count');
+        if (busiestHourEl && calls.length > 0) {
+            const hourCounts = {};
+            calls.forEach(call => {
+                if (call.create_datetime) {
+                    const hour = new Date(call.create_datetime).getHours();
+                    hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+                }
+            });
+            
+            let maxHour = 0;
+            let maxCount = 0;
+            Object.entries(hourCounts).forEach(([hour, count]) => {
+                if (count > maxCount) {
+                    maxCount = count;
+                    maxHour = parseInt(hour);
+                }
+            });
+            
+            if (maxCount > 0) {
+                busiestHourEl.textContent = `${maxHour.toString().padStart(2, '0')}:00`;
+                if (busiestCountEl) {
+                    busiestCountEl.textContent = `${maxCount} calls`;
+                }
+            } else {
+                busiestHourEl.textContent = 'N/A';
+                if (busiestCountEl) {
+                    busiestCountEl.textContent = '-';
+                }
+            }
+        }
+        
+        // Calculate most active unit
+        const topUnitEl = document.getElementById('analytics-top-unit');
+        const unitCallsEl = document.getElementById('analytics-unit-calls');
+        if (topUnitEl && units.length > 0) {
+            const unitCounts = {};
+            units.forEach(unit => {
+                const unitNum = unit.unit_number || 'Unknown';
+                unitCounts[unitNum] = (unitCounts[unitNum] || 0) + 1;
+            });
+            
+            let topUnit = 'N/A';
+            let topCount = 0;
+            Object.entries(unitCounts).forEach(([unit, count]) => {
+                if (count > topCount) {
+                    topCount = count;
+                    topUnit = unit;
+                }
+            });
+            
+            if (topCount > 0) {
+                topUnitEl.textContent = topUnit;
+                if (unitCallsEl) {
+                    unitCallsEl.textContent = `${topCount} calls`;
+                }
+            } else {
+                topUnitEl.textContent = 'N/A';
+                if (unitCallsEl) {
+                    unitCallsEl.textContent = '-';
+                }
+            }
         }
         
         const activeUnitsEl = document.getElementById('analytics-active-units');
@@ -90,15 +315,15 @@
         }
     }
     
-    function createCharts(stats, callStats) {
+    function createCharts(stats, callStats, calls) {
         console.log('[Analytics] Creating charts...');
         
-        // Call types chart (for distribution)
+        // Call types chart (for distribution) - add counts to labels
         if (stats.top_call_types && stats.top_call_types.length > 0) {
             const chartEl = document.getElementById('analytics-distribution-chart');
             if (chartEl) {
                 ChartManager.createDoughnutChart('analytics-distribution-chart', {
-                    labels: stats.top_call_types.map(t => t.call_type || t.nature_of_call || 'Unknown'),
+                    labels: stats.top_call_types.map(t => `${t.call_type || t.nature_of_call || 'Unknown'} (${t.count})`),
                     datasets: [{
                         data: stats.top_call_types.map(t => t.count),
                         backgroundColor: [
@@ -107,7 +332,11 @@
                             'rgb(255, 205, 86)',
                             'rgb(75, 192, 192)',
                             'rgb(153, 102, 255)',
-                            'rgb(255, 159, 64)'
+                            'rgb(255, 159, 64)',
+                            'rgb(201, 203, 207)',
+                            'rgb(255, 159, 243)',
+                            'rgb(54, 235, 162)',
+                            'rgb(235, 99, 54)'
                         ]
                     }]
                 });
@@ -115,27 +344,40 @@
             }
         }
         
-        // Status chart
-        if (stats.calls_by_status) {
-            const statusChartEl = document.getElementById('analytics-volume-chart');
-            if (statusChartEl) {
+        // Incidents by jurisdiction chart
+        if (stats.calls_by_jurisdiction && stats.calls_by_jurisdiction.length > 0) {
+            const chartEl = document.getElementById('analytics-volume-chart');
+            if (chartEl) {
+                const colors = [
+                    'rgba(255, 99, 132, 0.6)',
+                    'rgba(54, 162, 235, 0.6)',
+                    'rgba(255, 205, 86, 0.6)',
+                    'rgba(75, 192, 192, 0.6)',
+                    'rgba(153, 102, 255, 0.6)',
+                    'rgba(255, 159, 64, 0.6)',
+                    'rgba(199, 199, 199, 0.6)',
+                    'rgba(83, 102, 255, 0.6)',
+                    'rgba(255, 99, 255, 0.6)',
+                    'rgba(99, 255, 132, 0.6)'
+                ];
+                const borderColors = colors.map(c => c.replace('0.6', '1'));
+                
                 ChartManager.createBarChart('analytics-volume-chart', {
-                    labels: ['Open', 'Closed', 'Canceled'],
+                    labels: stats.calls_by_jurisdiction.map(j => j.jurisdiction),
                     datasets: [{
-                        label: 'Call Status',
-                        data: [
-                            stats.calls_by_status.open || 0,
-                            stats.calls_by_status.closed || 0,
-                            stats.calls_by_status.canceled || 0
-                        ],
-                        backgroundColor: [
-                            'rgba(255, 205, 86, 0.6)',
-                            'rgba(75, 192, 192, 0.6)',
-                            'rgba(201, 203, 207, 0.6)'
-                        ]
+                        label: 'Incidents by Jurisdiction',
+                        data: stats.calls_by_jurisdiction.map(j => j.count),
+                        backgroundColor: colors.slice(0, stats.calls_by_jurisdiction.length),
+                        borderColor: borderColors.slice(0, stats.calls_by_jurisdiction.length),
+                        borderWidth: 2
                     }]
                 });
-                console.log('[Analytics] Volume chart created');
+                console.log('[Analytics] Jurisdiction chart created');
+            }
+        } else {
+            const chartEl = document.getElementById('analytics-volume-chart');
+            if (chartEl) {
+                ChartManager.showEmptyChart('analytics-volume-chart', 'No jurisdiction data available');
             }
         }
         

@@ -244,32 +244,37 @@
             try {
                 const stats = await Dashboard.apiRequest('/stats');
                 
-                // Call volume trends chart (status distribution)
+                // Call volume trends chart (by jurisdiction)
                 const trendChartEl = document.getElementById('calls-trend-chart');
                 if (trendChartEl) {
-                    if (stats.calls_by_status) {
+                    if (stats.calls_by_jurisdiction?.length > 0) {
+                        const colors = [
+                            'rgba(255, 99, 132, 0.6)',
+                            'rgba(54, 162, 235, 0.6)',
+                            'rgba(255, 205, 86, 0.6)',
+                            'rgba(75, 192, 192, 0.6)',
+                            'rgba(153, 102, 255, 0.6)',
+                            'rgba(255, 159, 64, 0.6)',
+                            'rgba(199, 199, 199, 0.6)',
+                            'rgba(83, 102, 255, 0.6)',
+                            'rgba(255, 99, 255, 0.6)',
+                            'rgba(99, 255, 132, 0.6)'
+                        ];
+                        const borderColors = colors.map(c => c.replace('0.6', '1'));
+                        
                         ChartManager.createBarChart('calls-trend-chart', {
-                            labels: ['Open', 'Closed'],
+                            labels: stats.calls_by_jurisdiction.map(j => j.jurisdiction),
                             datasets: [{
-                                label: 'Calls',
-                                data: [
-                                    stats.calls_by_status.open || 0,
-                                    stats.calls_by_status.closed || 0
-                                ],
-                                backgroundColor: [
-                                    'rgba(255, 205, 86, 0.6)',
-                                    'rgba(75, 192, 192, 0.6)'
-                                ],
-                                borderColor: [
-                                    'rgb(255, 205, 86)',
-                                    'rgb(75, 192, 192)'
-                                ],
+                                label: 'Calls by Jurisdiction',
+                                data: stats.calls_by_jurisdiction.map(j => j.count),
+                                backgroundColor: colors.slice(0, stats.calls_by_jurisdiction.length),
+                                borderColor: borderColors.slice(0, stats.calls_by_jurisdiction.length),
                                 borderWidth: 2
                             }]
                         });
-                        console.log('[Dashboard Main] Call volume trend chart created');
+                        console.log('[Dashboard Main] Call volume trend chart by jurisdiction created');
                     } else {
-                        ChartManager.showEmptyChart('calls-trend-chart', 'No call data available');
+                        ChartManager.showEmptyChart('calls-trend-chart', 'No jurisdiction data available');
                     }
                 }
                 

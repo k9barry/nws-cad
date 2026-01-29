@@ -57,6 +57,16 @@
                     </select>
                 </div>
                 <div class="col-md-3">
+                    <label class="form-label">Jurisdiction</label>
+                    <select class="form-select" id="filter-jurisdiction" name="jurisdiction">
+                        <option value="">All Jurisdictions</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Location Search</label>
+                    <input type="text" class="form-control" id="filter-location" name="location" placeholder="Address, city, or place...">
+                </div>
+                <div class="col-md-3">
                     <label class="form-label">Search</label>
                     <input type="text" class="form-control" id="filter-search" name="search" placeholder="Search...">
                 </div>
@@ -101,6 +111,7 @@
                         <th>Date/Time</th>
                         <th>Type</th>
                         <th>Location</th>
+                        <th>Jurisdiction</th>
                         <th>Agency</th>
                         <th>Priority</th>
                         <th>Status</th>
@@ -110,7 +121,7 @@
                 </thead>
                 <tbody id="calls-table-body">
                     <tr>
-                        <td colspan="9" class="text-center py-4">
+                        <td colspan="10" class="text-center py-4">
                             <div class="spinner-border text-primary"></div>
                             <p class="text-muted mt-2">Loading calls...</p>
                         </td>

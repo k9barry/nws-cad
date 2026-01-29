@@ -16,15 +16,15 @@
     </div>
     <div class="card-body">
         <form id="analytics-period-form" class="row g-3">
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label">From Date</label>
                 <input type="date" class="form-control" id="analytics-date-from" required>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label">To Date</label>
                 <input type="date" class="form-control" id="analytics-date-to" required>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label">Quick Select</label>
                 <select class="form-select" id="quick-period">
                     <option value="">Custom Range</option>
@@ -36,7 +36,22 @@
                     <option value="lastmonth">Last Month</option>
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
+                <label class="form-label">Agency</label>
+                <select class="form-select" id="analytics-agency">
+                    <option value="">All Agencies</option>
+                    <option value="Police">Police</option>
+                    <option value="Fire">Fire</option>
+                    <option value="EMS">EMS</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Jurisdiction</label>
+                <select class="form-select" id="analytics-jurisdiction">
+                    <option value="">All Jurisdictions</option>
+                </select>
+            </div>
+            <div class="col-md-2">
                 <label class="form-label">&nbsp;</label>
                 <button type="submit" class="btn btn-primary w-100">
                     <i class="bi bi-bar-chart"></i> Generate Report
@@ -92,9 +107,9 @@
         <div class="card">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">
-                    <i class="bi bi-graph-up"></i> Call Volume Over Time
+                    <i class="bi bi-graph-up"></i> Incidents by Jurisdiction
                 </h5>
-                <div class="btn-group btn-group-sm" role="group">
+                <div class="btn-group btn-group-sm" role="group" style="display: none;">
                     <input type="radio" class="btn-check" name="volume-grouping" id="volume-hour" value="hour" checked>
                     <label class="btn btn-outline-primary" for="volume-hour">Hour</label>
                     

@@ -73,45 +73,50 @@ class StatsController
      */
     private function getCallsStats(array $filters): array
     {
-        $where = [];
         $params = [];
-
-        // Date range filter
+        
+        // Build date filters (used in all queries)
+        $dateWhere = [];
         if (isset($filters['date_from'])) {
-            $where[] = "c.create_datetime >= :date_from";
+            $dateWhere[] = "c.create_datetime >= :date_from";
             $params[':date_from'] = $filters['date_from'];
         }
-
         if (isset($filters['date_to'])) {
-            $where[] = "c.create_datetime <= :date_to";
+            $dateWhere[] = "c.create_datetime <= :date_to";
             $params[':date_to'] = $filters['date_to'];
         }
 
-        // Agency type filter
+        // Build agency type filter
         $agencyJoin = '';
+        $agencyWhere = '';
         if (isset($filters['agency_type'])) {
             $agencyJoin = "INNER JOIN agency_contexts ac ON c.id = ac.call_id";
-            $where[] = "ac.agency_type = :agency_type";
+            $agencyWhere = "ac.agency_type = :agency_type";
             $params[':agency_type'] = $filters['agency_type'];
         }
 
-        // Jurisdiction filter
+        // Build jurisdiction filter
+        $jurisdictionJoin = '';
+        $jurisdictionWhere = '';
         if (isset($filters['jurisdiction'])) {
-            if (!$agencyJoin) {
-                $agencyJoin = "INNER JOIN agency_contexts ac ON c.id = ac.call_id";
-            }
-            $where[] = "ac.jurisdiction = :jurisdiction";
+            $jurisdictionJoin = "INNER JOIN incidents i ON c.id = i.call_id";
+            $jurisdictionWhere = "i.jurisdiction = :jurisdiction";
             $params[':jurisdiction'] = $filters['jurisdiction'];
         }
 
-        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+        // Full join clause for queries needing both
+        $fullJoin = $agencyJoin . ' ' . $jurisdictionJoin;
+        
+        // Build full WHERE clause (date + agency + jurisdiction)
+        $allWhere = array_merge($dateWhere, array_filter([$agencyWhere, $jurisdictionWhere]));
+        $fullWhereClause = !empty($allWhere) ? 'WHERE ' . implode(' AND ', $allWhere) : '';
 
         // Total calls
         $sql = "
             SELECT COUNT(DISTINCT c.id) as total
             FROM calls c
-            {$agencyJoin}
-            {$whereClause}
+            {$fullJoin}
+            {$fullWhereClause}
         ";
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -121,28 +126,39 @@ class StatsController
         $sql = "
             SELECT 
                 CASE 
-                    WHEN c.canceled_flag = 1 THEN 'canceled'
-                    WHEN c.closed_flag = 1 THEN 'closed'
+                    WHEN MAX(c.canceled_flag) = 1 THEN 'canceled'
+                    WHEN MAX(c.closed_flag) = 1 THEN 'closed'
                     ELSE 'open'
                 END as status,
                 COUNT(DISTINCT c.id) as count
             FROM calls c
-            {$agencyJoin}
-            {$whereClause}
-            GROUP BY status
+            {$fullJoin}
+            {$fullWhereClause}
+            GROUP BY c.id
         ";
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        $byStatus = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        
+        // Count by status
+        $statusCounts = ['open' => 0, 'closed' => 0, 'canceled' => 0];
+        foreach ($stmt->fetchAll() as $row) {
+            $statusCounts[$row['status']] = ($statusCounts[$row['status']] ?? 0) + 1;
+        }
+        $byStatus = $statusCounts;
 
         // Top call types from agency_contexts
+        // WHERE clause: date filters + agency filter + jurisdiction filter
+        $callTypeWhere = array_merge($dateWhere, array_filter([$agencyWhere, $jurisdictionWhere]));
+        $callTypeWhereClause = !empty($callTypeWhere) ? 'WHERE ' . implode(' AND ', $callTypeWhere) : '';
+        
         $sql = "
             SELECT 
                 ac.call_type,
                 COUNT(*) as count
             FROM calls c
             INNER JOIN agency_contexts ac ON c.id = ac.call_id
-            {$whereClause}
+            {$jurisdictionJoin}
+            {$callTypeWhereClause}
             AND ac.call_type IS NOT NULL
             GROUP BY ac.call_type
             ORDER BY count DESC
@@ -157,10 +173,38 @@ class StatsController
             ];
         }, $stmt->fetchAll());
 
+        // Calls by jurisdiction from incidents table
+        // WHERE clause: date filters + agency filter (jurisdiction filter applies to the grouping result, not the WHERE)
+        $jurisdictionQueryWhere = array_merge($dateWhere, array_filter([$agencyWhere, $jurisdictionWhere]));
+        $jurisdictionQueryWhereClause = !empty($jurisdictionQueryWhere) ? 'WHERE ' . implode(' AND ', $jurisdictionQueryWhere) : '';
+        
+        $sql = "
+            SELECT 
+                i.jurisdiction,
+                COUNT(DISTINCT c.id) as count
+            FROM calls c
+            {$agencyJoin}
+            INNER JOIN incidents i ON c.id = i.call_id
+            {$jurisdictionQueryWhereClause}
+            AND i.jurisdiction IS NOT NULL
+            GROUP BY i.jurisdiction
+            ORDER BY count DESC
+            LIMIT 10
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $callsByJurisdiction = array_map(function($row) {
+            return [
+                'jurisdiction' => $row['jurisdiction'],
+                'count' => (int)$row['count']
+            ];
+        }, $stmt->fetchAll());
+
         return [
             'total_calls' => $totalCalls,
             'calls_by_status' => $byStatus,
-            'top_call_types' => $topCallTypes
+            'top_call_types' => $topCallTypes,
+            'calls_by_jurisdiction' => $callsByJurisdiction
         ];
     }
 
@@ -255,44 +299,65 @@ class StatsController
                 'jurisdiction'
             ]);
 
-            $where = [];
             $params = [];
-
-            // Date range filter
-            if (isset($filters['date_from'])) {
-                $where[] = "c.create_datetime >= :date_from";
-                $params[':date_from'] = $filters['date_from'];
-            }
-
-            if (isset($filters['date_to'])) {
-                $where[] = "c.create_datetime <= :date_to";
-                $params[':date_to'] = $filters['date_to'];
-            }
-
-            // Agency type filter
-            $agencyJoin = '';
-            if (isset($filters['agency_type'])) {
-                $agencyJoin = "INNER JOIN agency_contexts ac ON c.id = ac.call_id";
-                $where[] = "ac.agency_type = :agency_type";
-                $params[':agency_type'] = $filters['agency_type'];
-            }
-
-            // Jurisdiction filter
-            if (isset($filters['jurisdiction'])) {
-                if (!$agencyJoin) {
-                    $agencyJoin = "INNER JOIN agency_contexts ac ON c.id = ac.call_id";
+            
+            // Helper function to build WHERE clause and params for different queries
+            $buildWhereClause = function($includeIncidents = false) use ($filters, &$params) {
+                $where = [];
+                
+                // Date range filter
+                if (isset($filters['date_from'])) {
+                    $where[] = "c.create_datetime >= :date_from";
+                    $params[':date_from'] = $filters['date_from'];
                 }
-                $where[] = "ac.jurisdiction = :jurisdiction";
-                $params[':jurisdiction'] = $filters['jurisdiction'];
-            }
-
-            $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+                if (isset($filters['date_to'])) {
+                    $where[] = "c.create_datetime <= :date_to";
+                    $params[':date_to'] = $filters['date_to'];
+                }
+                
+                // Agency type filter
+                if (isset($filters['agency_type'])) {
+                    $where[] = "ac.agency_type = :agency_type";
+                    $params[':agency_type'] = $filters['agency_type'];
+                }
+                
+                // Jurisdiction filter
+                if ($includeIncidents && isset($filters['jurisdiction'])) {
+                    $where[] = "i.jurisdiction = :jurisdiction";
+                    $params[':jurisdiction'] = $filters['jurisdiction'];
+                }
+                
+                return !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+            };
+            
+            // Helper function to build JOIN clauses
+            $buildJoinClause = function($includeIncidents = false) {
+                $joins = '';
+                // agency_contexts is needed for agency_type, call_type queries
+                if (isset($GLOBALS['filters']['agency_type']) || $includeIncidents === 'agency_only') {
+                    $joins .= "INNER JOIN agency_contexts ac ON c.id = ac.call_id ";
+                }
+                // incidents is needed for jurisdiction filter
+                if ($includeIncidents && isset($GLOBALS['filters']['jurisdiction'])) {
+                    $joins .= "INNER JOIN incidents i ON c.id = i.call_id ";
+                }
+                return $joins;
+            };
 
             // Total calls
+            $whereClause = $buildWhereClause(true);
+            $joinClause = '';
+            if (isset($filters['agency_type'])) {
+                $joinClause .= "INNER JOIN agency_contexts ac ON c.id = ac.call_id ";
+            }
+            if (isset($filters['jurisdiction'])) {
+                $joinClause .= "INNER JOIN incidents i ON c.id = i.call_id ";
+            }
+            
             $sql = "
                 SELECT COUNT(DISTINCT c.id) as total
                 FROM calls c
-                {$agencyJoin}
+                {$joinClause}
                 {$whereClause}
             ";
             $stmt = $this->db->prepare($sql);
@@ -303,28 +368,54 @@ class StatsController
             $sql = "
                 SELECT 
                     CASE 
-                        WHEN c.canceled_flag = 1 THEN 'Canceled'
-                        WHEN c.closed_flag = 1 THEN 'Closed'
+                        WHEN MAX(c.canceled_flag) = 1 THEN 'Canceled'
+                        WHEN MAX(c.closed_flag) = 1 THEN 'Closed'
                         ELSE 'Open'
                     END as status,
                     COUNT(DISTINCT c.id) as count
                 FROM calls c
-                {$agencyJoin}
+                {$joinClause}
                 {$whereClause}
-                GROUP BY status
+                GROUP BY c.id
             ";
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
-            $byStatus = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+            
+            // Count by status
+            $statusCounts = ['Open' => 0, 'Closed' => 0, 'Canceled' => 0];
+            foreach ($stmt->fetchAll() as $row) {
+                $statusCounts[$row['status']] = ($statusCounts[$row['status']] ?? 0) + 1;
+            }
+            $byStatus = $statusCounts;
 
-            // Calls by agency type
+            // Calls by agency type - needs agency_contexts join
+            $agencyTypeWhere = [];
+            if (isset($filters['date_from'])) {
+                $agencyTypeWhere[] = "c.create_datetime >= :date_from";
+            }
+            if (isset($filters['date_to'])) {
+                $agencyTypeWhere[] = "c.create_datetime <= :date_to";
+            }
+            if (isset($filters['agency_type'])) {
+                $agencyTypeWhere[] = "ac.agency_type = :agency_type";
+            }
+            if (isset($filters['jurisdiction'])) {
+                $agencyTypeWhere[] = "i.jurisdiction = :jurisdiction";
+            }
+            $agencyTypeWhereClause = !empty($agencyTypeWhere) ? 'WHERE ' . implode(' AND ', $agencyTypeWhere) : '';
+            
+            $agencyTypeJoin = "INNER JOIN agency_contexts ac ON c.id = ac.call_id ";
+            if (isset($filters['jurisdiction'])) {
+                $agencyTypeJoin .= "INNER JOIN incidents i ON c.id = i.call_id ";
+            }
+            
             $sql = "
                 SELECT 
                     ac.agency_type,
                     COUNT(DISTINCT c.id) as count
                 FROM calls c
-                INNER JOIN agency_contexts ac ON c.id = ac.call_id
-                {$whereClause}
+                {$agencyTypeJoin}
+                {$agencyTypeWhereClause}
                 GROUP BY ac.agency_type
                 ORDER BY count DESC
             ";
@@ -332,14 +423,14 @@ class StatsController
             $stmt->execute($params);
             $byAgencyType = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-            // Calls by call type (top 10)
+            // Calls by call type (top 10) - same as agency type join
             $sql = "
                 SELECT 
                     ac.call_type,
                     COUNT(DISTINCT c.id) as count
                 FROM calls c
-                INNER JOIN agency_contexts ac ON c.id = ac.call_id
-                {$whereClause}
+                {$agencyTypeJoin}
+                {$agencyTypeWhereClause}
                 GROUP BY ac.call_type
                 ORDER BY count DESC
                 LIMIT 10
@@ -355,9 +446,9 @@ class StatsController
                     {$hourFunc} as hour,
                     COUNT(DISTINCT c.id) as count
                 FROM calls c
-                {$agencyJoin}
+                {$joinClause}
                 {$whereClause}
-                GROUP BY hour
+                GROUP BY {$hourFunc}
                 ORDER BY hour
             ";
             $stmt = $this->db->prepare($sql);
@@ -371,9 +462,9 @@ class StatsController
                     {$dayFunc} as day_of_week,
                     COUNT(DISTINCT c.id) as count
                 FROM calls c
-                {$agencyJoin}
+                {$joinClause}
                 {$whereClause}
-                GROUP BY day_of_week
+                GROUP BY {$dayFunc}
                 ORDER BY day_of_week
             ";
             $stmt = $this->db->prepare($sql);
@@ -387,14 +478,23 @@ class StatsController
             }
 
             // Calls by date (last 30 days if no date range specified)
-            if (!isset($filters['date_from']) && !isset($filters['date_to'])) {
-                $params[':date_from'] = date('Y-m-d', strtotime('-30 days'));
-                if (!$whereClause) {
-                    $whereClause = "WHERE c.create_datetime >= :date_from";
-                } else {
-                    $whereClause .= " AND c.create_datetime >= :date_from";
-                }
+            $byDateWhere = [];
+            if (isset($filters['date_from'])) {
+                $byDateWhere[] = "c.create_datetime >= :date_from";
             }
+            if (isset($filters['date_to'])) {
+                $byDateWhere[] = "c.create_datetime <= :date_to";
+            } elseif (!isset($filters['date_from'])) {
+                // Add 30 day limit if no dates specified
+                $byDateWhere[] = "c.create_datetime >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
+            }
+            if (isset($filters['agency_type'])) {
+                $byDateWhere[] = "ac.agency_type = :agency_type";
+            }
+            if (isset($filters['jurisdiction'])) {
+                $byDateWhere[] = "i.jurisdiction = :jurisdiction";
+            }
+            $byDateWhereClause = !empty($byDateWhere) ? 'WHERE ' . implode(' AND ', $byDateWhere) : '';
 
             $dateFunc = DbHelper::date('c.create_datetime');
             $sql = "
@@ -402,8 +502,8 @@ class StatsController
                     {$dateFunc} as date,
                     COUNT(DISTINCT c.id) as count
                 FROM calls c
-                {$agencyJoin}
-                {$whereClause}
+                {$joinClause}
+                {$byDateWhereClause}
                 GROUP BY date
                 ORDER BY date
             ";
@@ -412,19 +512,34 @@ class StatsController
             $byDate = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
             // Average call duration (for closed calls)
+            $durationWhere = [];
+            if (isset($filters['date_from'])) {
+                $durationWhere[] = "c.create_datetime >= :date_from";
+            }
+            if (isset($filters['date_to'])) {
+                $durationWhere[] = "c.create_datetime <= :date_to";
+            }
+            if (isset($filters['agency_type'])) {
+                $durationWhere[] = "ac.agency_type = :agency_type";
+            }
+            if (isset($filters['jurisdiction'])) {
+                $durationWhere[] = "i.jurisdiction = :jurisdiction";
+            }
+            $durationWhere[] = "c.closed_flag = 1";
+            $durationWhere[] = "c.close_datetime IS NOT NULL";
+            $durationWhereClause = !empty($durationWhere) ? 'WHERE ' . implode(' AND ', $durationWhere) : '';
+            
             $timestampDiff = DbHelper::timestampDiff('MINUTE', 'c.create_datetime', 'c.close_datetime');
             $sql = "
                 SELECT 
                     AVG({$timestampDiff}) as avg_duration_minutes
                 FROM calls c
-                {$agencyJoin}
-                {$whereClause}
-                AND c.closed_flag = 1 
-                AND c.close_datetime IS NOT NULL
+                {$joinClause}
+                {$durationWhereClause}
             ";
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
-            $avgDuration = (float)$stmt->fetchColumn();
+            $avgDuration = (float)($stmt->fetchColumn() ?? 0);
 
             Response::success([
                 'total_calls' => $totalCalls,

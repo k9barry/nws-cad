@@ -11,7 +11,7 @@ The NWS CAD Dashboard is a comprehensive web-based interface for visualizing and
 - **Interactive Map**: Visual display of call locations using Leaflet.js
 - **Recent Calls List**: Latest 10 calls with quick details
 - **Charts**: 
-  - Call volume trends (line chart)
+  - Call volume trends by jurisdiction (bar chart)
   - Call types distribution (doughnut chart)
   - Unit activity (bar chart)
 - **Auto-refresh**: Updates every 30 seconds

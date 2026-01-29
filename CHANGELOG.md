@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Agency and Jurisdiction filters to Analytics page
+- Call counts to Call Distribution chart labels
+- Dynamic calculation of busiest hour from actual call data
+- Dynamic calculation of most active unit from actual units data
+- "Incidents by Jurisdiction" chart replacing "Call Volume Over Time"
+
+### Fixed
+- Analytics page stats calculation using correct data sources
+- SQL GROUP BY compatibility with MySQL strict mode
+- API jurisdiction filtering to use incidents table instead of agency_contexts
+
 ## [1.1.0] - 2026-01-25
 
 ### Added

@@ -122,7 +122,7 @@ server {
 
 ### 4. Analytics Page (`/analytics`)
 - Generate reports for custom date ranges
-- View call volume trends
+- View call volume trends by jurisdiction
 - Analyze response times
 - See top call types, locations, and units
 - Export reports

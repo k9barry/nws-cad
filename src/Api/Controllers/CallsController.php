@@ -40,7 +40,10 @@ class CallsController
                 'created_by',
                 'date_from',
                 'date_to',
-                'nature_of_call'
+                'nature_of_call',
+                'jurisdiction',
+                'location',
+                'city'
             ]);
 
             // Build WHERE clause
@@ -92,6 +95,23 @@ class CallsController
                 $params[':nature_of_call'] = '%' . $filters['nature_of_call'] . '%';
             }
 
+            if (isset($filters['jurisdiction'])) {
+                $where[] = "i.jurisdiction = :jurisdiction";
+                $params[':jurisdiction'] = $filters['jurisdiction'];
+            }
+
+            if (isset($filters['location'])) {
+                $where[] = "(l.full_address LIKE :location OR l.city LIKE :location2 OR l.common_name LIKE :location3)";
+                $params[':location'] = '%' . $filters['location'] . '%';
+                $params[':location2'] = '%' . $filters['location'] . '%';
+                $params[':location3'] = '%' . $filters['location'] . '%';
+            }
+
+            if (isset($filters['city'])) {
+                $where[] = "l.city = :city";
+                $params[':city'] = $filters['city'];
+            }
+
             $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
 
             // Validate sort field
@@ -103,6 +123,8 @@ class CallsController
                 SELECT COUNT(DISTINCT c.id)
                 FROM calls c
                 LEFT JOIN agency_contexts ac ON c.id = ac.call_id
+                LEFT JOIN locations l ON c.id = l.call_id
+                LEFT JOIN incidents i ON c.id = i.call_id
                 {$whereClause}
             ";
             $countStmt = $this->db->prepare($countSql);
@@ -113,6 +135,9 @@ class CallsController
             $offset = ($pagination['page'] - 1) * $pagination['per_page'];
             $agencyTypesAgg = DbHelper::groupConcat('ac.agency_type', ',', true);
             $callTypesAgg = DbHelper::groupConcat('ac.call_type', ',', true);
+            $jurisdictionsAgg = DbHelper::groupConcat('i.jurisdiction', ',', true);
+            $prioritiesAgg = DbHelper::groupConcat('ac.priority', ',', true);
+            $statusesAgg = DbHelper::groupConcat('ac.status', ',', true);
             
             $sql = "
                 SELECT 
@@ -137,10 +162,14 @@ class CallsController
                     MAX(l.longitude_x) as longitude_x,
                     {$agencyTypesAgg} as agency_types,
                     {$callTypesAgg} as call_types,
+                    {$jurisdictionsAgg} as jurisdictions,
+                    {$prioritiesAgg} as priorities,
+                    {$statusesAgg} as statuses,
                     COUNT(DISTINCT u.id) as unit_count
                 FROM calls c
                 LEFT JOIN locations l ON c.id = l.call_id
                 LEFT JOIN agency_contexts ac ON c.id = ac.call_id
+                LEFT JOIN incidents i ON c.id = i.call_id
                 LEFT JOIN units u ON c.id = u.call_id
                 {$whereClause}
                 GROUP BY c.id
@@ -188,6 +217,9 @@ class CallsController
                     ],
                     'agency_types' => $call['agency_types'] ? explode(',', $call['agency_types']) : [],
                     'call_types' => $call['call_types'] ? explode(',', $call['call_types']) : [],
+                    'jurisdictions' => $call['jurisdictions'] ? explode(',', $call['jurisdictions']) : [],
+                    'priorities' => $call['priorities'] ? explode(',', $call['priorities']) : [],
+                    'statuses' => $call['statuses'] ? explode(',', $call['statuses']) : [],
                     'unit_count' => (int)$call['unit_count']
                 ];
             }, $calls);
