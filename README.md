@@ -2,6 +2,8 @@
 
 A Docker-based PHP system for monitoring, parsing, and storing CAD (Computer-Aided Dispatch) XML data with selectable database backend support and REST API.
 
+**Current Version:** 1.1.0 | **[📚 Complete Documentation Index](DOCUMENTATION.md)** | **[📋 Changelog](CHANGELOG.md)**
+
 ## Features
 
 - 🐳 **Docker-based deployment** - Easy setup with Docker Compose
