@@ -229,12 +229,21 @@ No additional steps needed.
 
 ## Backward Compatibility
 
-✅ **Fully Backward Compatible**
-- Existing functionality unchanged
+✅ **Mostly Backward Compatible with Caveats**
+- Existing functionality unchanged for files matching the expected pattern
 - API endpoints unaffected
 - Database queries remain the same
-- Old filenames still processed (just more efficiently)
-- No breaking changes
+- Files matching pattern `CallNumber_YYYYMMDDHHMMSSsuffix.xml` processed efficiently
+- Files with optional tilde metadata (e.g., `~20241007-075033`) are now supported
+
+⚠️ **Breaking Change for Non-Standard Filenames**
+- Files NOT matching the expected pattern will be silently skipped
+- Such files will not be processed and will remain in the watch folder
+- To identify these files, use `FilenameParser::getUnparseableFilenames()`
+- Examples of unsupported formats:
+  - Files without timestamp suffix
+  - Files with incorrect timestamp format
+  - Files not following CallNumber_DateTime structure
 
 ## Success Metrics
 

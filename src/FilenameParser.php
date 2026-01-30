@@ -51,7 +51,8 @@ class FilenameParser
         $filename = preg_replace('/\.xml$/i', '', $filename);
         
         // Pattern: CallNumber_YYYYMMDDHHMMSSsuffix
-        $pattern = '/^(\d+)_(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d+)$/';
+        // Allow optional trailing metadata after a tilde (e.g., "~20241007-075033")
+        $pattern = '/^(\d+)_(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d+)(?:~.*)?$/';
         
         if (!preg_match($pattern, $filename, $matches)) {
             return null;
@@ -102,8 +103,24 @@ class FilenameParser
             $suffix
         );
         
+        // Build numeric timestamp string (YYYYMMDDHHMMSSsuffix) for comparison use
+        $timestampNumericString = $year . $month . $day . $hour . $minute . $second . $suffix;
+        
+        // Ensure the numeric timestamp fits within PHP's integer range before casting
+        $phpIntMaxString = (string)PHP_INT_MAX;
+        $timestampLength = strlen($timestampNumericString);
+        $phpIntMaxLength = strlen($phpIntMaxString);
+        
+        if (
+            $timestampLength > $phpIntMaxLength ||
+            ($timestampLength === $phpIntMaxLength && $timestampNumericString > $phpIntMaxString)
+        ) {
+            // Out of range for a safe integer representation
+            return null;
+        }
+        
         // Create integer for easy comparison (YYYYMMDDHHMMSSsuffix)
-        $timestampInt = (int)($year . $month . $day . $hour . $minute . $second . $suffix);
+        $timestampInt = (int)$timestampNumericString;
         
         return [
             'call_number' => $callNumber,
@@ -159,7 +176,7 @@ class FilenameParser
      *
      * @param string $filename1 First filename
      * @param string $filename2 Second filename
-     * @return int -1 if file1 < file2, 0 if equal, 1 if file1 > file2, null if parsing fails
+     * @return int|null -1 if file1 < file2, 0 if equal, 1 if file1 > file2, null if parsing fails
      */
     public static function compare(string $filename1, string $filename2): ?int
     {
@@ -242,5 +259,28 @@ class FilenameParser
         return array_filter($filenames, function ($filename) use ($latestSet) {
             return !isset($latestSet[$filename]);
         });
+    }
+    
+    /**
+     * Get filenames that do not match the expected CAD XML naming pattern.
+     *
+     * This allows callers to explicitly handle legacy or incorrectly named files
+     * that would otherwise be silently ignored by groupByCallNumber() and
+     * considered for skipping by getFilesToSkip().
+     *
+     * @param array<string> $filenames Array of filenames
+     * @return array<string> Array of filenames that could not be parsed
+     */
+    public static function getUnparseableFilenames(array $filenames): array
+    {
+        $unparseable = [];
+        
+        foreach ($filenames as $filename) {
+            if (self::getCallNumber($filename) === null) {
+                $unparseable[] = $filename;
+            }
+        }
+        
+        return $unparseable;
     }
 }

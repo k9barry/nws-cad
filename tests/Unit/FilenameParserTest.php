@@ -193,4 +193,76 @@ class FilenameParserTest extends TestCase
         $toSkip = FilenameParser::getFilesToSkip($files);
         $this->assertCount(18, $toSkip);
     }
+    
+    public function testGetUnparseableFilenames(): void
+    {
+        $files = [
+            '232_2026012609353768.xml',
+            'invalid.xml',
+            '591_2026012705492672.xml',
+            'bad_filename.xml',
+            '240_2026012609521444.xml',
+        ];
+        
+        $unparseable = FilenameParser::getUnparseableFilenames($files);
+        
+        $this->assertCount(2, $unparseable);
+        $this->assertContains('invalid.xml', $unparseable);
+        $this->assertContains('bad_filename.xml', $unparseable);
+    }
+    
+    public function testGetLatestFilesWithUnparseableFiles(): void
+    {
+        $files = [
+            '232_2026012609353768.xml',
+            'invalid.xml',
+            '232_2026012609595563.xml',  // Latest for 232
+            'bad_filename.xml',
+            '591_2026012705492672.xml',  // Only one for 591
+        ];
+        
+        $latest = FilenameParser::getLatestFiles($files);
+        
+        // Should only return latest parseable files
+        $this->assertCount(2, $latest);
+        $this->assertContains('232_2026012609595563.xml', $latest);
+        $this->assertContains('591_2026012705492672.xml', $latest);
+        $this->assertNotContains('invalid.xml', $latest);
+        $this->assertNotContains('bad_filename.xml', $latest);
+    }
+    
+    public function testGetFilesToSkipWithUnparseableFiles(): void
+    {
+        $files = [
+            '232_2026012609353768.xml',  // Skip - older
+            'invalid.xml',                // Skip - unparseable
+            '232_2026012609595563.xml',  // Keep - latest for 232
+            'bad_filename.xml',           // Skip - unparseable
+            '591_2026012705492672.xml',  // Keep - only one for 591
+        ];
+        
+        $toSkip = FilenameParser::getFilesToSkip($files);
+        
+        // Should skip older versions AND unparseable files
+        $this->assertCount(3, $toSkip);
+        $this->assertContains('232_2026012609353768.xml', $toSkip);
+        $this->assertContains('invalid.xml', $toSkip);
+        $this->assertContains('bad_filename.xml', $toSkip);
+    }
+    
+    public function testFilenameWithTilde(): void
+    {
+        // Test that the pattern now accepts filenames with tilde metadata
+        $result = FilenameParser::parse('261_2022120307162437~20241007-075033.xml');
+        
+        $this->assertIsArray($result);
+        $this->assertEquals('261', $result['call_number']);
+        $this->assertEquals('2022', $result['year']);
+        $this->assertEquals('12', $result['month']);
+        $this->assertEquals('03', $result['day']);
+        $this->assertEquals('07', $result['hour']);
+        $this->assertEquals('16', $result['minute']);
+        $this->assertEquals('24', $result['second']);
+        $this->assertEquals('37', $result['suffix']);
+    }
 }

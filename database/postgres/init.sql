@@ -434,6 +434,9 @@ CREATE TABLE IF NOT EXISTS processed_files (
     records_processed INTEGER DEFAULT 0
 );
 
+COMMENT ON COLUMN processed_files.call_number IS 'Extracted from filename';
+COMMENT ON COLUMN processed_files.file_timestamp IS 'Timestamp from filename for version tracking';
+
 CREATE INDEX idx_processed_files_filename ON processed_files(filename);
 CREATE INDEX idx_processed_files_call_number ON processed_files(call_number);
 CREATE INDEX idx_processed_files_file_timestamp ON processed_files(file_timestamp);
