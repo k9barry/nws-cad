@@ -234,13 +234,14 @@ No additional steps needed.
 - API endpoints unaffected
 - Database queries remain the same
 - Files matching pattern `CallNumber_YYYYMMDDHHMMSSsuffix.xml` processed efficiently
-- Files with optional tilde metadata (e.g., `~20241007-075033`) are now supported
 
 ⚠️ **Breaking Change for Non-Standard Filenames**
 - Files NOT matching the expected pattern will be silently skipped
+- This includes files with tildes (~) or other non-standard formats
 - Such files will not be processed and will remain in the watch folder
 - To identify these files, use `FilenameParser::getUnparseableFilenames()`
 - Examples of unsupported formats:
+  - Files with tildes (e.g., `261_2022120307162437~20241007-075033.xml`)
   - Files without timestamp suffix
   - Files with incorrect timestamp format
   - Files not following CallNumber_DateTime structure

@@ -252,21 +252,16 @@ class FilenameParserTest extends TestCase
     
     public function testFilenameWithTilde(): void
     {
-        // Test that the pattern now accepts filenames with tilde metadata
+        // Test that filenames with tilde metadata are rejected
         $result = FilenameParser::parse('261_2022120307162437~20241007-075033.xml');
         
-        $this->assertIsArray($result);
-        $this->assertEquals('261', $result['call_number']);
-        $this->assertEquals('2022', $result['year']);
-        $this->assertEquals('12', $result['month']);
-        $this->assertEquals('03', $result['day']);
-        $this->assertEquals('07', $result['hour']);
-        $this->assertEquals('16', $result['minute']);
-        $this->assertEquals('24', $result['second']);
-        $this->assertEquals('37', $result['suffix']);
+        // Should return null since tilde files are not supported
+        $this->assertNull($result);
         
-        // Verify timestamp fields are generated correctly (tilde metadata should be ignored)
-        $this->assertEquals('2022-12-03 07:16:24.37', $result['timestamp']);
-        $this->assertEquals(2022120307162437, $result['timestamp_int']);
+        // Verify it's detected as unparseable
+        $files = ['261_2022120307162437~20241007-075033.xml'];
+        $unparseable = FilenameParser::getUnparseableFilenames($files);
+        $this->assertCount(1, $unparseable);
+        $this->assertContains('261_2022120307162437~20241007-075033.xml', $unparseable);
     }
 }

@@ -19,8 +19,7 @@ namespace NwsCad;
  *   - 26 = Second
  *   - 72 = Microsecond suffix
  *
- * Optional tilde metadata: 261_2022120307162437~20241007-075033.xml
- *   - Metadata after tilde (~) is ignored during parsing
+ * Note: Files containing tildes (~) or other non-standard formats will be rejected
  *
  * @package NwsCad
  * @version 1.0.0
@@ -54,8 +53,8 @@ class FilenameParser
         $filename = preg_replace('/\.xml$/i', '', $filename);
         
         // Pattern: CallNumber_YYYYMMDDHHMMSSsuffix
-        // Allow optional trailing metadata after a tilde (e.g., "~20241007-075033")
-        $pattern = '/^(\d+)_(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d+)(?:~.*)?$/';
+        // Reject files with tildes or other non-standard formats
+        $pattern = '/^(\d+)_(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d+)$/';
         
         if (!preg_match($pattern, $filename, $matches)) {
             return null;
