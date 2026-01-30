@@ -109,9 +109,12 @@
                     statusBadge = `<span class="badge bg-info">${status}</span>`;
                 }
                 
+                // Get incident number (use first one if multiple, or call_number as fallback)
+                const incidentNumber = call.incident_numbers?.[0] || call.call_number;
+                
                 return `
                     <tr>
-                        <td>${call.call_number}</td>
+                        <td>${incidentNumber}</td>
                         <td>${Dashboard.formatDateTime(call.create_datetime)}</td>
                         <td>${call.call_types?.[0] || 'N/A'}</td>
                         <td>${call.location?.address || 'N/A'}</td>
@@ -201,11 +204,14 @@
         modal.show();
         
         try {
-            const [call, units, narratives] = await Promise.all([
+            const [call, unitsResponse, narrativesResponse] = await Promise.all([
                 Dashboard.apiRequest(`/calls/${callId}`),
-                Dashboard.apiRequest(`/calls/${callId}/units`).catch(() => []),
-                Dashboard.apiRequest(`/calls/${callId}/narratives`).catch(() => [])
+                Dashboard.apiRequest(`/calls/${callId}/units`).catch(() => ({ items: [] })),
+                Dashboard.apiRequest(`/calls/${callId}/narratives`).catch(() => ({ items: [] }))
             ]);
+            
+            const units = unitsResponse?.items || unitsResponse || [];
+            const narratives = narrativesResponse?.items || narrativesResponse || [];
             
             content.innerHTML = `
                 <div class="row">
@@ -335,10 +341,11 @@
                                 <div class="card mb-2">
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between">
-                                            <small class="text-muted">${Dashboard.formatDateTime(n.created_at || n.narrative_datetime)}</small>
-                                            ${n.entry_by ? `<small class="text-muted">By: ${n.entry_by}</small>` : ''}
+                                            <small class="text-muted">${Dashboard.formatDateTime(n.create_datetime)}</small>
+                                            ${n.create_user ? `<small class="text-muted">By: ${n.create_user}</small>` : ''}
+                                            ${n.narrative_type ? `<span class="badge bg-info ms-2">${n.narrative_type}</span>` : ''}
                                         </div>
-                                        <p class="mb-0 mt-2">${n.narrative_text}</p>
+                                        <p class="mb-0 mt-2">${n.text}</p>
                                     </div>
                                 </div>
                             `).join('') 

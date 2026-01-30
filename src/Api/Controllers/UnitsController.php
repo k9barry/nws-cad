@@ -99,6 +99,7 @@ class UnitsController
                     c.call_number,
                     c.nature_of_call,
                     c.create_datetime as call_create_datetime,
+                    (SELECT i.incident_number FROM incidents i WHERE i.call_id = u.call_id LIMIT 1) as incident_number,
                     (SELECT l.latitude_y FROM locations l WHERE l.call_id = u.call_id LIMIT 1) as latitude_y,
                     (SELECT l.longitude_x FROM locations l WHERE l.call_id = u.call_id LIMIT 1) as longitude_x,
                     (SELECT l.full_address FROM locations l WHERE l.call_id = u.call_id LIMIT 1) as full_address,
@@ -137,6 +138,7 @@ class UnitsController
                     'jurisdiction' => $unit['jurisdiction'],
                     'call' => [
                         'call_number' => $unit['call_number'],
+                        'incident_number' => $unit['incident_number'],
                         'nature_of_call' => $unit['nature_of_call'],
                         'create_datetime' => $unit['call_create_datetime']
                     ],
@@ -189,6 +191,7 @@ class UnitsController
                     c.create_datetime as call_create_datetime,
                     c.close_datetime as call_close_datetime,
                     c.caller_name,
+                    (SELECT i.incident_number FROM incidents i WHERE i.call_id = u.call_id LIMIT 1) as incident_number,
                     l.full_address,
                     l.city,
                     l.state
@@ -236,6 +239,7 @@ class UnitsController
                 'call' => [
                     'call_id' => (int)$unit['call_call_id'],
                     'call_number' => $unit['call_number'],
+                    'incident_number' => $unit['incident_number'],
                     'nature_of_call' => $unit['nature_of_call'],
                     'create_datetime' => $unit['call_create_datetime'],
                     'close_datetime' => $unit['call_close_datetime'],

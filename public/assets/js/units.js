@@ -47,6 +47,20 @@
             return;
         }
         
+        // Show/hide custom date range based on time range selection
+        const timeRangeSelect = document.getElementById('filter-time-range');
+        const customDateRange = document.getElementById('custom-date-range');
+        
+        if (timeRangeSelect && customDateRange) {
+            timeRangeSelect.addEventListener('change', () => {
+                if (timeRangeSelect.value === 'custom') {
+                    customDateRange.style.display = 'block';
+                } else {
+                    customDateRange.style.display = 'none';
+                }
+            });
+        }
+        
         // Apply filters
         filterForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -57,6 +71,13 @@
         filterForm.addEventListener('reset', async (e) => {
             e.preventDefault();
             filterForm.reset();
+            // Reset to default 24 hours
+            if (timeRangeSelect) {
+                timeRangeSelect.value = '24';
+            }
+            if (customDateRange) {
+                customDateRange.style.display = 'none';
+            }
             await loadUnits();
         });
         
@@ -66,8 +87,20 @@
     
     async function populateFilterOptions() {
         try {
-            // Get distinct unit types and agencies from current units
-            const units = await Dashboard.apiRequest('/units');
+            // Get distinct unit types and agencies from recent units (last 7 days)
+            const now = new Date();
+            const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+            const dateFrom = sevenDaysAgo.toISOString().slice(0, 19).replace('T', ' ');
+            
+            const queryParams = Dashboard.buildQueryString({
+                date_from: dateFrom,
+                per_page: 200
+            });
+            
+            const response = await fetch(Dashboard.config.apiBaseUrl + '/units' + queryParams);
+            const result = await response.json();
+            const units = result?.data?.items || [];
+            
             if (!units || !Array.isArray(units)) return;
             
             // Get unique types
@@ -104,10 +137,38 @@
         try {
             const filters = {
                 page: 1,
-                per_page: 50,
-                sort: 'unit_id',
-                order: 'asc'
+                per_page: 500,  // Increased to handle more units
+                sort: 'assigned_datetime',
+                order: 'desc'
             };
+            
+            // Handle time range filter
+            const timeRangeSelect = document.getElementById('filter-time-range');
+            const dateFromInput = document.getElementById('filter-date-from');
+            const dateToInput = document.getElementById('filter-date-to');
+            
+            if (timeRangeSelect) {
+                const timeRange = timeRangeSelect.value;
+                
+                if (timeRange === 'custom') {
+                    // Use custom date range
+                    if (dateFromInput && dateFromInput.value) {
+                        filters.date_from = dateFromInput.value;
+                    }
+                    if (dateToInput && dateToInput.value) {
+                        filters.date_to = dateToInput.value;
+                    }
+                } else {
+                    // Calculate date range based on hours
+                    const hours = parseInt(timeRange) || 24;  // Default to 24 hours
+                    const now = new Date();
+                    const fromDate = new Date(now.getTime() - (hours * 60 * 60 * 1000));
+                    
+                    // Format dates as YYYY-MM-DD HH:MM:SS
+                    filters.date_from = fromDate.toISOString().slice(0, 19).replace('T', ' ');
+                    filters.date_to = now.toISOString().slice(0, 19).replace('T', ' ');
+                }
+            }
             
             // Get filter values from form
             const statusFilter = document.getElementById('filter-unit-status');
@@ -116,7 +177,7 @@
             const searchFilter = document.getElementById('filter-unit-search');
             
             // Note: API doesn't support status filter, so we'll filter client-side
-            // The API supports: unit_type, jurisdiction, unit_number
+            // The API supports: unit_type, jurisdiction, unit_number, date_from, date_to
             
             if (typeFilter && typeFilter.value) {
                 filters.unit_type = typeFilter.value;
@@ -159,6 +220,27 @@
             const countEl = document.getElementById('units-count');
             if (countEl) {
                 countEl.textContent = filteredUnits.length;
+            }
+            
+            // Update filter status display
+            const filterStatusEl = document.getElementById('filter-status');
+            if (filterStatusEl && timeRangeSelect) {
+                const timeRange = timeRangeSelect.value;
+                if (timeRange === 'custom') {
+                    const from = dateFromInput?.value || 'N/A';
+                    const to = dateToInput?.value || 'N/A';
+                    filterStatusEl.textContent = `Custom: ${from} to ${to}`;
+                } else {
+                    const hours = parseInt(timeRange) || 24;
+                    if (hours < 24) {
+                        filterStatusEl.textContent = `Last ${hours} Hour${hours > 1 ? 's' : ''}`;
+                    } else if (hours === 24) {
+                        filterStatusEl.textContent = 'Last 24 Hours';
+                    } else {
+                        const days = Math.floor(hours / 24);
+                        filterStatusEl.textContent = `Last ${days} Day${days > 1 ? 's' : ''}`;
+                    }
+                }
             }
             
             // Update stats
@@ -209,6 +291,7 @@
             const hasClearTime = unit.timestamps?.clear;
             const statusClass = hasClearTime ? 'secondary' : 'success';
             const status = hasClearTime ? 'Clear' : 'Active';
+            const incidentNumber = unit.call?.incident_number || unit.call?.call_number || 'None';
             
             return `
                 <tr>
@@ -216,7 +299,7 @@
                     <td>${escapeHtml(unit.unit_type || 'N/A')}</td>
                     <td>${escapeHtml(unit.jurisdiction || 'N/A')}</td>
                     <td><span class="badge bg-${statusClass}">${status}</span></td>
-                    <td>${unit.call ? `Call #${unit.call.call_number}` : 'None'}</td>
+                    <td>${incidentNumber}</td>
                     <td>${unit.personnel_count || 0}</td>
                     <td><small class="text-muted">${unit.timestamps?.assigned ? Dashboard.formatTime(unit.timestamps.assigned) : 'N/A'}</small></td>
                     <td>
@@ -252,6 +335,7 @@
             if (lat && lng) {
                 const status = unit.clear_datetime ? 'Clear' : 'Active';
                 const statusColor = unit.clear_datetime ? 'secondary' : 'success';
+                const incidentNum = unit.call?.incident_number || unit.call_number;
                 
                 MapManager.addCallMarker('units-map', {
                     id: unit.id,
@@ -261,7 +345,7 @@
                         <strong>${escapeHtml(unit.unit_number)}</strong><br>
                         Type: ${escapeHtml(unit.unit_type || 'N/A')}<br>
                         Status: <span class="badge bg-${statusColor}">${status}</span><br>
-                        Call: ${unit.call_number ? '#' + unit.call_number : 'N/A'}<br>
+                        Incident: ${incidentNum || 'N/A'}<br>
                         Location: ${escapeHtml(unit.full_address || unit.city || 'N/A')}
                     `
                 });
@@ -359,7 +443,7 @@
                         <h6>Call Assignment</h6>
                         ${unit.call_id && unit.call ? `
                             <table class="table table-sm">
-                                <tr><th>Call Number:</th><td><a href="/calls#call-${unit.call_id}" class="fw-bold">${escapeHtml(unit.call.call_number || 'N/A')}</a></td></tr>
+                                <tr><th>Incident Number:</th><td><a href="/calls#call-${unit.call_id}" class="fw-bold">${escapeHtml(unit.call.incident_number || unit.call.call_number || 'N/A')}</a></td></tr>
                                 <tr><th>Nature:</th><td>${escapeHtml(unit.call.nature_of_call || 'N/A')}</td></tr>
                                 <tr><th>Location:</th><td>${escapeHtml(unit.call.location?.address || 'N/A')}</td></tr>
                                 <tr><th>Caller:</th><td>${escapeHtml(unit.call.caller_name || 'N/A')}</td></tr>

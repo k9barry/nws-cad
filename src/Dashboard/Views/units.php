@@ -107,6 +107,32 @@
             <div class="card-body">
                 <form id="units-filter-form">
                     <div class="mb-3">
+                        <label class="form-label">Time Range</label>
+                        <select class="form-select" id="filter-time-range" name="time_range">
+                            <option value="1">Last 1 Hour</option>
+                            <option value="3">Last 3 Hours</option>
+                            <option value="6">Last 6 Hours</option>
+                            <option value="12">Last 12 Hours</option>
+                            <option value="24" selected>Last 24 Hours</option>
+                            <option value="48">Last 48 Hours</option>
+                            <option value="72">Last 3 Days</option>
+                            <option value="168">Last 7 Days</option>
+                            <option value="custom">Custom Date Range</option>
+                        </select>
+                    </div>
+                    
+                    <div id="custom-date-range" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">Date From</label>
+                            <input type="date" class="form-control" id="filter-date-from" name="date_from">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Date To</label>
+                            <input type="date" class="form-control" id="filter-date-to" name="date_to">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
                         <label class="form-label">Unit Status</label>
                         <select class="form-select" id="filter-unit-status" name="status">
                             <option value="">All Statuses</option>
@@ -155,6 +181,7 @@
         <h5 class="card-title mb-0">
             <i class="bi bi-list-ul"></i> Units List
             <span class="badge bg-primary ms-2" id="units-count">0</span>
+            <small class="text-muted ms-2" id="filter-status">Last 24 Hours</small>
         </h5>
         <div>
             <button class="btn btn-sm btn-success" id="export-units-csv">
@@ -174,7 +201,7 @@
                         <th>Type</th>
                         <th>Agency</th>
                         <th>Status</th>
-                        <th>Current Call</th>
+                        <th>Incident Number</th>
                         <th>Personnel</th>
                         <th>Last Update</th>
                         <th>Actions</th>

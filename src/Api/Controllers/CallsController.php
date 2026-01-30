@@ -138,6 +138,7 @@ class CallsController
             $jurisdictionsAgg = DbHelper::groupConcat('i.jurisdiction', ',', true);
             $prioritiesAgg = DbHelper::groupConcat('ac.priority', ',', true);
             $statusesAgg = DbHelper::groupConcat('ac.status', ',', true);
+            $incidentNumbersAgg = DbHelper::groupConcat('i.incident_number', ',', true);
             
             $sql = "
                 SELECT 
@@ -165,6 +166,7 @@ class CallsController
                     {$jurisdictionsAgg} as jurisdictions,
                     {$prioritiesAgg} as priorities,
                     {$statusesAgg} as statuses,
+                    {$incidentNumbersAgg} as incident_numbers,
                     COUNT(DISTINCT u.id) as unit_count
                 FROM calls c
                 LEFT JOIN locations l ON c.id = l.call_id
@@ -220,6 +222,7 @@ class CallsController
                     'jurisdictions' => $call['jurisdictions'] ? explode(',', $call['jurisdictions']) : [],
                     'priorities' => $call['priorities'] ? explode(',', $call['priorities']) : [],
                     'statuses' => $call['statuses'] ? explode(',', $call['statuses']) : [],
+                    'incident_numbers' => $call['incident_numbers'] ? explode(',', $call['incident_numbers']) : [],
                     'unit_count' => (int)$call['unit_count']
                 ];
             }, $calls);

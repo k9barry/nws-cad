@@ -107,7 +107,7 @@
             <table class="table table-hover table-striped mb-0" id="calls-table">
                 <thead class="table-dark">
                     <tr>
-                        <th>Call ID</th>
+                        <th>Incident Number</th>
                         <th>Date/Time</th>
                         <th>Type</th>
                         <th>Location</th>
