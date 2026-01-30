@@ -417,12 +417,16 @@ CREATE TABLE IF NOT EXISTS processed_files (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     filename VARCHAR(255) UNIQUE NOT NULL,
     file_hash VARCHAR(64) NOT NULL,
+    call_number VARCHAR(50) COMMENT 'Extracted from filename',
+    file_timestamp BIGINT COMMENT 'Timestamp from filename for version tracking',
     processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status ENUM('success', 'failed', 'partial') DEFAULT 'success',
     error_message TEXT,
     records_processed INT DEFAULT 0,
     
     INDEX idx_filename (filename),
+    INDEX idx_call_number (call_number),
+    INDEX idx_file_timestamp (file_timestamp),
     INDEX idx_processed_at (processed_at),
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

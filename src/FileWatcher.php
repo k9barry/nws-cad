@@ -166,13 +166,69 @@ class FileWatcher
             }
         } else {
             $this->logger->info("No XML files found in watch folder");
+            return;
+        }
+
+        // Use FilenameParser to identify latest files only
+        $filenames = array_map('basename', $files);
+        
+        // Identify unparseable files (e.g., files with tildes)
+        $unparseableFilenames = FilenameParser::getUnparseableFilenames($filenames);
+        
+        // Move unparseable files to failed folder
+        if (count($unparseableFilenames) > 0) {
+            $this->logger->info("--- Unparseable Files Detected ---");
+            $this->logger->info("Found " . count($unparseableFilenames) . " unparseable file(s):");
+            foreach ($unparseableFilenames as $unparseableFile) {
+                $this->logger->info("  ✗ {$unparseableFile} (invalid format)");
+                $fullPath = $this->watchFolder . '/' . $unparseableFile;
+                if (file_exists($fullPath)) {
+                    $this->moveToFailed($fullPath);
+                }
+            }
+        }
+        
+        // Filter out unparseable files from further processing
+        $filenames = array_diff($filenames, $unparseableFilenames);
+        $files = array_filter($files, function($file) use ($unparseableFilenames) {
+            return !in_array(basename($file), $unparseableFilenames);
+        });
+        
+        // Continue with normal version analysis for parseable files
+        $latestFilenames = FilenameParser::getLatestFiles($filenames);
+        $filesToSkip = FilenameParser::getFilesToSkip($filenames);
+        
+        $this->logger->info("--- File Version Analysis ---");
+        $grouped = FilenameParser::groupByCallNumber($filenames);
+        $this->logger->info("Unique call numbers: " . count($grouped));
+        
+        foreach ($grouped as $callNumber => $callFiles) {
+            if (count($callFiles) > 1) {
+                $this->logger->info("Call {$callNumber}: " . count($callFiles) . " files found, latest will be processed");
+            }
+        }
+        
+        if (count($filesToSkip) > 0) {
+            $this->logger->info("Skipping " . count($filesToSkip) . " older versions:");
+            foreach ($filesToSkip as $skipFile) {
+                $this->logger->info("  ✗ {$skipFile} (older version)");
+            }
         }
 
         $processedCount = 0;
         $skippedCount = 0;
+        $versionSkippedCount = count($filesToSkip);
+        $unparseableCount = count($unparseableFilenames);
         
         foreach ($files as $file) {
             $filename = basename($file);
+            
+            // Skip if this is an older version
+            if (in_array($filename, $filesToSkip)) {
+                $skippedCount++;
+                continue;
+            }
+            
             $this->logger->info("--- Checking file: {$filename} ---");
             
             if ($this->shouldProcessFile($file)) {
@@ -185,7 +241,7 @@ class FileWatcher
             }
         }
 
-        $this->logger->info("Summary: {$processedCount} processed, {$skippedCount} skipped, {$fileCount} total");
+        $this->logger->info("Summary: {$processedCount} processed, {$skippedCount} skipped ({$versionSkippedCount} older versions, {$unparseableCount} unparseable), {$fileCount} total");
 
         // Clean up old processed files from memory (keep last 1000)
         if (count($this->processedFiles) > 1000) {
