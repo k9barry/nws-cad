@@ -205,8 +205,11 @@ nws-cad/
 │   ├── mysql/            # MySQL initialization scripts
 │   └── postgres/         # PostgreSQL initialization scripts
 ├── docs/                  # Documentation
+│   ├── README.md         # Documentation index
 │   ├── API.md            # API quick reference
-│   └── IMPLEMENTATION_COMPLETE.md  # Full implementation guide
+│   ├── DASHBOARD.md      # Dashboard guide
+│   ├── TESTING.md        # Testing guide
+│   └── TROUBLESHOOTING.md # Common issues and solutions
 ├── watch/                # Watch folder for XML files
 │   ├── processed/       # Successfully processed files
 │   └── failed/          # Failed processing files
@@ -235,73 +238,56 @@ Both databases use the same schema structure, allowing you to switch between the
 
 ## Database Schema
 
-The system includes a placeholder schema with three main tables:
+The system includes a comprehensive 13-table normalized schema for NWS Aegis CAD data:
 
-### Tables
+### Core Tables
 
-1. **cad_events** - Stores CAD event information
-   - event_id (unique identifier)
-   - event_type, event_time, location
-   - description, priority, status
-   - xml_data (JSON/JSONB storage of full XML)
+1. **calls** - Main CAD call/incident records
+2. **agency_contexts** - Agency-specific details (Police, Fire, EMS)
+3. **locations** - Complete address and geographic information
+4. **incidents** - Incident/case numbers and types
+5. **units** - Dispatched units with complete lifecycle tracking
+6. **unit_personnel** - Personnel assigned to units
+7. **unit_logs** - Complete unit status history
+8. **unit_dispositions** - Unit-specific outcomes
+9. **narratives** - Chronological call notes/comments
+10. **call_dispositions** - Overall call outcomes
+11. **persons** - People involved in calls
+12. **vehicles** - Vehicles involved
+13. **processed_files** - File processing history
 
-2. **processed_files** - Tracks processed XML files
-   - filename, file_hash
-   - processing status and error messages
-   - record counts
+For complete schema details, see [Database Schema Documentation](database/SCHEMA.md).
 
-3. **xml_metadata** - Stores XML metadata
-   - key-value pairs for XML attributes
-   - linked to processed files
+## XML Processing
 
-### Customizing the Schema
-
-To use your own database schema:
-
-1. Edit `database/mysql/init.sql` for MySQL
-2. Edit `database/postgres/init.sql` for PostgreSQL
-3. Rebuild the containers: `docker-compose down -v && docker-compose up -d`
+### How It Works
 
 ## XML Processing
 
 ### How It Works
 
 1. **Detection** - FileWatcher monitors the `watch` folder
-2. **Stability Check** - Ensures file is completely written
-3. **Parsing** - XmlParser extracts data from XML
-4. **Storage** - Data is stored in the selected database
-5. **Archival** - File moved to `processed` or `failed` folder
+2. **Version Detection** - Intelligently identifies and processes only the latest version of each call (v1.1.0+)
+3. **Stability Check** - Ensures file is completely written
+4. **Parsing** - AegisXmlParser extracts data from NWS Aegis CAD XML
+5. **Storage** - Data is stored in the selected database with full transaction support
+6. **Archival** - File moved to `processed` or `failed` folder
 
-### Customizing XML Parsing
+### Performance Optimization
 
-The XML parser in `src/XmlParser.php` includes placeholder logic. Customize the following methods based on your XML structure:
+The system automatically detects and skips older versions of the same call:
+- Analyzes filenames to group calls by call number
+- Processes only the latest version for each call
+- **82% reduction** in processing overhead (tested with 89 sample files)
+- Example: 19 versions of call #232 → only 1 file processed
 
-```php
-// Extract event data from your XML structure
-private function extractEventData(SimpleXMLElement $event): array
+### Supported XML Format
 
-// Parse specific XML elements
-private function parseAndInsertEvents(SimpleXMLElement $xml, string $filePath): int
-```
-
-### Example XML Structure
-
-The system expects XML files with event elements:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<events>
-    <event>
-        <id>EVENT-001</id>
-        <type>emergency</type>
-        <time>2026-01-25T14:00:00Z</time>
-        <location>123 Main St</location>
-        <description>Emergency call</description>
-        <priority>high</priority>
-        <status>active</status>
-    </event>
-</events>
-```
+The system is designed for **NWS Aegis CAD XML exports**:
+- Complete support for all Aegis CAD data elements
+- Handles units, personnel, narratives, locations, incidents
+- Preserves full XML in database for auditing
+- Automatic BOM (Byte Order Mark) handling
 
 ## Configuration
 
@@ -471,36 +457,84 @@ docker-compose exec app php -r "require 'vendor/autoload.php'; var_dump(NwsCad\D
 
 ## Future Enhancements
 
-This project is designed to be extended with:
+## Future Enhancements
 
-- 🌐 RESTful API for data access
-- 📊 Dashboard for data visualization
-- 🔔 Real-time notifications
-- 📈 Analytics and reporting
-- 🔐 Authentication and authorization
-- 🔄 Data synchronization
+Potential areas for expansion:
+
+- 🔔 Real-time WebSocket notifications for call updates
+- 🔐 Authentication and role-based access control
+- 🔄 Multi-server data synchronization
 - 📱 Mobile application support
+- 🤖 Automated alert rules and workflows
+- 📧 Email/SMS notifications
+- 🎯 Predictive analytics and ML insights
+
+## Documentation
+
+Complete documentation is available in the [`docs/`](docs/) directory:
+
+- **[Documentation Index](docs/README.md)** - Master index of all documentation
+- **[API Reference](docs/API.md)** - Quick API reference
+- **[API Controllers](src/Api/Controllers/README.md)** - Detailed API endpoint documentation
+- **[Database Schema](database/SCHEMA.md)** - Complete schema documentation
+- **[Dashboard Guide](docs/DASHBOARD.md)** - Web dashboard usage
+- **[Testing Guide](docs/TESTING.md)** - Running and writing tests
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 
 ## Security
 
+## Security
+
+### Best Practices
 - Change default passwords in `.env`
 - Use environment-specific configurations
 - Keep Docker images updated
 - Review and audit database access
 - Implement network security policies
-- The system includes XXE attack protection in XML parsing
-- Secure random ID generation for event records
 
-**Note on Composer TLS**: During container build, Composer may encounter SSL certificate issues in certain environments. The docker-compose configuration includes a fallback that temporarily disables TLS verification for Composer only. This is acceptable as dependencies are installed at runtime in an isolated container environment. For production deployments, consider using a private Composer repository or pre-built images with dependencies already installed.
+### Built-in Security Features
+- **XXE Protection** - XML External Entity attack prevention in XML parsing
+- **SQL Injection Prevention** - All queries use prepared statements
+- **XSS Prevention** - Output sanitization in dashboard
+- **Input Validation** - Comprehensive validation for all inputs
+- **Security Headers** - CSP, HSTS, X-Frame-Options
+- **Rate Limiting** - API request rate limiting
+- **Transaction Support** - Atomic database operations with rollback
 
-## License
+### Security Testing
+The system includes comprehensive security tests:
+- SQL injection prevention testing
+- XSS vulnerability testing  
+- XXE attack prevention testing
+- Daily automated security scans via GitHub Actions
 
-See LICENSE file for details.
+See [Testing Guide](docs/TESTING.md) for details.
+
+## Version
+
+**Current Version:** 1.1.0
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
 
 ## Support
 
-For issues and questions, please use the GitHub issue tracker.
+- **Documentation:** See the [`docs/`](docs/) directory for comprehensive guides
+- **Issues:** Use the [GitHub issue tracker](https://github.com/k9barry/nws-cad/issues)
+- **Troubleshooting:** Check [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for common issues
+- **API Questions:** See [API documentation](src/Api/Controllers/README.md)
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit pull requests.
+Contributions are welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Write tests for new features
+4. Ensure all tests pass (`composer test`)
+5. Update documentation as needed
+6. Submit a pull request
+
+See [Testing Guide](docs/TESTING.md) for running tests.
+
+## License
+
+See [LICENSE](LICENSE) file for details.
