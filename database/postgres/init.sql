@@ -426,6 +426,8 @@ CREATE TABLE IF NOT EXISTS processed_files (
     id BIGSERIAL PRIMARY KEY,
     filename VARCHAR(255) UNIQUE NOT NULL,
     file_hash VARCHAR(64) NOT NULL,
+    call_number VARCHAR(50),
+    file_timestamp BIGINT,
     processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(20) CHECK (status IN ('success', 'failed', 'partial')) DEFAULT 'success',
     error_message TEXT,
@@ -433,6 +435,8 @@ CREATE TABLE IF NOT EXISTS processed_files (
 );
 
 CREATE INDEX idx_processed_files_filename ON processed_files(filename);
+CREATE INDEX idx_processed_files_call_number ON processed_files(call_number);
+CREATE INDEX idx_processed_files_file_timestamp ON processed_files(file_timestamp);
 CREATE INDEX idx_processed_files_processed_at ON processed_files(processed_at);
 CREATE INDEX idx_processed_files_status ON processed_files(status);
 

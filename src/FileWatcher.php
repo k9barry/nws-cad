@@ -166,13 +166,44 @@ class FileWatcher
             }
         } else {
             $this->logger->info("No XML files found in watch folder");
+            return;
+        }
+
+        // Use FilenameParser to identify latest files only
+        $filenames = array_map('basename', $files);
+        $latestFilenames = FilenameParser::getLatestFiles($filenames);
+        $filesToSkip = FilenameParser::getFilesToSkip($filenames);
+        
+        $this->logger->info("--- File Version Analysis ---");
+        $grouped = FilenameParser::groupByCallNumber($filenames);
+        $this->logger->info("Unique call numbers: " . count($grouped));
+        
+        foreach ($grouped as $callNumber => $callFiles) {
+            if (count($callFiles) > 1) {
+                $this->logger->info("Call {$callNumber}: {$callFiles[count($callFiles) - 1]} files found, latest will be processed");
+            }
+        }
+        
+        if (count($filesToSkip) > 0) {
+            $this->logger->info("Skipping " . count($filesToSkip) . " older versions:");
+            foreach ($filesToSkip as $skipFile) {
+                $this->logger->info("  ✗ {$skipFile} (older version)");
+            }
         }
 
         $processedCount = 0;
         $skippedCount = 0;
+        $versionSkippedCount = count($filesToSkip);
         
         foreach ($files as $file) {
             $filename = basename($file);
+            
+            // Skip if this is an older version
+            if (in_array($filename, $filesToSkip)) {
+                $skippedCount++;
+                continue;
+            }
+            
             $this->logger->info("--- Checking file: {$filename} ---");
             
             if ($this->shouldProcessFile($file)) {
@@ -185,7 +216,7 @@ class FileWatcher
             }
         }
 
-        $this->logger->info("Summary: {$processedCount} processed, {$skippedCount} skipped, {$fileCount} total");
+        $this->logger->info("Summary: {$processedCount} processed, {$skippedCount} skipped ({$versionSkippedCount} older versions), {$fileCount} total");
 
         // Clean up old processed files from memory (keep last 1000)
         if (count($this->processedFiles) > 1000) {

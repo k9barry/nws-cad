@@ -890,11 +890,16 @@ class AegisXmlParser
     {
         $hash = hash_file('sha256', $filePath);
         
+        // Extract call metadata from filename
+        $parsed = FilenameParser::parse($filename);
+        $callNumber = $parsed['call_number'] ?? null;
+        $fileTimestamp = $parsed['timestamp_int'] ?? null;
+        
         $stmt = $this->db->prepare(
-            "INSERT INTO processed_files (filename, file_hash, status, records_processed)
-             VALUES (?, ?, 'success', ?)"
+            "INSERT INTO processed_files (filename, file_hash, call_number, file_timestamp, status, records_processed)
+             VALUES (?, ?, ?, ?, 'success', ?)"
         );
-        $stmt->execute([$filename, $hash, $recordsProcessed]);
+        $stmt->execute([$filename, $hash, $callNumber, $fileTimestamp, $recordsProcessed]);
     }
 
     private function markFileAsFailed(string $filename, string $filePath, string $error): void
@@ -902,11 +907,16 @@ class AegisXmlParser
         try {
             $hash = hash_file('sha256', $filePath);
             
+            // Extract call metadata from filename
+            $parsed = FilenameParser::parse($filename);
+            $callNumber = $parsed['call_number'] ?? null;
+            $fileTimestamp = $parsed['timestamp_int'] ?? null;
+            
             $stmt = $this->db->prepare(
-                "INSERT INTO processed_files (filename, file_hash, status, error_message)
-                 VALUES (?, ?, 'failed', ?)"
+                "INSERT INTO processed_files (filename, file_hash, call_number, file_timestamp, status, error_message)
+                 VALUES (?, ?, ?, ?, 'failed', ?)"
             );
-            $stmt->execute([$filename, $hash, $error]);
+            $stmt->execute([$filename, $hash, $callNumber, $fileTimestamp, $error]);
         } catch (Exception $e) {
             $this->logger->error("Failed to mark file as failed: " . $e->getMessage());
         }
