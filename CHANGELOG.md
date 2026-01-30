@@ -32,7 +32,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed deleteChildRecords() method that was deleting all child data on updates
 - Database schema updated to support idempotent XML imports
 
-## [1.1.0] - 2026-01-25
+## [1.1.0] - 2026-01-30
+
+### Added
+- **FilenameParser utility class** for parsing CAD XML filenames
+- Intelligent file version detection and processing optimization
+- Automatic skipping of older file versions for the same call
+- Enhanced `processed_files` table with `call_number` and `file_timestamp` columns
+- Database migration scripts for MySQL and PostgreSQL (v1.1.0)
+- Comprehensive documentation:
+  - File Processing Optimization guide
+  - Database Schema Diagram
+- Test script for validating file processing optimization
+- 82% reduction in file processing overhead (tested with 89 sample files)
+
+### Changed
+- FileWatcher now groups files by call number and processes only latest versions
+- AegisXmlParser now stores call metadata in processed_files table
+- Enhanced logging to show version analysis and skipped files
+- Database indexes added for efficient call_number and file_timestamp queries
+
+### Performance
+- Processing optimization: 82% reduction in database operations
+- Example: 19 versions of same call → only 1 file processed
+- 73 of 89 sample files automatically skipped as older versions
+
+## [1.0.0] - 2026-01-25
 
 ### Added
 - Dashboard main page with live data refresh
