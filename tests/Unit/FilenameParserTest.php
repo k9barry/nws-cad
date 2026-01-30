@@ -264,5 +264,9 @@ class FilenameParserTest extends TestCase
         $this->assertEquals('16', $result['minute']);
         $this->assertEquals('24', $result['second']);
         $this->assertEquals('37', $result['suffix']);
+        
+        // Verify timestamp fields are generated correctly (tilde metadata should be ignored)
+        $this->assertEquals('2022-12-03 07:16:24.37', $result['timestamp']);
+        $this->assertEquals(2022120307162437, $result['timestamp_int']);
     }
 }

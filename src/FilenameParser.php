@@ -19,6 +19,9 @@ namespace NwsCad;
  *   - 26 = Second
  *   - 72 = Microsecond suffix
  *
+ * Optional tilde metadata: 261_2022120307162437~20241007-075033.xml
+ *   - Metadata after tilde (~) is ignored during parsing
+ *
  * @package NwsCad
  * @version 1.0.0
  */
