@@ -7,6 +7,60 @@
     </div>
 </div>
 
+<!-- Date Range Filter -->
+<div class="card mb-4">
+    <div class="card-header bg-white">
+        <h5 class="card-title mb-0">
+            <i class="bi bi-funnel"></i> Filter Period
+        </h5>
+    </div>
+    <div class="card-body">
+        <form id="dashboard-filter-form" class="row g-3">
+            <div class="col-md-2">
+                <label class="form-label">From Date</label>
+                <input type="date" class="form-control" id="dashboard-date-from">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">To Date</label>
+                <input type="date" class="form-control" id="dashboard-date-to">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Quick Select</label>
+                <select class="form-select" id="dashboard-quick-period">
+                    <option value="today" selected>Today</option>
+                    <option value="yesterday">Yesterday</option>
+                    <option value="7days">Last 7 Days</option>
+                    <option value="30days">Last 30 Days</option>
+                    <option value="thismonth">This Month</option>
+                    <option value="lastmonth">Last Month</option>
+                    <option value="custom">Custom Range</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Agency</label>
+                <select class="form-select" id="dashboard-agency">
+                    <option value="">All Agencies</option>
+                    <option value="Police">Police</option>
+                    <option value="Fire">Fire</option>
+                    <option value="EMS">EMS</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Jurisdiction</label>
+                <select class="form-select" id="dashboard-jurisdiction">
+                    <option value="">All Jurisdictions</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-arrow-clockwise"></i> Update
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Statistics Cards -->
 <div class="row mb-4" id="stats-cards">
     <div class="col-md-3 col-sm-6 mb-3">

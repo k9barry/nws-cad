@@ -17,66 +17,64 @@
     <div class="card-body">
         <form id="calls-filter-form">
             <div class="row g-3">
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <label class="form-label">Quick Select</label>
+                    <select class="form-select" id="calls-quick-period">
+                        <option value="today" selected>Today</option>
+                        <option value="yesterday">Yesterday</option>
+                        <option value="7days">Last 7 Days</option>
+                        <option value="30days">Last 30 Days</option>
+                        <option value="thismonth">This Month</option>
+                        <option value="lastmonth">Last Month</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <label class="form-label">Date From</label>
                     <input type="date" class="form-control" id="filter-date-from" name="date_from">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label">Date To</label>
                     <input type="date" class="form-control" id="filter-date-to" name="date_to">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label">Call Type</label>
                     <select class="form-select" id="filter-call-type" name="call_type">
                         <option value="">All Types</option>
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label">Status</label>
-                    <select class="form-select" id="filter-status" name="status">
-                        <option value="">All Statuses</option>
-                        <option value="active">Active</option>
-                        <option value="pending">Pending</option>
-                        <option value="closed">Closed</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label">Agency</label>
-                    <select class="form-select" id="filter-agency" name="agency">
+                    <select class="form-select" id="filter-agency" name="agency_type">
                         <option value="">All Agencies</option>
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label">Priority</label>
-                    <select class="form-select" id="filter-priority" name="priority">
-                        <option value="">All Priorities</option>
-                        <option value="1">Priority 1</option>
-                        <option value="2">Priority 2</option>
-                        <option value="3">Priority 3</option>
-                        <option value="4">Priority 4</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label">Jurisdiction</label>
                     <select class="form-select" id="filter-jurisdiction" name="jurisdiction">
                         <option value="">All Jurisdictions</option>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label">Location Search</label>
                     <input type="text" class="form-control" id="filter-location" name="location" placeholder="Address, city, or place...">
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label">Search</label>
-                    <input type="text" class="form-control" id="filter-search" name="search" placeholder="Search...">
+                <div class="col-md-2">
+                    <label class="form-label">Incident Number</label>
+                    <input type="text" class="form-control" id="filter-search" name="search" placeholder="Incident number...">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label">&nbsp;</label>
                     <div>
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-primary w-100">
                             <i class="bi bi-search"></i> Filter
                         </button>
-                        <button type="reset" class="btn btn-secondary" id="reset-filters">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <div>
+                        <button type="reset" class="btn btn-secondary w-100" id="reset-filters">
                             <i class="bi bi-x-circle"></i> Reset
                         </button>
                     </div>

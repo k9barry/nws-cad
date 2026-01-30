@@ -43,12 +43,19 @@ class CallsController
                 'nature_of_call',
                 'jurisdiction',
                 'location',
-                'city'
+                'city',
+                'search'
             ]);
 
             // Build WHERE clause
             $where = [];
             $params = [];
+
+            if (isset($filters['search'])) {
+                // Search by incident number
+                $where[] = "i.incident_number LIKE :search";
+                $params[':search'] = '%' . $filters['search'] . '%';
+            }
 
             if (isset($filters['status'])) {
                 $where[] = "ac.status = :status";

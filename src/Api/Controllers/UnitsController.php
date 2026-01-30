@@ -34,6 +34,7 @@ class UnitsController
                 'unit_number',
                 'unit_type',
                 'jurisdiction',
+                'agency_type',
                 'is_primary',
                 'call_id',
                 'date_from',
@@ -57,6 +58,11 @@ class UnitsController
             if (isset($filters['jurisdiction'])) {
                 $where[] = "u.jurisdiction = :jurisdiction";
                 $params[':jurisdiction'] = $filters['jurisdiction'];
+            }
+
+            if (isset($filters['agency_type'])) {
+                $where[] = "ac.agency_type = :agency_type";
+                $params[':agency_type'] = $filters['agency_type'];
             }
 
             if (isset($filters['is_primary'])) {
@@ -86,7 +92,7 @@ class UnitsController
             $sortField = in_array($sorting['sort'], $allowedSortFields) ? $sorting['sort'] : 'assigned_datetime';
 
             // Get total count
-            $countSql = "SELECT COUNT(*) FROM units u {$whereClause}";
+            $countSql = "SELECT COUNT(*) FROM units u LEFT JOIN calls c ON u.call_id = c.id LEFT JOIN agency_contexts ac ON c.id = ac.call_id {$whereClause}";
             $countStmt = $this->db->prepare($countSql);
             $countStmt->execute($params);
             $total = (int)$countStmt->fetchColumn();
@@ -109,6 +115,7 @@ class UnitsController
                     COUNT(DISTINCT ul.id) as log_count
                 FROM units u
                 LEFT JOIN calls c ON u.call_id = c.id
+                LEFT JOIN agency_contexts ac ON c.id = ac.call_id
                 LEFT JOIN unit_personnel up ON u.id = up.unit_id
                 LEFT JOIN unit_logs ul ON u.id = ul.unit_id
                 {$whereClause}

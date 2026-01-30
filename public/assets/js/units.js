@@ -115,11 +115,11 @@
                 });
             }
             
-            // Get unique agencies
-            const agencies = [...new Set(units.map(u => u.jurisdiction).filter(Boolean))];
+            // Get unique agencies (use standard agency types)
+            const agencies = ['Police', 'Fire', 'EMS'];
             const agencySelect = document.getElementById('filter-unit-agency');
             if (agencySelect) {
-                agencies.sort().forEach(agency => {
+                agencies.forEach(agency => {
                     const option = document.createElement('option');
                     option.value = agency;
                     option.textContent = agency;
@@ -177,13 +177,13 @@
             const searchFilter = document.getElementById('filter-unit-search');
             
             // Note: API doesn't support status filter, so we'll filter client-side
-            // The API supports: unit_type, jurisdiction, unit_number, date_from, date_to
+            // The API supports: unit_type, jurisdiction, agency_type, unit_number, date_from, date_to
             
             if (typeFilter && typeFilter.value) {
                 filters.unit_type = typeFilter.value;
             }
             if (agencyFilter && agencyFilter.value) {
-                filters.jurisdiction = agencyFilter.value;
+                filters.agency_type = agencyFilter.value;
             }
             if (searchFilter && searchFilter.value) {
                 filters.unit_number = searchFilter.value;

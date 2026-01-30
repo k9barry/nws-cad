@@ -152,7 +152,7 @@
                     
                     <div class="mb-3">
                         <label class="form-label">Agency</label>
-                        <select class="form-select" id="filter-unit-agency" name="agency">
+                        <select class="form-select" id="filter-unit-agency" name="agency_type">
                             <option value="">All Agencies</option>
                         </select>
                     </div>

@@ -10,6 +10,84 @@
     let currentFilters = {};
     
     /**
+     * Initialize date filters with default (today)
+     */
+    function initializeDateFilters() {
+        const dateFromInput = document.getElementById('filter-date-from');
+        const dateToInput = document.getElementById('filter-date-to');
+        const quickPeriod = document.getElementById('calls-quick-period');
+        const dateFromCol = dateFromInput?.closest('.col-md-2');
+        const dateToCol = dateToInput?.closest('.col-md-2');
+        
+        // Hide date inputs initially (not custom)
+        if (dateFromCol) dateFromCol.style.display = 'none';
+        if (dateToCol) dateToCol.style.display = 'none';
+        
+        // Set default dates (today - last 24 hours)
+        if (dateFromInput && dateToInput) {
+            const now = new Date();
+            const todayStart = new Date(now.setHours(0,0,0,0));
+            dateToInput.value = new Date().toISOString().split('T')[0];
+            dateFromInput.value = todayStart.toISOString().split('T')[0];
+        }
+        
+        // Handle quick period selection
+        if (quickPeriod) {
+            quickPeriod.addEventListener('change', () => {
+                const period = quickPeriod.value;
+                
+                // Show/hide custom date fields
+                if (period === 'custom') {
+                    if (dateFromCol) dateFromCol.style.display = 'block';
+                    if (dateToCol) dateToCol.style.display = 'block';
+                    return; // Don't auto-update or trigger filter for custom
+                } else {
+                    if (dateFromCol) dateFromCol.style.display = 'none';
+                    if (dateToCol) dateToCol.style.display = 'none';
+                }
+                
+                const now = new Date();
+                let fromDate = new Date();
+                
+                switch(period) {
+                    case 'today':
+                        fromDate = new Date(now.setHours(0,0,0,0));
+                        break;
+                    case 'yesterday':
+                        fromDate = new Date(now.setDate(now.getDate() - 1));
+                        fromDate.setHours(0,0,0,0);
+                        now.setHours(23,59,59,999);
+                        break;
+                    case '7days':
+                        fromDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+                        break;
+                    case '30days':
+                        fromDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+                        break;
+                    case 'thismonth':
+                        fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                        break;
+                    case 'lastmonth':
+                        fromDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                        now.setDate(0); // Last day of previous month
+                        break;
+                }
+                
+                if (dateFromInput && dateToInput) {
+                    dateFromInput.value = fromDate.toISOString().split('T')[0];
+                    dateToInput.value = new Date().toISOString().split('T')[0];
+                    
+                    // Trigger the filter automatically
+                    loadCalls(1);
+                }
+            });
+        }
+    }
+    
+    // Initialize date filters
+    initializeDateFilters();
+    
+    /**
      * Load filter options
      */
     async function loadFilterOptions() {
@@ -63,11 +141,19 @@
     async function loadCalls(page = 1) {
         currentPage = page;
         
+        // Get date filter values
+        const dateFrom = document.getElementById('filter-date-from')?.value;
+        const dateTo = document.getElementById('filter-date-to')?.value;
+        
         const params = {
             page: page,
             per_page: 30,
             ...currentFilters
         };
+        
+        // Add date filters if set
+        if (dateFrom) params.date_from = dateFrom;
+        if (dateTo) params.date_to = dateTo;
         
         try {
             const response = await Dashboard.apiRequest('/calls' + Dashboard.buildQueryString(params));

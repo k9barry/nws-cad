@@ -48,6 +48,123 @@
         
         console.log('[Dashboard Main] Managers:', managers);
         
+        // Global filter state
+        let currentFilters = {};
+        
+        // Initialize date filters with default (last 30 days)
+        function initializeFilters() {
+            const dateFromInput = document.getElementById('dashboard-date-from');
+            const dateToInput = document.getElementById('dashboard-date-to');
+            const quickPeriod = document.getElementById('dashboard-quick-period');
+            const jurisdictionSelect = document.getElementById('dashboard-jurisdiction');
+            
+            // Set default dates (today - last 24 hours)
+            if (dateFromInput && dateToInput) {
+                const now = new Date();
+                const todayStart = new Date(now.setHours(0,0,0,0));
+                dateToInput.value = new Date().toISOString().split('T')[0];
+                dateFromInput.value = todayStart.toISOString().split('T')[0];
+                
+                currentFilters.date_from = dateFromInput.value;
+                currentFilters.date_to = dateToInput.value;
+            }
+            
+            // Handle quick period selection
+            if (quickPeriod) {
+                quickPeriod.addEventListener('change', () => {
+                    const period = quickPeriod.value;
+                    const now = new Date();
+                    let fromDate = new Date();
+                    
+                    switch(period) {
+                        case 'today':
+                            fromDate = new Date(now.setHours(0,0,0,0));
+                            break;
+                        case 'yesterday':
+                            fromDate = new Date(now.setDate(now.getDate() - 1));
+                            fromDate.setHours(0,0,0,0);
+                            now.setHours(23,59,59,999);
+                            break;
+                        case '7days':
+                            fromDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+                            break;
+                        case '30days':
+                            fromDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+                            break;
+                        case 'thismonth':
+                            fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                            break;
+                        case 'lastmonth':
+                            fromDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                            now.setDate(0); // Last day of previous month
+                            break;
+                        case 'custom':
+                            return; // Don't auto-update dates for custom
+                    }
+                    
+                    if (period !== 'custom' && dateFromInput && dateToInput) {
+                        dateFromInput.value = fromDate.toISOString().split('T')[0];
+                        dateToInput.value = new Date().toISOString().split('T')[0];
+                    }
+                });
+            }
+            
+            // Load jurisdictions
+            loadJurisdictions();
+        }
+        
+        // Load jurisdictions for filter
+        async function loadJurisdictions() {
+            try {
+                const stats = await Dashboard.apiRequest('/stats');
+                const jurisdictionSelect = document.getElementById('dashboard-jurisdiction');
+                
+                if (jurisdictionSelect && stats.calls_by_jurisdiction) {
+                    stats.calls_by_jurisdiction.forEach(j => {
+                        const option = document.createElement('option');
+                        option.value = j.jurisdiction;
+                        option.textContent = j.jurisdiction;
+                        jurisdictionSelect.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('[Dashboard Main] Error loading jurisdictions:', error);
+            }
+        }
+        
+        // Setup filter form
+        function setupFilterForm() {
+            const filterForm = document.getElementById('dashboard-filter-form');
+            
+            if (filterForm) {
+                filterForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    
+                    // Update filters from form
+                    const dateFrom = document.getElementById('dashboard-date-from')?.value;
+                    const dateTo = document.getElementById('dashboard-date-to')?.value;
+                    const agency = document.getElementById('dashboard-agency')?.value;
+                    const jurisdiction = document.getElementById('dashboard-jurisdiction')?.value;
+                    
+                    currentFilters = {};
+                    if (dateFrom) currentFilters.date_from = dateFrom;
+                    if (dateTo) currentFilters.date_to = dateTo;
+                    if (agency) currentFilters.agency_type = agency;
+                    if (jurisdiction) currentFilters.jurisdiction = jurisdiction;
+                    
+                    // Reload all data with new filters
+                    loadStats();
+                    loadRecentCalls();
+                    loadCallsMap();
+                    loadCharts();
+                });
+            }
+        }
+        
+        // Initialize filters
+        initializeFilters();
+        setupFilterForm();
+        
         // Initialize map
         let map = null;
         if (managers.MapManager) {
@@ -70,7 +187,8 @@
         async function loadStats() {
             console.log('[Dashboard Main] Loading stats...');
             try {
-                const stats = await Dashboard.apiRequest('/stats');
+                const url = '/stats' + Dashboard.buildQueryString(currentFilters);
+                const stats = await Dashboard.apiRequest(url);
                 console.log('[Dashboard Main] Stats response:', stats);
                 
                 const elements = {
@@ -109,13 +227,16 @@
         async function loadRecentCalls() {
             console.log('[Dashboard Main] Loading active calls...');
             try {
-                const url = '/calls' + Dashboard.buildQueryString({
+                const queryParams = {
                     page: 1,
                     per_page: 10,
                     sort: 'create_datetime',
                     order: 'desc',
-                    closed_flag: '0'
-                });
+                    closed_flag: '0',
+                    ...currentFilters
+                };
+                
+                const url = '/calls' + Dashboard.buildQueryString(queryParams);
                 
                 console.log('[Dashboard Main] Fetching:', Dashboard.config.apiBaseUrl + url);
                 
@@ -186,11 +307,14 @@
             }
             
             try {
-                const url = '/calls' + Dashboard.buildQueryString({
+                const queryParams = {
                     page: 1,
                     per_page: 100,
-                    closed_flag: 0
-                });
+                    closed_flag: 0,
+                    ...currentFilters
+                };
+                
+                const url = '/calls' + Dashboard.buildQueryString(queryParams);
                 
                 console.log('[Dashboard Main] Fetching open calls from:', Dashboard.config.apiBaseUrl + url);
                 const response = await fetch(Dashboard.config.apiBaseUrl + url);
@@ -242,7 +366,8 @@
             
             console.log('[Dashboard Main] Loading charts...');
             try {
-                const stats = await Dashboard.apiRequest('/stats');
+                const url = '/stats' + Dashboard.buildQueryString(currentFilters);
+                const stats = await Dashboard.apiRequest(url);
                 
                 // Call volume trends chart (by jurisdiction)
                 const trendChartEl = document.getElementById('calls-trend-chart');

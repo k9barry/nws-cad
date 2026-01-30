@@ -197,11 +197,13 @@
             const [stats, callStats, calls, units] = await Promise.all([
                 Dashboard.apiRequest('/stats' + queryString),
                 Dashboard.apiRequest('/stats/calls' + queryString).catch(() => null),
-                Dashboard.apiRequest('/calls?per_page=100' + (queryString ? '&' + queryString.substring(1) : '')).then(r => r.items || []).catch(() => []),
-                Dashboard.apiRequest('/units?per_page=100' + (queryString ? '&' + queryString.substring(1) : '')).then(r => r.items || []).catch(() => [])
+                Dashboard.apiRequest('/calls?per_page=10000' + (queryString ? '&' + queryString.substring(1) : '')).then(r => r?.items || []).catch(() => []),
+                Dashboard.apiRequest('/units?per_page=10000' + (queryString ? '&' + queryString.substring(1) : '')).then(r => r?.items || []).catch(() => [])
             ]);
             console.log('[Analytics] Stats:', stats);
             console.log('[Analytics] Call Stats:', callStats);
+            console.log('[Analytics] Loaded', calls.length, 'calls and', units.length, 'units with filters');
+            console.log('[Analytics] Sample calls:', calls.slice(0, 3));
             
             // Update summary cards
             updateSummaryCards(stats, calls, units);
@@ -238,6 +240,7 @@
         // Calculate busiest hour
         const busiestHourEl = document.getElementById('analytics-busiest-hour');
         const busiestCountEl = document.getElementById('analytics-busiest-count');
+        console.log('[Analytics] Calculating busiest hour from', calls.length, 'calls');
         if (busiestHourEl && calls.length > 0) {
             const hourCounts = {};
             calls.forEach(call => {
@@ -246,6 +249,9 @@
                     hourCounts[hour] = (hourCounts[hour] || 0) + 1;
                 }
             });
+            
+            console.log('[Analytics] Hour counts:', hourCounts);
+            console.log('[Analytics] Total hours with calls:', Object.keys(hourCounts).length);
             
             let maxHour = 0;
             let maxCount = 0;
@@ -256,12 +262,22 @@
                 }
             });
             
+            console.log('[Analytics] Busiest hour:', maxHour, 'with', maxCount, 'calls');
+            
             if (maxCount > 0) {
                 busiestHourEl.textContent = `${maxHour.toString().padStart(2, '0')}:00`;
                 if (busiestCountEl) {
                     busiestCountEl.textContent = `${maxCount} calls`;
                 }
             } else {
+                busiestHourEl.textContent = 'N/A';
+                if (busiestCountEl) {
+                    busiestCountEl.textContent = '-';
+                }
+            }
+        } else {
+            console.log('[Analytics] No calls data or element missing for busiest hour');
+            if (busiestHourEl) {
                 busiestHourEl.textContent = 'N/A';
                 if (busiestCountEl) {
                     busiestCountEl.textContent = '-';
