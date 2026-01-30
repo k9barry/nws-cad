@@ -180,7 +180,7 @@ class FileWatcher
         
         foreach ($grouped as $callNumber => $callFiles) {
             if (count($callFiles) > 1) {
-                $this->logger->info("Call {$callNumber}: {$callFiles[count($callFiles) - 1]} files found, latest will be processed");
+                $this->logger->info("Call {$callNumber}: " . count($callFiles) . " files found, latest will be processed");
             }
         }
         

@@ -895,6 +895,11 @@ class AegisXmlParser
         $callNumber = $parsed['call_number'] ?? null;
         $fileTimestamp = $parsed['timestamp_int'] ?? null;
         
+        // Log warning if filename cannot be parsed
+        if ($parsed === null) {
+            $this->logger->warning("Could not parse filename for metadata extraction: {$filename}");
+        }
+        
         $stmt = $this->db->prepare(
             "INSERT INTO processed_files (filename, file_hash, call_number, file_timestamp, status, records_processed)
              VALUES (?, ?, ?, ?, 'success', ?)"
@@ -911,6 +916,11 @@ class AegisXmlParser
             $parsed = FilenameParser::parse($filename);
             $callNumber = $parsed['call_number'] ?? null;
             $fileTimestamp = $parsed['timestamp_int'] ?? null;
+            
+            // Log warning if filename cannot be parsed
+            if ($parsed === null) {
+                $this->logger->warning("Could not parse filename for metadata extraction: {$filename}");
+            }
             
             $stmt = $this->db->prepare(
                 "INSERT INTO processed_files (filename, file_hash, call_number, file_timestamp, status, error_message)

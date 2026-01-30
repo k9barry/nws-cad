@@ -66,6 +66,30 @@ class FilenameParser
         $second = $matches[7];
         $suffix = $matches[8];
         
+        // Validate date/time components
+        $monthInt = (int)$month;
+        $dayInt = (int)$day;
+        $hourInt = (int)$hour;
+        $minuteInt = (int)$minute;
+        $secondInt = (int)$second;
+        
+        // Basic validation (allow some flexibility for edge cases)
+        if ($monthInt < 1 || $monthInt > 12) {
+            return null; // Invalid month
+        }
+        if ($dayInt < 1 || $dayInt > 31) {
+            return null; // Invalid day
+        }
+        if ($hourInt > 23) {
+            return null; // Invalid hour
+        }
+        if ($minuteInt > 59) {
+            return null; // Invalid minute
+        }
+        if ($secondInt > 59) {
+            return null; // Invalid second
+        }
+        
         // Create timestamp string
         $timestamp = sprintf(
             '%s-%s-%s %s:%s:%s.%s',

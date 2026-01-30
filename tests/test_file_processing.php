@@ -92,7 +92,7 @@ $count = 0;
 foreach ($callsWithMultiple as $callNumber => $files) {
     if ($count++ >= 5) break; // Show first 5
     
-    echo "Call #$callNumber ({$callNumber} files):\n";
+    echo "Call #$callNumber (" . count($files) . " files):\n";
     
     // Sort to show progression
     usort($files, function($a, $b) {
