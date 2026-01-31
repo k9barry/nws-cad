@@ -118,7 +118,7 @@ class FileWatcher
                 sleep($this->interval);
             } catch (Exception $e) {
                 $this->logger->error("Error in watch loop: " . $e->getMessage());
-                $this->logger->debug("Stack trace: " . $e->getTraceAsString());
+                $this->logger->error("Stack trace: " . $e->getTraceAsString());
                 sleep($this->interval);
             }
         }
@@ -184,9 +184,9 @@ class FileWatcher
         
         // Move unparseable files to failed folder
         if (count($unparseableFilenames) > 0) {
-            $this->logger->debug("Found " . count($unparseableFilenames) . " unparseable file(s)");
+            $this->logger->info("Found " . count($unparseableFilenames) . " unparseable file(s), moving to failed");
             foreach ($unparseableFilenames as $unparseableFile) {
-                $this->logger->debug("  Moving unparseable file: {$unparseableFile}");
+                $this->logger->info("  Moving unparseable file: {$unparseableFile}");
                 $fullPath = $this->watchFolder . '/' . $unparseableFile;
                 if (file_exists($fullPath)) {
                     $this->moveToFailed($fullPath);
@@ -247,7 +247,7 @@ class FileWatcher
             }
         }
 
-        if ($processedCount > 0 || $skippedCount > 0) {
+        if ($fileCount > 0 || $unparseableCount > 0) {
             $this->logger->info("Scan complete: {$processedCount} processed, {$skippedCount} skipped ({$versionSkippedCount} older versions, {$unparseableCount} unparseable)");
         }
 

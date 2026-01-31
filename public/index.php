@@ -18,6 +18,9 @@ $uri = rtrim($uri, '/') ?: '/';
 // API base URL (adjust based on environment)
 $apiBaseUrl = 'http://localhost:8080/api';
 
+// Get Dozzle port from environment (default 9999)
+$dozzlePort = getenv('DOZZLE_PORT') ?: '9999';
+
 // Define routes
 $routes = [
     '/' => 'dashboard',
@@ -195,16 +198,18 @@ $pageTitle = ucfirst($page);
             dbeaverLink.href = dbeaverUrl;
         }
         
-        // Set Dozzle (Logs) URL dynamically
+        // Set Dozzle (Logs) URL dynamically using configured port
+        const dozzlePort = <?= json_encode($dozzlePort) ?>;
         let dozzleUrl;
         if (isCodespaces) {
-            dozzleUrl = getCodespacesUrl(9999);
+            dozzleUrl = getCodespacesUrl(dozzlePort);
             console.log('[NWS CAD] Dozzle URL constructed:', {
                 originalHostname: window.location.hostname,
-                dozzleUrl: dozzleUrl
+                dozzleUrl: dozzleUrl,
+                port: dozzlePort
             });
         } else {
-            dozzleUrl = 'http://localhost:9999';
+            dozzleUrl = `http://localhost:${dozzlePort}`;
         }
         
         const dozzleLink = document.getElementById('dozzle-link');

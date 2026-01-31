@@ -28,6 +28,6 @@ try {
     
 } catch (Exception $e) {
     $logger->error("Fatal error: " . $e->getMessage());
-    $logger->debug("Stack trace: " . $e->getTraceAsString());
+    $logger->error("Stack trace: " . $e->getTraceAsString());
     exit(1);
 }

@@ -94,7 +94,7 @@ class AegisXmlParser
             }
             
             $this->logger->error("Error processing file {$filename}: " . $e->getMessage());
-            $this->logger->debug("Stack trace: " . $e->getTraceAsString());
+            $this->logger->error("Stack trace: " . $e->getTraceAsString());
             $this->markFileAsFailed($filename, $filePath, $e->getMessage());
             return false;
         }
