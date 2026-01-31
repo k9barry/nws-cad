@@ -171,7 +171,7 @@ class FileWatcher
                 $this->logger->debug("  File [{$index}]: {$filename}");
             }
         } else {
-            $this->logger->debug("No XML files found in watch folder, skipping processing");
+            $this->logger->debug("Scan complete: 0 files found, 0 processed, 0 skipped");
             return;
         }
 

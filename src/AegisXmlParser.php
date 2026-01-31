@@ -61,11 +61,11 @@ class AegisXmlParser
             $this->logger->debug("XML file loaded successfully");
 
             // Register namespaces
-            $this->logger->debug("Registering XML namespaces...");
+            $namespaceCount = count($this->namespaces);
             foreach ($this->namespaces as $prefix => $uri) {
                 $xml->registerXPathNamespace($prefix, $uri);
-                $this->logger->debug("  Registered namespace: prefix='{$prefix}', uri='{$uri}'");
             }
+            $this->logger->debug("Registered {$namespaceCount} XML namespace(s)");
 
             // Begin transaction
             $this->logger->debug("Starting database transaction...");

@@ -170,7 +170,7 @@ $pageTitle = ucfirst($page);
             // Example: congenial-succotash-jjg77v7vrxjc5g7p-8080.app.github.dev
             //       -> congenial-succotash-jjg77v7vrxjc5g7p
             // Then append: -{port}.app.github.dev
-            const match = hostname.match(/^([a-z0-9-]+)-\d+\./);
+            const match = hostname.match(/^([a-zA-Z0-9-]+)-\d+\./i);
             if (match) {
                 return window.location.protocol + '//' + match[1] + '-' + port + '.app.github.dev';
             }
