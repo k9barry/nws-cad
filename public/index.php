@@ -200,21 +200,21 @@ $pageTitle = ucfirst($page);
         
         console.log('APP_CONFIG initialized:', window.APP_CONFIG);
     </script>
-    <script src="/assets/js/dashboard.js"></script>
-    <script src="/assets/js/maps.js"></script>
-    <script src="/assets/js/charts.js"></script>
+    <script src="/assets/js/dashboard.js?v=<?= time() ?>"></script>
+    <script src="/assets/js/maps.js?v=<?= time() ?>"></script>
+    <script src="/assets/js/charts.js?v=<?= time() ?>"></script>
     
     <!-- Page-specific scripts -->
     <?php if ($page === 'dashboard'): ?>
-        <script src="/assets/js/dashboard-main.js"></script>
+        <script src="/assets/js/dashboard-main.js?v=<?= time() ?>"></script>
     <?php elseif ($page === 'calls'): ?>
-        <script src="/assets/js/calls.js"></script>
+        <script src="/assets/js/calls.js?v=<?= time() ?>"></script>
     <?php elseif ($page === 'units'): ?>
-        <script src="/assets/js/units.js"></script>
+        <script src="/assets/js/units.js?v=<?= time() ?>"></script>
     <?php elseif ($page === 'analytics'): ?>
-        <script src="/assets/js/analytics.js"></script>
+        <script src="/assets/js/analytics.js?v=<?= time() ?>"></script>
     <?php elseif ($page === 'logs'): ?>
-        <script src="/assets/js/logs.js"></script>
+        <script src="/assets/js/logs.js?v=<?= time() ?>"></script>
     <?php endif; ?>
 </body>
 </html>

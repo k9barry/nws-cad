@@ -357,13 +357,15 @@
                             <h5>Agency Contexts (${call.agency_contexts.length})</h5>
                             <div class="table-responsive">
                                 <table class="table table-sm">
-                                    <thead><tr><th>Agency</th><th>Context</th><th>Type</th></tr></thead>
+                                    <thead><tr><th>Agency Type</th><th>Call Type</th><th>Priority</th><th>Status</th><th>Dispatcher</th></tr></thead>
                                     <tbody>
                                         ${call.agency_contexts.map(ac => `
                                             <tr>
-                                                <td>${ac.agency || 'N/A'}</td>
-                                                <td>${ac.agency_context || 'N/A'}</td>
-                                                <td>${ac.agency_context_type || 'N/A'}</td>
+                                                <td>${ac.agency_type || 'N/A'}</td>
+                                                <td>${ac.call_type || 'N/A'}</td>
+                                                <td>${ac.priority || 'N/A'}</td>
+                                                <td>${Dashboard.getStatusBadge(ac.status)}</td>
+                                                <td>${ac.dispatcher || 'N/A'}</td>
                                             </tr>
                                         `).join('')}
                                     </tbody>
@@ -401,17 +403,26 @@
                         ${units.length > 0 ? `
                             <div class="table-responsive">
                                 <table class="table table-sm">
-                                    <thead><tr><th>Unit</th><th>Type</th><th>Status</th><th>Assigned</th><th>Primary</th></tr></thead>
+                                    <thead><tr><th>Unit</th><th>Type</th><th>Status</th><th>Assigned</th><th>Enroute</th><th>Arrived</th><th>Primary</th></tr></thead>
                                     <tbody>
-                                        ${units.map(u => `
+                                        ${units.map(u => {
+                                            const status = u.timestamps?.clear ? 'Clear' : 
+                                                          u.timestamps?.arrive ? 'On Scene' :
+                                                          u.timestamps?.enroute ? 'Enroute' :
+                                                          u.timestamps?.dispatch ? 'Dispatched' :
+                                                          u.timestamps?.assigned ? 'Assigned' : 'Unknown';
+                                            return `
                                             <tr>
                                                 <td>${u.unit_number || u.unit_id || 'N/A'}</td>
                                                 <td>${u.unit_type || 'N/A'}</td>
-                                                <td>${Dashboard.getStatusBadge(u.status)}</td>
-                                                <td>${Dashboard.formatDateTime(u.assigned_datetime || u.assigned_time)}</td>
+                                                <td>${Dashboard.getStatusBadge(status)}</td>
+                                                <td>${Dashboard.formatDateTime(u.timestamps?.assigned || u.assigned_datetime || u.assigned_time)}</td>
+                                                <td>${u.timestamps?.enroute ? Dashboard.formatDateTime(u.timestamps.enroute) : '-'}</td>
+                                                <td>${u.timestamps?.arrive ? Dashboard.formatDateTime(u.timestamps.arrive) : '-'}</td>
                                                 <td>${u.is_primary ? '<span class="badge bg-primary">Yes</span>' : ''}</td>
                                             </tr>
-                                        `).join('')}
+                                            `;
+                                        }).join('')}
                                     </tbody>
                                 </table>
                             </div>

@@ -27,9 +27,9 @@
             <div class="col-md-2">
                 <label class="form-label">Quick Select</label>
                 <select class="form-select" id="dashboard-quick-period">
-                    <option value="today" selected>Today</option>
+                    <option value="today">Today</option>
                     <option value="yesterday">Yesterday</option>
-                    <option value="7days">Last 7 Days</option>
+                    <option value="7days" selected>Last 7 Days</option>
                     <option value="30days">Last 30 Days</option>
                     <option value="thismonth">This Month</option>
                     <option value="lastmonth">Last Month</option>

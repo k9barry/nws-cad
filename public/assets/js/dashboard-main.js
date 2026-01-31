@@ -51,22 +51,28 @@
         // Global filter state
         let currentFilters = {};
         
-        // Initialize date filters with default (last 30 days)
+        // Initialize date filters with default (last 7 days)
         function initializeFilters() {
             const dateFromInput = document.getElementById('dashboard-date-from');
             const dateToInput = document.getElementById('dashboard-date-to');
             const quickPeriod = document.getElementById('dashboard-quick-period');
             const jurisdictionSelect = document.getElementById('dashboard-jurisdiction');
             
-            // Set default dates (today - last 24 hours)
+            // Set default dates (last 7 days)
             if (dateFromInput && dateToInput) {
                 const now = new Date();
-                const todayStart = new Date(now.setHours(0,0,0,0));
+                const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+                
                 dateToInput.value = new Date().toISOString().split('T')[0];
-                dateFromInput.value = todayStart.toISOString().split('T')[0];
+                dateFromInput.value = sevenDaysAgo.toISOString().split('T')[0];
                 
                 currentFilters.date_from = dateFromInput.value;
                 currentFilters.date_to = dateToInput.value;
+                
+                // Set the quick period dropdown to match
+                if (quickPeriod) {
+                    quickPeriod.value = '7days';
+                }
             }
             
             // Handle quick period selection
@@ -146,11 +152,32 @@
                     const agency = document.getElementById('dashboard-agency')?.value;
                     const jurisdiction = document.getElementById('dashboard-jurisdiction')?.value;
                     
-                    currentFilters = {};
-                    if (dateFrom) currentFilters.date_from = dateFrom;
-                    if (dateTo) currentFilters.date_to = dateTo;
-                    if (agency) currentFilters.agency_type = agency;
-                    if (jurisdiction) currentFilters.jurisdiction = jurisdiction;
+                    // Update filters (preserve existing, override with new values)
+                    if (dateFrom) {
+                        currentFilters.date_from = dateFrom;
+                    } else {
+                        delete currentFilters.date_from;
+                    }
+                    
+                    if (dateTo) {
+                        currentFilters.date_to = dateTo;
+                    } else {
+                        delete currentFilters.date_to;
+                    }
+                    
+                    if (agency) {
+                        currentFilters.agency_type = agency;
+                    } else {
+                        delete currentFilters.agency_type;
+                    }
+                    
+                    if (jurisdiction) {
+                        currentFilters.jurisdiction = jurisdiction;
+                    } else {
+                        delete currentFilters.jurisdiction;
+                    }
+                    
+                    console.log('[Dashboard Main] Updated filters:', currentFilters);
                     
                     // Reload all data with new filters
                     loadStats();
@@ -365,9 +392,12 @@
             }
             
             console.log('[Dashboard Main] Loading charts...');
+            console.log('[Dashboard Main] Current filters for charts:', currentFilters);
             try {
                 const url = '/stats' + Dashboard.buildQueryString(currentFilters);
+                console.log('[Dashboard Main] Charts API URL:', url);
                 const stats = await Dashboard.apiRequest(url);
+                console.log('[Dashboard Main] Charts stats received:', stats);
                 
                 // Call volume trends chart (by jurisdiction)
                 const trendChartEl = document.getElementById('calls-trend-chart');
