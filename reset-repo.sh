@@ -52,10 +52,19 @@ safe_remove "vendor"
 echo ""
 
 # Step 3: Clean environment file
-echo -e "${YELLOW}Step 3: Removing environment file...${NC}"
+echo -e "${YELLOW}Step 3: Handling environment file...${NC}"
 if [ -f ".env" ]; then
-    rm -f .env
-    echo -e "${GREEN}✓ Removed .env${NC}"
+    echo -e "${YELLOW}An existing .env file was found.${NC}"
+    echo ""
+    read -p "Do you want to keep the existing .env file? (y/n): " keep_env
+    echo ""
+    
+    if [[ "$keep_env" =~ ^[Yy]$ ]]; then
+        echo -e "${GREEN}✓ Keeping existing .env file${NC}"
+    else
+        rm -f .env
+        echo -e "${GREEN}✓ Removed .env file${NC}"
+    fi
 else
     echo -e "${YELLOW}⚠ No .env file found${NC}"
 fi
