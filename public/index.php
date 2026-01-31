@@ -174,8 +174,8 @@ $pageTitle = ucfirst($page);
             if (match) {
                 return window.location.protocol + '//' + match[1] + '-' + port + '.app.github.dev';
             }
-            // Fallback: just use current origin with different port
-            return window.location.origin.replace(/:\d+$/, ':' + port);
+            // Fallback: construct URL from components (handles URLs without explicit port)
+            return `${window.location.protocol}//${window.location.hostname}:${port}`;
         }
         
         // Set DBeaver URL dynamically

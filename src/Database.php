@@ -33,15 +33,11 @@ class Database
 
         $logger = Logger::getInstance();
         $logger->info("Connecting to {$dbConfig['type']} database");
-        $logger->debug("Database host: {$dbConfig['host']}");
-        $logger->debug("Database port: {$dbConfig['port']}");
-        $logger->debug("Database name: {$dbConfig['database']}");
-        $logger->debug("Database user: {$dbConfig['username']}");
+        // Note: Sensitive connection details (host, port, credentials) are not logged for security
 
         try {
             $logger->debug("Building DSN string for {$dbConfig['type']}");
             $dsn = self::buildDsn($dbConfig);
-            $logger->debug("DSN: {$dsn}");
             
             $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -51,7 +47,7 @@ class Database
 
             if ($dbConfig['type'] === 'mysql') {
                 $options[PDO::MYSQL_ATTR_INIT_COMMAND] = "SET NAMES {$dbConfig['charset']}";
-                $logger->debug("MySQL charset set to: {$dbConfig['charset']}");
+                $logger->debug("MySQL charset configured");
             }
 
             $logger->debug("Creating PDO connection...");
@@ -65,8 +61,9 @@ class Database
             $logger->info("Database connection established successfully");
             $logger->debug("PDO connection created with error mode EXCEPTION");
         } catch (PDOException $e) {
-            $logger->error("Database connection failed: " . $e->getMessage());
-            throw new Exception("Database connection failed: " . $e->getMessage());
+            // Log generic error message, avoid exposing connection details
+            $logger->error("Database connection failed");
+            throw new Exception("Database connection failed. Check your database configuration.");
         }
     }
 

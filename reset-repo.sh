@@ -56,7 +56,13 @@ echo -e "${YELLOW}Step 3: Handling environment file...${NC}"
 if [ -f ".env" ]; then
     echo -e "${YELLOW}An existing .env file was found.${NC}"
     echo ""
-    read -p "Do you want to keep the existing .env file? (y/n): " keep_env
+    # Handle non-interactive mode (e.g., CI/CD pipelines) - default to keeping .env
+    if [ ! -t 0 ]; then
+        echo -e "${YELLOW}Non-interactive mode detected, keeping .env file by default${NC}"
+        keep_env='y'
+    else
+        read -r -p "Do you want to keep the existing .env file? (y/n): " keep_env
+    fi
     echo ""
     
     if [[ "$keep_env" =~ ^[Yy]$ ]]; then

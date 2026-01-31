@@ -140,17 +140,23 @@ services:
       start_period: 60s
 
   # Dozzle - Real-time Docker Log Viewer
+  # SECURITY NOTE: Dozzle requires Docker socket access for log viewing.
+  # - By default, binds only to localhost (127.0.0.1) for security
+  # - Enable authentication in production by setting DOZZLE_USERNAME and DOZZLE_PASSWORD
+  # - Do not expose port 9999 to the public internet without authentication
   dozzle:
     image: amir20/dozzle:latest
     container_name: nws-cad-dozzle
     restart: unless-stopped
     ports:
-      - "${DOZZLE_PORT:-9999}:8080"
+      - "127.0.0.1:${DOZZLE_PORT:-9999}:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - DOZZLE_LEVEL=${LOG_LEVEL:-info}
       - DOZZLE_NO_ANALYTICS=true
+      - DOZZLE_USERNAME=${DOZZLE_USERNAME:-}
+      - DOZZLE_PASSWORD=${DOZZLE_PASSWORD:-}
     networks:
       - nws-cad-network
 

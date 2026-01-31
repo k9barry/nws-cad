@@ -9,15 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Dozzle Docker Log Viewer** - Real-time container log monitoring service
-  - Added Dozzle service to docker-compose.yml (port 9999)
-  - Added DOZZLE_PORT configuration to .env.example
+  - Added Dozzle service to docker-compose.yml (port 9999, localhost-only by default)
+  - Added DOZZLE_PORT, DOZZLE_USERNAME, DOZZLE_PASSWORD configuration to .env.example
   - Logs link in navigation now opens Dozzle in new tab
+  - Security: Binds to localhost only, supports optional authentication
 - **Enhanced DEBUG Logging** - Comprehensive step-by-step logging throughout codebase
   - DEBUG level shows detailed step-by-step processing information
   - INFO level shows only major milestones
   - Updated FileWatcher.php with DEBUG logging for file scanning, stability checks, processing
   - Updated AegisXmlParser.php with DEBUG logging for XML parsing, database operations
-  - Updated Database.php with DEBUG logging for connection details
+  - Updated Database.php with DEBUG logging (sanitized, no sensitive credentials exposed)
   - Updated watcher.php with DEBUG logging for service startup
 - Agency and Jurisdiction filters to Analytics page
 - Call counts to Call Distribution chart labels
