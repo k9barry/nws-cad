@@ -251,6 +251,7 @@ class AegisXmlParser
                 WHERE id = :id";
             
             $updateData = $callData;
+            unset($updateData['call_id']); // Remove call_id as UPDATE SQL uses :id instead
             $updateData['id'] = $dbCallId;
             
             $stmt = $this->db->prepare($sql);
