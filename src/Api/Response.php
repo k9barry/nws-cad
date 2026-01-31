@@ -97,7 +97,7 @@ class Response
      */
     public static function paginated(array $data, int $total, int $page, int $perPage): void
     {
-        $totalPages = ceil($total / $perPage);
+        $totalPages = (int)ceil($total / $perPage);
         
         self::success([
             'items' => $data,

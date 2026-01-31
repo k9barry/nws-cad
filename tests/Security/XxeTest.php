@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace NwsCad\Tests\Security;
 
 use NwsCad\AegisXmlParser;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Security tests for XXE (XML External Entity) prevention
  * Tests that XML parser properly prevents XXE attacks
  */
+#[CoversNothing]
 class XxeTest extends TestCase
 {
     private string $tempDir;
@@ -38,17 +40,53 @@ class XxeTest extends TestCase
         }
     }
 
-    public function testLibxmlNonetOptionDisablesExternalEntities(): void
+    public function testSecureXmlLoadingWithLibxmlNonet(): void
     {
         // Create a minimal XML file
         $xmlPath = $this->tempDir . '/test.xml';
         file_put_contents($xmlPath, '<?xml version="1.0"?><root><value>test</value></root>');
         
-        // In PHP 8.0+, external entity loading is disabled by default
-        // Use LIBXML_NONET to prevent network access during XML parsing
+        // In PHP 8.0+, external entity loading is disabled by default.
+        // LIBXML_NONET prevents network access during XML parsing, which is an
+        // additional security measure to prevent XXE attacks via remote URLs.
         libxml_use_internal_errors(true);
         $xml = simplexml_load_file($xmlPath, 'SimpleXMLElement', LIBXML_NONET);
-        $this->assertNotFalse($xml);
+        $this->assertNotFalse($xml, 'Basic XML should load successfully with LIBXML_NONET');
+        $this->assertEquals('test', (string)$xml->value, 'XML content should be parsed correctly');
+        libxml_clear_errors();
+    }
+
+    public function testLibxmlNonetBlocksNetworkEntityReferences(): void
+    {
+        // Create an XML file that attempts to load from a network URL
+        $xmlPath = $this->tempDir . '/network_entity.xml';
+        $xxeXml = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE foo [
+    <!ENTITY xxe SYSTEM "http://example.com/nonexistent.txt">
+]>
+<root><value>&xxe;</value></root>
+XML;
+        file_put_contents($xmlPath, $xxeXml);
+        
+        // LIBXML_NONET should prevent network access, causing entity resolution to fail
+        libxml_use_internal_errors(true);
+        $xml = simplexml_load_file($xmlPath, 'SimpleXMLElement', LIBXML_NONET);
+        
+        // The XML may still load, but the network entity should not resolve
+        // Either the XML fails to load or the entity value is empty/unresolved
+        if ($xml !== false) {
+            // If loaded, the entity should NOT contain data from the network URL
+            $value = (string)$xml->value;
+            $this->assertEmpty(
+                $value,
+                'LIBXML_NONET should prevent network entity from being resolved'
+            );
+        } else {
+            // XML failing to load is also acceptable - network access was blocked
+            $this->assertTrue(true, 'XML with network entity correctly rejected');
+        }
+        
         libxml_clear_errors();
     }
 

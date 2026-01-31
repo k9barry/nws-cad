@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace NwsCad\Tests\Security;
 
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Security tests for XSS (Cross-Site Scripting) prevention
  * Tests that output is properly escaped to prevent XSS attacks
  */
+#[CoversNothing]
 class XssTest extends TestCase
 {
     public function testHtmlSpecialCharsEscapesScriptTags(): void

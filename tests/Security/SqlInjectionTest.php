@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NwsCad\Tests\Security;
 
 use NwsCad\Database;
+use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 use PDO;
 
@@ -12,6 +13,7 @@ use PDO;
  * Security tests for SQL injection prevention
  * Tests that all database queries use prepared statements correctly
  */
+#[CoversNothing]
 class SqlInjectionTest extends TestCase
 {
     private static \PDO $db;

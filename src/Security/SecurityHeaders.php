@@ -170,15 +170,15 @@ class SecurityHeaders
     /**
      * Set CORS headers for API endpoints
      *
-     * @param string|array $allowedOrigins Allowed origins ('*' or array of origins)
-     * @param array $allowedMethods Allowed HTTP methods
-     * @param array $allowedHeaders Allowed headers
+     * @param string|array<string> $allowedOrigins Allowed origins ('*' or array of origins)
+     * @param array<string> $allowedMethods Allowed HTTP methods
+     * @param array<string> $allowedHeaders Allowed headers
      * @param bool $allowCredentials Allow credentials
      * @param int $maxAge Max age for preflight cache
      * @return void
      */
     public static function setCorsHeaders(
-        $allowedOrigins = '*',
+        string|array $allowedOrigins = '*',
         array $allowedMethods = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         array $allowedHeaders = ['Content-Type', 'Authorization'],
         bool $allowCredentials = false,
