@@ -37,34 +37,40 @@ class FileWatcher
         $this->logger = Logger::getInstance();
 
         $this->logger->info("Initializing File Watcher Service");
-        $this->logger->info("Watch Folder: {$this->watchFolder}");
-        $this->logger->info("File Pattern: {$this->filePattern}");
-        $this->logger->info("Check Interval: {$this->interval} seconds");
+        $this->logger->debug("Loading configuration from Config singleton");
+        $this->logger->debug("Watch Folder: {$this->watchFolder}");
+        $this->logger->debug("File Pattern: {$this->filePattern}");
+        $this->logger->debug("Check Interval: {$this->interval} seconds");
 
         // Wait for database BEFORE creating parser
-        $this->logger->info("Waiting for database to be ready...");
+        $this->logger->info("Waiting for database connection...");
+        $this->logger->debug("Starting database connection wait loop");
         $this->waitForDatabase();
         
         // Now create parser after database is ready
-        $this->logger->info("Creating AegisXmlParser instance");
+        $this->logger->debug("Creating AegisXmlParser instance");
         $this->parser = new AegisXmlParser();
+        $this->logger->debug("AegisXmlParser instance created successfully");
 
         // Ensure watch folder exists
         if (!is_dir($this->watchFolder)) {
-            $this->logger->info("Creating watch folder: {$this->watchFolder}");
+            $this->logger->debug("Watch folder does not exist, creating: {$this->watchFolder}");
             mkdir($this->watchFolder, 0755, true);
+            $this->logger->info("Created watch folder: {$this->watchFolder}");
         }
 
         // Verify folder permissions
         $perms = substr(sprintf('%o', fileperms($this->watchFolder)), -4);
-        $this->logger->info("Watch folder permissions: {$perms}");
+        $this->logger->debug("Watch folder permissions: {$perms}");
 
         // Setup signal handlers for graceful shutdown
         if (function_exists('pcntl_signal')) {
             pcntl_signal(SIGTERM, [$this, 'handleSignal']);
             pcntl_signal(SIGINT, [$this, 'handleSignal']);
-            $this->logger->info("Signal handlers registered");
+            $this->logger->debug("Signal handlers registered for SIGTERM and SIGINT");
         }
+
+        $this->logger->info("File Watcher Service initialized successfully");
     }
 
     /**
@@ -87,11 +93,10 @@ class FileWatcher
     public function start(): void
     {
         $this->logger->info("=== File Watcher Started ===");
-        $this->logger->info("Watching folder: {$this->watchFolder}");
-        $this->logger->info("File pattern: {$this->filePattern}");
-        $this->logger->info("Check interval: {$this->interval} seconds");
+        $this->logger->debug("Configuration: folder={$this->watchFolder}, pattern={$this->filePattern}, interval={$this->interval}s");
 
         // Test database connectivity before starting
+        $this->logger->debug("Testing database connectivity before entering main loop");
         if (!Database::testConnection()) {
             $this->logger->error("Database connection failed, waiting for database...");
             $this->waitForDatabase();
@@ -101,7 +106,7 @@ class FileWatcher
         while ($this->running) {
             try {
                 $checkCount++;
-                $this->logger->info("=== Check #{$checkCount} - Scanning watch folder ===");
+                $this->logger->debug("=== Check #{$checkCount} - Starting folder scan ===");
                 $this->checkForNewFiles();
                 
                 // Process signals if available
@@ -109,11 +114,11 @@ class FileWatcher
                     pcntl_signal_dispatch();
                 }
                 
-                $this->logger->info("Sleeping for {$this->interval} seconds...");
+                $this->logger->debug("Sleeping for {$this->interval} seconds before next check...");
                 sleep($this->interval);
             } catch (Exception $e) {
                 $this->logger->error("Error in watch loop: " . $e->getMessage());
-                $this->logger->error("Stack trace: " . $e->getTraceAsString());
+                $this->logger->debug("Stack trace: " . $e->getTraceAsString());
                 sleep($this->interval);
             }
         }
@@ -133,10 +138,10 @@ class FileWatcher
         $retryDelay = 2;
         
         for ($i = 0; $i < $maxRetries; $i++) {
-            $this->logger->info("Attempting to connect to database (attempt " . ($i + 1) . "/$maxRetries)");
+            $this->logger->debug("Attempting database connection (attempt " . ($i + 1) . "/$maxRetries)");
             
             if (Database::testConnection()) {
-                $this->logger->info("✓ Database connection established successfully");
+                $this->logger->info("Database connection established successfully");
                 return;
             }
             
@@ -154,22 +159,24 @@ class FileWatcher
      */
     private function checkForNewFiles(): void
     {
+        $this->logger->debug("Scanning watch folder for new files...");
         $files = $this->scanDirectory($this->watchFolder);
         
         $fileCount = count($files);
-        $this->logger->info("Found {$fileCount} XML file(s) in watch folder");
+        $this->logger->debug("Found {$fileCount} XML file(s) in watch folder");
         
         if ($fileCount > 0) {
             foreach ($files as $index => $file) {
                 $filename = basename($file);
-                $this->logger->info("  [{$index}] {$filename}");
+                $this->logger->debug("  File [{$index}]: {$filename}");
             }
         } else {
-            $this->logger->info("No XML files found in watch folder");
+            $this->logger->debug("No XML files found in watch folder, skipping processing");
             return;
         }
 
         // Use FilenameParser to identify latest files only
+        $this->logger->debug("Analyzing filenames to identify latest versions...");
         $filenames = array_map('basename', $files);
         
         // Identify unparseable files (e.g., files with tildes)
@@ -177,10 +184,9 @@ class FileWatcher
         
         // Move unparseable files to failed folder
         if (count($unparseableFilenames) > 0) {
-            $this->logger->info("--- Unparseable Files Detected ---");
-            $this->logger->info("Found " . count($unparseableFilenames) . " unparseable file(s):");
+            $this->logger->debug("Found " . count($unparseableFilenames) . " unparseable file(s)");
             foreach ($unparseableFilenames as $unparseableFile) {
-                $this->logger->info("  ✗ {$unparseableFile} (invalid format)");
+                $this->logger->debug("  Moving unparseable file: {$unparseableFile}");
                 $fullPath = $this->watchFolder . '/' . $unparseableFile;
                 if (file_exists($fullPath)) {
                     $this->moveToFailed($fullPath);
@@ -198,20 +204,20 @@ class FileWatcher
         $latestFilenames = FilenameParser::getLatestFiles($filenames);
         $filesToSkip = FilenameParser::getFilesToSkip($filenames);
         
-        $this->logger->info("--- File Version Analysis ---");
+        $this->logger->debug("File version analysis complete");
         $grouped = FilenameParser::groupByCallNumber($filenames);
-        $this->logger->info("Unique call numbers: " . count($grouped));
+        $this->logger->debug("Unique call numbers: " . count($grouped));
         
         foreach ($grouped as $callNumber => $callFiles) {
             if (count($callFiles) > 1) {
-                $this->logger->info("Call {$callNumber}: " . count($callFiles) . " files found, latest will be processed");
+                $this->logger->debug("Call {$callNumber}: " . count($callFiles) . " versions found, processing latest only");
             }
         }
         
         if (count($filesToSkip) > 0) {
-            $this->logger->info("Skipping " . count($filesToSkip) . " older versions:");
+            $this->logger->debug("Skipping " . count($filesToSkip) . " older file versions");
             foreach ($filesToSkip as $skipFile) {
-                $this->logger->info("  ✗ {$skipFile} (older version)");
+                $this->logger->debug("  Skipping: {$skipFile} (older version)");
             }
         }
 
@@ -229,25 +235,27 @@ class FileWatcher
                 continue;
             }
             
-            $this->logger->info("--- Checking file: {$filename} ---");
+            $this->logger->debug("Checking file: {$filename}");
             
             if ($this->shouldProcessFile($file)) {
-                $this->logger->info("✓ File passed checks, processing: {$filename}");
+                $this->logger->info("Processing file: {$filename}");
                 $this->processFile($file);
                 $processedCount++;
             } else {
-                $this->logger->info("✗ File skipped: {$filename}");
+                $this->logger->debug("File skipped (already processed or unstable): {$filename}");
                 $skippedCount++;
             }
         }
 
-        $this->logger->info("Summary: {$processedCount} processed, {$skippedCount} skipped ({$versionSkippedCount} older versions, {$unparseableCount} unparseable), {$fileCount} total");
+        if ($processedCount > 0 || $skippedCount > 0) {
+            $this->logger->info("Scan complete: {$processedCount} processed, {$skippedCount} skipped ({$versionSkippedCount} older versions, {$unparseableCount} unparseable)");
+        }
 
         // Clean up old processed files from memory (keep last 1000)
         if (count($this->processedFiles) > 1000) {
             $removed = count($this->processedFiles) - 1000;
             $this->processedFiles = array_slice($this->processedFiles, -1000, 1000, true);
-            $this->logger->info("Cleaned up {$removed} old entries from memory");
+            $this->logger->debug("Memory cleanup: removed {$removed} old file entries from tracking");
         }
     }
 
@@ -264,8 +272,8 @@ class FileWatcher
         
         try {
             $pattern = $this->convertGlobToRegex($this->filePattern);
-            $this->logger->info("Scanning directory: {$directory}");
-            $this->logger->info("Using pattern: {$this->filePattern} -> {$pattern}");
+            $this->logger->debug("Scanning directory: {$directory}");
+            $this->logger->debug("Using regex pattern: {$pattern}");
             
             // Only scan the root directory, not subdirectories
             $items = scandir($directory);
@@ -274,7 +282,7 @@ class FileWatcher
                 throw new Exception("Failed to scan directory: $directory");
             }
             
-            $this->logger->info("Total items in directory: " . count($items));
+            $this->logger->debug("Total items in directory: " . count($items));
             
             foreach ($items as $item) {
                 if ($item === '.' || $item === '..') {
@@ -285,13 +293,13 @@ class FileWatcher
                 
                 // Skip directories (including processed/failed)
                 if (is_dir($fullPath)) {
-                    $this->logger->info("  Skipping directory: {$item}");
+                    $this->logger->debug("  Skipping subdirectory: {$item}");
                     continue;
                 }
                 
                 // Check if matches pattern
                 $matches = preg_match($pattern, $item);
-                $this->logger->info("  File: {$item} - Pattern match: " . ($matches ? 'YES' : 'NO'));
+                $this->logger->debug("  File: {$item} - Pattern match: " . ($matches ? 'YES' : 'NO'));
                 
                 if ($matches) {
                     $files[] = $fullPath;
@@ -299,7 +307,7 @@ class FileWatcher
             }
         } catch (Exception $e) {
             $this->logger->error("Error scanning directory: " . $e->getMessage());
-            $this->logger->error("Stack trace: " . $e->getTraceAsString());
+            $this->logger->debug("Stack trace: " . $e->getTraceAsString());
         }
 
         return $files;
@@ -329,28 +337,27 @@ class FileWatcher
     {
         $filename = basename($filePath);
         
-        $this->logger->info("  → Checking if file is stable: {$filename}");
+        $this->logger->debug("  Checking file stability: {$filename}");
         
         // Check if file is still being written (size changes)
         if (!$this->isFileStable($filePath)) {
-            $this->logger->info("  ✗ File not stable, skipping: {$filename}");
+            $this->logger->debug("  File not stable (still being written): {$filename}");
             return false;
         }
         
-        $this->logger->info("  ✓ File is stable");
+        $this->logger->debug("  File is stable");
 
         // Check if already processed in this session
         $fileKey = md5($filePath . filesize($filePath) . filemtime($filePath));
-        $this->logger->info("  → Generated file key: {$fileKey}");
+        $this->logger->debug("  Generated file key: {$fileKey}");
         
         if (isset($this->processedFiles[$fileKey])) {
             $processedTime = date('Y-m-d H:i:s', $this->processedFiles[$fileKey]);
-            $this->logger->info("  ✗ File already processed in this session at {$processedTime}: {$filename}");
+            $this->logger->debug("  File already processed at {$processedTime}: {$filename}");
             return false;
         }
         
-        $this->logger->info("  ✓ File not yet processed in this session");
-        $this->logger->info("  ✓ File ready to process: {$filename}");
+        $this->logger->debug("  File ready for processing: {$filename}");
         return true;
     }
 
@@ -369,14 +376,14 @@ class FileWatcher
         }
 
         $size1 = filesize($filePath);
-        $this->logger->info("  Initial size: {$size1} bytes");
+        $this->logger->debug("  Initial file size: {$size1} bytes");
         
         sleep($checkInterval);
         clearstatcache(true, $filePath);
         $size2 = filesize($filePath);
         
         $isStable = $size1 === $size2;
-        $this->logger->info("  Final size: {$size2} bytes - Stable: " . ($isStable ? 'YES' : 'NO'));
+        $this->logger->debug("  Final file size: {$size2} bytes - Stable: " . ($isStable ? 'YES' : 'NO'));
 
         return $isStable;
     }
@@ -390,28 +397,28 @@ class FileWatcher
     private function processFile(string $filePath): void
     {
         $filename = basename($filePath);
-        $this->logger->info("►►► Processing file: {$filename}");
+        $this->logger->debug("Starting file processing: {$filename}");
 
         try {
             // Mark as being processed
             $fileKey = md5($filePath . filesize($filePath) . filemtime($filePath));
             $this->processedFiles[$fileKey] = time();
-            $this->logger->info("  Marked as processing with key: {$fileKey}");
+            $this->logger->debug("  Marked file with key: {$fileKey}");
 
             // Process the file
-            $this->logger->info("  Calling AegisXmlParser->processFile()");
+            $this->logger->debug("  Invoking AegisXmlParser->processFile()");
             $success = $this->parser->processFile($filePath);
 
             if ($success) {
-                $this->logger->info("  ✓ File processed successfully");
+                $this->logger->info("File processed successfully: {$filename}");
                 $this->moveToProcessed($filePath);
             } else {
-                $this->logger->error("  ✗ File processing failed");
+                $this->logger->error("File processing failed: {$filename}");
                 $this->moveToFailed($filePath);
             }
         } catch (Exception $e) {
-            $this->logger->error("  ✗ Exception during processing: " . $e->getMessage());
-            $this->logger->error("  Stack trace: " . $e->getTraceAsString());
+            $this->logger->error("Exception during file processing: " . $e->getMessage());
+            $this->logger->debug("Stack trace: " . $e->getTraceAsString());
             $this->moveToFailed($filePath);
         }
     }
@@ -427,16 +434,17 @@ class FileWatcher
         $processedFolder = $this->watchFolder . '/processed';
         if (!is_dir($processedFolder)) {
             mkdir($processedFolder, 0755, true);
-            $this->logger->info("Created processed folder: {$processedFolder}");
+            $this->logger->debug("Created processed folder: {$processedFolder}");
         }
 
         $destination = $processedFolder . '/' . basename($filePath);
         $destination = $this->getUniqueFilename($destination);
 
+        $this->logger->debug("Moving file to processed folder: " . basename($destination));
         if (rename($filePath, $destination)) {
-            $this->logger->info("✓ File moved to processed: " . basename($destination));
+            $this->logger->debug("File moved successfully to processed: " . basename($destination));
         } else {
-            $this->logger->error("✗ Failed to move file to processed folder");
+            $this->logger->error("Failed to move file to processed folder: " . basename($filePath));
         }
     }
 
@@ -451,16 +459,17 @@ class FileWatcher
         $failedFolder = $this->watchFolder . '/failed';
         if (!is_dir($failedFolder)) {
             mkdir($failedFolder, 0755, true);
-            $this->logger->info("Created failed folder: {$failedFolder}");
+            $this->logger->debug("Created failed folder: {$failedFolder}");
         }
 
         $destination = $failedFolder . '/' . basename($filePath);
         $destination = $this->getUniqueFilename($destination);
 
+        $this->logger->debug("Moving file to failed folder: " . basename($destination));
         if (rename($filePath, $destination)) {
-            $this->logger->info("✓ File moved to failed: " . basename($destination));
+            $this->logger->debug("File moved to failed: " . basename($destination));
         } else {
-            $this->logger->error("✗ Failed to move file to failed folder");
+            $this->logger->error("Failed to move file to failed folder: " . basename($filePath));
         }
     }
 

@@ -139,6 +139,21 @@ services:
       retries: 3
       start_period: 60s
 
+  # Dozzle - Real-time Docker Log Viewer
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: nws-cad-dozzle
+    restart: unless-stopped
+    ports:
+      - "${DOZZLE_PORT:-9999}:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - DOZZLE_LEVEL=${LOG_LEVEL:-info}
+      - DOZZLE_NO_ANALYTICS=true
+    networks:
+      - nws-cad-network
+
 networks:
   nws-cad-network:
     driver: bridge

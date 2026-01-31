@@ -24,7 +24,6 @@ $routes = [
     '/calls' => 'calls',
     '/units' => 'units',
     '/analytics' => 'analytics',
-    '/logs' => 'logs',
 ];
 
 // Get page from route
@@ -88,7 +87,7 @@ $pageTitle = ucfirst($page);
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link <?= $page === 'logs' ? 'active' : '' ?>" href="/logs">
+                        <a class="nav-link" id="dozzle-link" href="#" target="_blank" rel="noopener noreferrer">
                             <i class="bi bi-file-text"></i> Logs
                         </a>
                     </li>
@@ -164,38 +163,53 @@ $pageTitle = ucfirst($page);
             origin: window.location.origin
         });
         
+        // Helper function to construct Codespaces URL for a given port
+        function getCodespacesUrl(port) {
+            const hostname = window.location.hostname;
+            // Extract the codespace base name (everything before the first -NNNN)
+            // Example: congenial-succotash-jjg77v7vrxjc5g7p-8080.app.github.dev
+            //       -> congenial-succotash-jjg77v7vrxjc5g7p
+            // Then append: -{port}.app.github.dev
+            const match = hostname.match(/^([a-z0-9-]+)-\d+\./);
+            if (match) {
+                return window.location.protocol + '//' + match[1] + '-' + port + '.app.github.dev';
+            }
+            // Fallback: just use current origin with different port
+            return window.location.origin.replace(/:\d+$/, ':' + port);
+        }
+        
         // Set DBeaver URL dynamically
         let dbeaverUrl;
         if (isCodespaces) {
-            // For Codespaces, construct the forwarded port URL
-            // Format: https://{codespace-name}-{port}.app.github.dev
-            const hostname = window.location.hostname;
-            
-            // Extract the codespace base name (everything before the first -NNNN)
-            // Example: congenial-succotash-jjg77v7vrxjc5g7p-8080.app-8978.preview.app.github.dev
-            //       -> congenial-succotash-jjg77v7vrxjc5g7p
-            // Then append: -8978.app.github.dev
-            const match = hostname.match(/^([a-z0-9-]+)-\d+\./);
-            if (match) {
-                const baseCodespaceName = match[1] + '-8978.app.github.dev';
-                dbeaverUrl = window.location.protocol + '//' + baseCodespaceName;
-            } else {
-                // Fallback: just use current origin with different port (won't work but safer)
-                dbeaverUrl = window.location.origin.replace(/:\d+$/, ':8978');
-            }
-            
+            dbeaverUrl = getCodespacesUrl(8978);
             console.log('[NWS CAD] DBeaver URL constructed:', {
-                originalHostname: hostname,
+                originalHostname: window.location.hostname,
                 dbeaverUrl: dbeaverUrl
             });
         } else {
-            // For local development, use localhost with port
             dbeaverUrl = 'http://localhost:8978';
         }
         
         const dbeaverLink = document.getElementById('dbeaver-link');
         if (dbeaverLink) {
             dbeaverLink.href = dbeaverUrl;
+        }
+        
+        // Set Dozzle (Logs) URL dynamically
+        let dozzleUrl;
+        if (isCodespaces) {
+            dozzleUrl = getCodespacesUrl(9999);
+            console.log('[NWS CAD] Dozzle URL constructed:', {
+                originalHostname: window.location.hostname,
+                dozzleUrl: dozzleUrl
+            });
+        } else {
+            dozzleUrl = 'http://localhost:9999';
+        }
+        
+        const dozzleLink = document.getElementById('dozzle-link');
+        if (dozzleLink) {
+            dozzleLink.href = dozzleUrl;
         }
         
         console.log('APP_CONFIG initialized:', window.APP_CONFIG);
@@ -213,8 +227,6 @@ $pageTitle = ucfirst($page);
         <script src="/assets/js/units.js?v=<?= time() ?>"></script>
     <?php elseif ($page === 'analytics'): ?>
         <script src="/assets/js/analytics.js?v=<?= time() ?>"></script>
-    <?php elseif ($page === 'logs'): ?>
-        <script src="/assets/js/logs.js?v=<?= time() ?>"></script>
     <?php endif; ?>
 </body>
 </html>
