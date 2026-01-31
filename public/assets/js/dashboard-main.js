@@ -50,67 +50,147 @@
         
         // Global filter state
         let currentFilters = {};
+        let programmaticChange = false; // Flag to prevent form submit loops during programmatic changes
         
-        // Initialize date filters with default (last 7 days)
+        // Initialize date filters with default (last 7 days) or load from session
         function initializeFilters() {
             const dateFromInput = document.getElementById('dashboard-date-from');
             const dateToInput = document.getElementById('dashboard-date-to');
             const quickPeriod = document.getElementById('dashboard-quick-period');
             const jurisdictionSelect = document.getElementById('dashboard-jurisdiction');
             
-            // Set default dates (last 7 days)
-            if (dateFromInput && dateToInput) {
-                const now = new Date();
-                const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+            // Check for saved filters first
+            const savedFilters = Dashboard.filters.load();
+            if (savedFilters && Object.keys(savedFilters).length > 0) {
+                console.log('[Dashboard Main] Loading saved filters:', savedFilters);
+                currentFilters = savedFilters;
                 
-                dateToInput.value = new Date().toISOString().split('T')[0];
-                dateFromInput.value = sevenDaysAgo.toISOString().split('T')[0];
+                // Populate form with saved values
+                if (dateFromInput && savedFilters.date_from) {
+                    dateFromInput.value = savedFilters.date_from;
+                }
+                if (dateToInput && savedFilters.date_to) {
+                    dateToInput.value = savedFilters.date_to;
+                }
+                if (quickPeriod && savedFilters.quick_period) {
+                    quickPeriod.value = savedFilters.quick_period;
+                }
+                if (jurisdictionSelect && savedFilters.jurisdiction) {
+                    jurisdictionSelect.value = savedFilters.jurisdiction;
+                }
                 
-                currentFilters.date_from = dateFromInput.value;
-                currentFilters.date_to = dateToInput.value;
+                // Load other filter fields
+                const agencySelect = document.getElementById('dashboard-agency');
+                const statusSelect = document.getElementById('dashboard-status');
+                const prioritySelect = document.getElementById('dashboard-priority');
                 
-                // Set the quick period dropdown to match
-                if (quickPeriod) {
-                    quickPeriod.value = '7days';
+                if (agencySelect && savedFilters.agency_type) {
+                    agencySelect.value = savedFilters.agency_type;
+                }
+                if (statusSelect && savedFilters.call_status) {
+                    statusSelect.value = savedFilters.call_status;
+                }
+                if (prioritySelect && savedFilters.priority) {
+                    prioritySelect.value = savedFilters.priority;
+                }
+            } else {
+                // Set default dates (last 7 days, including today)
+                console.log('[Dashboard Main] No saved filters, using defaults');
+                if (dateFromInput && dateToInput) {
+                    const now = new Date();
+                    const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+                    const tomorrow = new Date(now.getTime() + (24 * 60 * 60 * 1000));
+                    
+                    dateFromInput.value = sevenDaysAgo.toISOString().split('T')[0];
+                    dateToInput.value = tomorrow.toISOString().split('T')[0];
+                    
+                    currentFilters.date_from = dateFromInput.value;
+                    currentFilters.date_to = dateToInput.value;
+                    
+                    // Set the quick period dropdown to match
+                    if (quickPeriod) {
+                        quickPeriod.value = '7days';
+                    }
+                    
+                    // Save defaults
+                    Dashboard.filters.save(currentFilters);
                 }
             }
+            
+            // Update summary display
+            updateFilterSummary();
             
             // Handle quick period selection
             if (quickPeriod) {
                 quickPeriod.addEventListener('change', () => {
                     const period = quickPeriod.value;
-                    const now = new Date();
                     let fromDate = new Date();
+                    let toDate = new Date();
                     
                     switch(period) {
                         case 'today':
-                            fromDate = new Date(now.setHours(0,0,0,0));
+                            fromDate.setHours(0,0,0,0);
+                            // For 'today', set toDate to tomorrow to include all of today
+                            toDate.setDate(toDate.getDate() + 1);
+                            toDate.setHours(0,0,0,0);
                             break;
                         case 'yesterday':
-                            fromDate = new Date(now.setDate(now.getDate() - 1));
+                            fromDate.setDate(fromDate.getDate() - 1);
                             fromDate.setHours(0,0,0,0);
-                            now.setHours(23,59,59,999);
+                            // For 'yesterday', set toDate to today to include all of yesterday
+                            toDate.setHours(0,0,0,0);
                             break;
                         case '7days':
-                            fromDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+                            fromDate = new Date(fromDate.getTime() - (7 * 24 * 60 * 60 * 1000));
+                            fromDate.setHours(0,0,0,0);
+                            // Include today
+                            toDate.setDate(toDate.getDate() + 1);
+                            toDate.setHours(0,0,0,0);
                             break;
                         case '30days':
-                            fromDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+                            fromDate = new Date(fromDate.getTime() - (30 * 24 * 60 * 60 * 1000));
+                            fromDate.setHours(0,0,0,0);
+                            // Include today
+                            toDate.setDate(toDate.getDate() + 1);
+                            toDate.setHours(0,0,0,0);
                             break;
                         case 'thismonth':
-                            fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                            fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+                            // Set toDate to tomorrow to include today
+                            toDate.setDate(toDate.getDate() + 1);
+                            toDate.setHours(0,0,0,0);
                             break;
                         case 'lastmonth':
-                            fromDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                            now.setDate(0); // Last day of previous month
+                            fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth() - 1, 1);
+                            // Set toDate to first day of current month
+                            toDate = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 1);
                             break;
                         case 'custom':
                             return; // Don't auto-update dates for custom
                     }
                     
                     if (period !== 'custom' && dateFromInput && dateToInput) {
+                        // Set flag to prevent form submit handler from interfering
+                        programmaticChange = true;
+                        
                         dateFromInput.value = fromDate.toISOString().split('T')[0];
-                        dateToInput.value = new Date().toISOString().split('T')[0];
+                        dateToInput.value = toDate.toISOString().split('T')[0];
+                        
+                        // Manually update current filters and trigger refresh
+                        currentFilters.date_from = dateFromInput.value;
+                        currentFilters.date_to = dateToInput.value;
+                        currentFilters.quick_period = period; // Save quick period selection
+                        
+                        // Save to session storage
+                        Dashboard.filters.save(currentFilters);
+                        
+                        console.log('[Dashboard Main] Quick period changed to', period, 'Filters:', currentFilters);
+                        
+                        // Reload dashboard
+                        refreshDashboard();
+                        
+                        // Reset flag after refresh starts
+                        setTimeout(() => { programmaticChange = false; }, 100);
                     }
                 });
             }
@@ -146,48 +226,72 @@
                 filterForm.addEventListener('submit', (e) => {
                     e.preventDefault();
                     
-                    // Update filters from form
-                    const dateFrom = document.getElementById('dashboard-date-from')?.value;
-                    const dateTo = document.getElementById('dashboard-date-to')?.value;
-                    const agency = document.getElementById('dashboard-agency')?.value;
-                    const jurisdiction = document.getElementById('dashboard-jurisdiction')?.value;
-                    
-                    // Update filters (preserve existing, override with new values)
-                    if (dateFrom) {
-                        currentFilters.date_from = dateFrom;
-                    } else {
-                        delete currentFilters.date_from;
+                    // Skip if this is a programmatic change from quick period selector
+                    if (programmaticChange) {
+                        console.log('[Dashboard Main] Ignoring form submit (programmatic change)');
+                        return;
                     }
                     
-                    if (dateTo) {
-                        currentFilters.date_to = dateTo;
-                    } else {
-                        delete currentFilters.date_to;
+                    // Get all filter values from form
+                    const formData = new FormData(filterForm);
+                    currentFilters = {};
+                    
+                    for (const [key, value] of formData.entries()) {
+                        if (value !== '') {
+                            currentFilters[key] = value;
+                        }
                     }
                     
-                    if (agency) {
-                        currentFilters.agency_type = agency;
-                    } else {
-                        delete currentFilters.agency_type;
-                    }
+                    // Save filters to session storage
+                    Dashboard.filters.save(currentFilters);
                     
-                    if (jurisdiction) {
-                        currentFilters.jurisdiction = jurisdiction;
-                    } else {
-                        delete currentFilters.jurisdiction;
-                    }
+                    console.log('[Dashboard Main] Filters updated:', currentFilters);
                     
-                    console.log('[Dashboard Main] Updated filters:', currentFilters);
+                    // Update filter summary
+                    updateFilterSummary();
                     
-                    // Reload all data with new filters
-                    loadStats();
-                    loadRecentCalls();
-                    loadCallsMap();
-                    loadCharts();
+                    // Reload dashboard with new filters
+                    refreshDashboard();
                 });
+                
+                // Clear filters button
+                const clearButton = document.getElementById('clear-filters');
+                if (clearButton) {
+                    clearButton.addEventListener('click', () => {
+                        // Set flag to prevent form submit interference
+                        programmaticChange = true;
+                        
+                        currentFilters = {};
+                        Dashboard.filters.clear();
+                        
+                        // Reset to default (last 7 days)
+                        const now = new Date();
+                        const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+                        const tomorrow = new Date(now.getTime() + (24 * 60 * 60 * 1000));
+                        
+                        const dateFromInput = document.getElementById('dashboard-date-from');
+                        const dateToInput = document.getElementById('dashboard-date-to');
+                        const quickPeriod = document.getElementById('dashboard-quick-period');
+                        
+                        if (dateFromInput) dateFromInput.value = sevenDaysAgo.toISOString().split('T')[0];
+                        if (dateToInput) dateToInput.value = tomorrow.toISOString().split('T')[0];
+                        if (quickPeriod) quickPeriod.value = '7days';
+                        
+                        currentFilters.date_from = dateFromInput.value;
+                        currentFilters.date_to = dateToInput.value;
+                        
+                        Dashboard.filters.save(currentFilters);
+                        
+                        // Reload
+                        refreshDashboard();
+                        
+                        // Reset flag
+                        setTimeout(() => { programmaticChange = false; }, 100);
+                    });
+                }
             }
         }
-        
+
         // Initialize filters
         initializeFilters();
         setupFilterForm();
@@ -209,35 +313,98 @@
         }
         
         /**
+         * Update filter summary display
+         */
+        function updateFilterSummary() {
+            const summaryEl = document.getElementById('filter-summary');
+            if (!summaryEl) return;
+            
+            const parts = [];
+            
+            // Quick period or date range
+            if (currentFilters.quick_period) {
+                const periods = {
+                    'today': 'Today',
+                    'yesterday': 'Yesterday',
+                    '7days': 'Last 7 Days',
+                    '30days': 'Last 30 Days',
+                    'thismonth': 'This Month',
+                    'lastmonth': 'Last Month'
+                };
+                parts.push(periods[currentFilters.quick_period] || 'Custom Range');
+            } else if (currentFilters.date_from && currentFilters.date_to) {
+                parts.push(`${currentFilters.date_from} to ${currentFilters.date_to}`);
+            } else {
+                parts.push('All Time');
+            }
+            
+            // Add other filters
+            if (currentFilters.agency_type) parts.push(`Agency: ${currentFilters.agency_type}`);
+            if (currentFilters.jurisdiction) parts.push(`Jurisdiction: ${currentFilters.jurisdiction}`);
+            if (currentFilters.status) parts.push(`Status: ${currentFilters.status}`);
+            if (currentFilters.priority) parts.push(`Priority: ${currentFilters.priority}`);
+            
+            summaryEl.textContent = parts.join(' • ');
+        }
+        
+        /**
          * Load statistics
          */
         async function loadStats() {
             console.log('[Dashboard Main] Loading stats...');
+            console.log('[Dashboard Main] Current filters:', currentFilters);
             try {
-                const url = '/stats' + Dashboard.buildQueryString(currentFilters);
+                // Translate filters for API
+                const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
+                console.log('[Dashboard Main] Translated API filters:', apiFilters);
+                
+                const url = '/stats' + Dashboard.buildQueryString(apiFilters);
+                console.log('[Dashboard Main] Stats API URL:', url);
                 const stats = await Dashboard.apiRequest(url);
                 console.log('[Dashboard Main] Stats response:', stats);
                 
-                const elements = {
-                    activeCalls: document.getElementById('stat-active-calls'),
-                    availableUnits: document.getElementById('stat-available-units'),
-                    avgResponse: document.getElementById('stat-avg-response'),
-                    callsToday: document.getElementById('stat-calls-today')
-                };
+                // Get units for available count (stats endpoint doesn't provide this)
+                const unitsParams = { per_page: 1000, ...apiFilters };
+                const units = await Dashboard.apiRequest('/units' + Dashboard.buildQueryString(unitsParams))
+                    .then(r => r?.items || []).catch(() => []);
                 
-                if (elements.activeCalls) {
-                    elements.activeCalls.textContent = stats.calls_by_status?.open || 0;
+                console.log('[Dashboard Main] Loaded', units.length, 'units from API');
+                
+                // Use stats from the API endpoint (respects all filters correctly)
+                const totalCalls = stats.total_calls || 0;
+                const activeCalls = stats.calls_by_status?.open || 0;
+                const closedCalls = stats.calls_by_status?.closed || 0;
+                const availableUnits = units.filter(u => u.unit_status?.toLowerCase() === 'available').length;
+                
+                // Get top call type from stats
+                let topCallType = 'N/A';
+                if (stats.top_call_types && stats.top_call_types.length > 0) {
+                    topCallType = stats.top_call_types[0].call_type;
+                    // Truncate if too long
+                    if (topCallType.length > 15) {
+                        topCallType = topCallType.substring(0, 12) + '...';
+                    }
                 }
-                if (elements.availableUnits) {
-                    elements.availableUnits.textContent = stats.total_units || 0;
-                }
-                if (elements.avgResponse) {
-                    const avgMin = stats.response_times?.average_minutes;
-                    elements.avgResponse.textContent = avgMin ? `${avgMin} min` : 'N/A';
-                }
-                if (elements.callsToday) {
-                    elements.callsToday.textContent = stats.total_calls || 0;
-                }
+                
+                console.log('[Dashboard Main] Stats calculated:', {
+                    totalCalls,
+                    activeCalls,
+                    closedCalls,
+                    availableUnits,
+                    topCallType
+                });
+                
+                // Update stat cards
+                updateStatCard('stat-total-calls', totalCalls);
+                updateStatCard('stat-active-calls', activeCalls);
+                updateStatCard('stat-closed-calls', closedCalls);
+                updateStatCard('stat-available-units', availableUnits);
+                
+                // Avg Response Time
+                const avgMin = stats.response_times?.average_minutes || stats.avg_response_time_minutes;
+                updateStatCard('stat-avg-response', avgMin ? `${Math.round(avgMin)}m` : 'N/A');
+                
+                updateStatCard('stat-top-call-type', topCallType);
                 
                 console.log('[Dashboard Main] Stats updated');
             } catch (error) {
@@ -248,22 +415,52 @@
             }
         }
         
+        // Helper to update stat cards
+        function updateStatCard(elementId, value) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = value;
+            }
+        }
+        
         /**
          * Load active calls (status=open)
          */
         async function loadRecentCalls() {
-            console.log('[Dashboard Main] Loading active calls...');
+            console.log('[Dashboard Main] Loading recent calls...');
+            console.log('[Dashboard Main] Current filters for recent calls:', currentFilters);
             try {
+                // Translate filters for API
+                const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
+                
                 const queryParams = {
                     page: 1,
                     per_page: 10,
                     sort: 'create_datetime',
                     order: 'desc',
-                    closed_flag: '0',
-                    ...currentFilters
+                    ...apiFilters
                 };
                 
+                // Default to active calls if no status filter
+                if (!currentFilters.status) {
+                    queryParams.closed_flag = 'false';
+                }
+                
+                // Update card title based on filters
+                const titleEl = document.getElementById('recent-activity-title');
+                if (titleEl) {
+                    if (currentFilters.status === 'active' || !currentFilters.status) {
+                        titleEl.textContent = 'Recent Active Calls';
+                    } else if (currentFilters.status === 'closed') {
+                        titleEl.textContent = 'Recent Closed Calls';
+                    } else {
+                        titleEl.textContent = 'Recent Activity';
+                    }
+                }
+                
                 const url = '/calls' + Dashboard.buildQueryString(queryParams);
+                console.log('[Dashboard Main] Recent calls API URL:', url);
+                console.log('[Dashboard Main] Query params:', queryParams);
                 
                 console.log('[Dashboard Main] Fetching:', Dashboard.config.apiBaseUrl + url);
                 
@@ -334,16 +531,24 @@
             }
             
             try {
+                // Translate filters for API
+                const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
+                
                 const queryParams = {
                     page: 1,
                     per_page: 100,
-                    closed_flag: 0,
-                    ...currentFilters
+                    ...apiFilters
                 };
+                
+                // Default to showing only open calls on map if no status filter set
+                if (!currentFilters.status) {
+                    queryParams.closed_flag = 'false';
+                }
                 
                 const url = '/calls' + Dashboard.buildQueryString(queryParams);
                 
-                console.log('[Dashboard Main] Fetching open calls from:', Dashboard.config.apiBaseUrl + url);
+                console.log('[Dashboard Main] Fetching calls for map from:', Dashboard.config.apiBaseUrl + url);
+                console.log('[Dashboard Main] Map query params:', queryParams);
                 const response = await fetch(Dashboard.config.apiBaseUrl + url);
                 const result = await response.json();
                 
@@ -496,6 +701,10 @@
          */
         async function refreshDashboard() {
             console.log('[Dashboard Main] === Refreshing ===');
+            
+            // Update filter summary
+            updateFilterSummary();
+            
             try {
                 await Promise.all([
                     loadStats(),
@@ -512,6 +721,25 @@
         // Global function for call details
         window.viewCallDetails = function(callId) {
             window.location.href = `/calls?id=${callId}`;
+        };
+        
+        // Global function for navigating with filtered data
+        window.navigateToFiltered = function(page, additionalFilters) {
+            console.log('[Dashboard Main] Navigating to:', page, 'with filters:', additionalFilters);
+            
+            // Get current filters
+            const currentFilters = Dashboard.filters.load() || {};
+            
+            // Merge with additional filters
+            const mergedFilters = { ...currentFilters, ...additionalFilters };
+            
+            // Save merged filters
+            Dashboard.filters.save(mergedFilters);
+            
+            console.log('[Dashboard Main] Saved filters:', mergedFilters);
+            
+            // Navigate to page
+            window.location.href = `/${page}`;
         };
         
         // Initial load

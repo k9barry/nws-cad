@@ -8,6 +8,49 @@
     
     console.log('[Units] Script loaded');
     
+    let currentFilters = {};
+    
+    /**
+     * Load filters from Dashboard session storage
+     */
+    function loadDashboardFilters() {
+        if (typeof Dashboard !== 'undefined' && Dashboard.filters) {
+            const savedFilters = Dashboard.filters.load();
+            if (savedFilters) {
+                currentFilters = savedFilters;
+                console.log('[Units] Loaded filters from Dashboard:', currentFilters);
+                displayActiveFilters();
+                return true;
+            }
+        }
+        console.log('[Units] No saved filters found');
+        return false;
+    }
+    
+    /**
+     * Display active filters banner
+     */
+    function displayActiveFilters() {
+        const banner = document.getElementById('active-filters-card');
+        const display = document.getElementById('active-filters-display');
+        
+        if (!banner || !display) return;
+        
+        const filterCount = Object.keys(currentFilters).length;
+        if (filterCount > 0) {
+            const filterText = Object.entries(currentFilters)
+                .filter(([key, value]) => value && key !== 'quick_period')
+                .map(([key, value]) => `${key.replace('_', ' ')}: ${value}`)
+                .slice(0, 3)  // Show only first 3
+                .join(', ');
+            
+            display.textContent = filterText + (filterCount > 3 ? '...' : '');
+            banner.style.display = 'block';
+        } else {
+            banner.style.display = 'none';
+        }
+    }
+    
     async function init() {
         if (typeof Dashboard === 'undefined') {
             console.error('[Units] Dashboard object not found, retrying...');
@@ -17,20 +60,160 @@
         
         console.log('[Units] Initializing units page...');
         
+        // Load Dashboard filters first
+        loadDashboardFilters();
+        
         // Initialize map
         if (typeof MapManager !== 'undefined') {
             MapManager.initMap('units-map');
             console.log('[Units] Map initialized');
         }
         
+        // Update statistics
+        await updateUnitStatistics();
+        
+        // Load recent activity
+        await loadRecentUnits();
+        
         await loadUnits();
         
-        // Setup filters
-        setupFilters();
+        // Setup filter form handler
+        const filterForm = document.getElementById('dashboard-filter-form');
+        if (filterForm) {
+            // Quick period selector
+            const quickPeriod = document.getElementById('dashboard-quick-period');
+            const dateFromInput = document.getElementById('dashboard-date-from');
+            const dateToInput = document.getElementById('dashboard-date-to');
+            let programmaticChange = false;
+            
+            if (quickPeriod) {
+                quickPeriod.addEventListener('change', () => {
+                    const period = quickPeriod.value;
+                    let fromDate = new Date();
+                    let toDate = new Date();
+                    
+                    switch(period) {
+                        case 'today':
+                            fromDate.setHours(0,0,0,0);
+                            toDate.setDate(toDate.getDate() + 1);
+                            toDate.setHours(0,0,0,0);
+                            break;
+                        case 'yesterday':
+                            fromDate.setDate(fromDate.getDate() - 1);
+                            fromDate.setHours(0,0,0,0);
+                            toDate.setHours(0,0,0,0);
+                            break;
+                        case '7days':
+                            fromDate = new Date(fromDate.getTime() - (7 * 24 * 60 * 60 * 1000));
+                            fromDate.setHours(0,0,0,0);
+                            toDate.setDate(toDate.getDate() + 1);
+                            toDate.setHours(0,0,0,0);
+                            break;
+                        case '30days':
+                            fromDate = new Date(fromDate.getTime() - (30 * 24 * 60 * 60 * 1000));
+                            fromDate.setHours(0,0,0,0);
+                            toDate.setDate(toDate.getDate() + 1);
+                            toDate.setHours(0,0,0,0);
+                            break;
+                        case 'thismonth':
+                            fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+                            toDate.setDate(toDate.getDate() + 1);
+                            toDate.setHours(0,0,0,0);
+                            break;
+                        case 'lastmonth':
+                            fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth() - 1, 1);
+                            toDate = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 1);
+                            break;
+                        case 'custom':
+                            return;
+                    }
+                    
+                    if (period !== 'custom' && dateFromInput && dateToInput) {
+                        programmaticChange = true;
+                        
+                        dateFromInput.value = fromDate.toISOString().split('T')[0];
+                        dateToInput.value = toDate.toISOString().split('T')[0];
+                        
+                        currentFilters.date_from = dateFromInput.value;
+                        currentFilters.date_to = dateToInput.value;
+                        currentFilters.quick_period = period;
+                        
+                        Dashboard.filters.save(currentFilters);
+                        
+                        console.log('[Units] Quick period changed to', period, 'Filters:', currentFilters);
+                        
+                        // Update active filters display
+                        displayActiveFilters();
+                        
+                        // Reload page data
+                        updateUnitStatistics();
+                        loadRecentUnits();
+                        loadUnits();
+                        
+                        setTimeout(() => { programmaticChange = false; }, 100);
+                    }
+                });
+            }
+            
+            filterForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                if (programmaticChange) {
+                    console.log('[Units] Skipping form submit - programmatic change');
+                    return;
+                }
+                
+                // Get all filter values from form
+                const formData = new FormData(filterForm);
+                currentFilters = {};
+                
+                for (const [key, value] of formData.entries()) {
+                    if (value !== '') {
+                        currentFilters[key] = value;
+                    }
+                }
+                
+                // Save filters to session storage
+                Dashboard.filters.save(currentFilters);
+                
+                console.log('[Units] Filters updated:', currentFilters);
+                
+                // Update active filters display
+                displayActiveFilters();
+                
+                // Reload page data
+                await updateUnitStatistics();
+                await loadRecentUnits();
+                await loadUnits();
+            });
+            
+            // Clear filters button
+            const clearButton = document.getElementById('clear-filters');
+            if (clearButton) {
+                clearButton.addEventListener('click', async () => {
+                    currentFilters = {};
+                    Dashboard.filters.clear();
+                    filterForm.reset();
+                    
+                    // Hide active filters banner
+                    const banner = document.getElementById('active-filters-card');
+                    if (banner) banner.style.display = 'none';
+                    
+                    // Reload page data
+                    await updateUnitStatistics();
+                    await loadRecentUnits();
+                    await loadUnits();
+                });
+            }
+        }
         
         // Setup auto-refresh
         if (Dashboard.setupAutoRefresh) {
-            Dashboard.setupAutoRefresh(loadUnits);
+            Dashboard.setupAutoRefresh(async () => {
+                await updateUnitStatistics();
+                await loadRecentUnits();
+                await loadUnits();
+            });
         }
     }
     
@@ -40,181 +223,133 @@
         init();
     }
     
-    function setupFilters() {
-        const filterForm = document.getElementById('units-filter-form');
-        if (!filterForm) {
-            console.warn('[Units] Filter form not found');
-            return;
+    /**
+     * Update unit statistics cards
+     */
+    async function updateUnitStatistics() {
+        try {
+            // Translate filters for API
+            const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
+            const queryString = Dashboard.buildQueryString(apiFilters);
+            
+            // Fetch units with filters - use higher limit for statistics
+            const units = await Dashboard.apiRequest(`/units?per_page=1000${queryString ? '&' + queryString.substring(1) : ''}`);
+            const items = units.items || [];
+            
+            // Calculate statistics based on unit_status
+            const available = items.filter(u => u.unit_status?.toLowerCase() === 'available').length;
+            const enroute = items.filter(u => u.unit_status?.toLowerCase() === 'en route' || u.unit_status?.toLowerCase() === 'enroute').length;
+            const onscene = items.filter(u => u.unit_status?.toLowerCase() === 'on scene' || u.unit_status?.toLowerCase() === 'onscene').length;
+            const offduty = items.filter(u => u.unit_status?.toLowerCase() === 'off duty' || u.unit_status?.toLowerCase() === 'offduty').length;
+            
+            // Update cards
+            const updateCard = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = value;
+            };
+            
+            updateCard('units-available', available);
+            updateCard('units-enroute', enroute);
+            updateCard('units-onscene', onscene);
+            updateCard('units-offduty', offduty);
+            
+            console.log('[Units] Statistics updated:', { available, enroute, onscene, offduty });
+            
+        } catch (error) {
+            console.error('[Units] Error updating statistics:', error);
         }
-        
-        // Show/hide custom date range based on time range selection
-        const timeRangeSelect = document.getElementById('filter-time-range');
-        const customDateRange = document.getElementById('custom-date-range');
-        
-        if (timeRangeSelect && customDateRange) {
-            timeRangeSelect.addEventListener('change', () => {
-                if (timeRangeSelect.value === 'custom') {
-                    customDateRange.style.display = 'block';
-                } else {
-                    customDateRange.style.display = 'none';
-                }
-            });
-        }
-        
-        // Apply filters
-        filterForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            await loadUnits();
-        });
-        
-        // Reset filters
-        filterForm.addEventListener('reset', async (e) => {
-            e.preventDefault();
-            filterForm.reset();
-            // Reset to default 24 hours
-            if (timeRangeSelect) {
-                timeRangeSelect.value = '24';
-            }
-            if (customDateRange) {
-                customDateRange.style.display = 'none';
-            }
-            await loadUnits();
-        });
-        
-        // Populate unit types and agencies
-        populateFilterOptions();
     }
     
-    async function populateFilterOptions() {
+    /**
+     * Load recent unit activity
+     */
+    async function loadRecentUnits() {
+        console.log('[Units] Loading recent unit activity...');
         try {
-            // Get distinct unit types and agencies from recent units (last 7 days)
-            const now = new Date();
-            const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
-            const dateFrom = sevenDaysAgo.toISOString().slice(0, 19).replace('T', ' ');
+            // Translate filters for API
+            const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
             
-            const queryParams = Dashboard.buildQueryString({
-                date_from: dateFrom,
-                per_page: 200
-            });
+            const queryParams = {
+                page: 1,
+                per_page: 10,
+                sort: 'assigned_datetime',
+                order: 'desc',
+                ...apiFilters
+            };
             
-            const response = await fetch(Dashboard.config.apiBaseUrl + '/units' + queryParams);
-            const result = await response.json();
-            const units = result?.data?.items || [];
+            const url = '/units' + Dashboard.buildQueryString(queryParams);
+            console.log('[Units] Recent units API URL:', url);
             
-            if (!units || !Array.isArray(units)) return;
+            const response = await Dashboard.apiRequest(url);
+            const units = response?.items || [];
+            const container = document.getElementById('units-recent-activity');
             
-            // Get unique types
-            const types = [...new Set(units.map(u => u.unit_type).filter(Boolean))];
-            const typeSelect = document.getElementById('filter-unit-type');
-            if (typeSelect) {
-                types.sort().forEach(type => {
-                    const option = document.createElement('option');
-                    option.value = type;
-                    option.textContent = type;
-                    typeSelect.appendChild(option);
-                });
+            if (!container) {
+                console.warn('[Units] units-recent-activity container not found');
+                return;
             }
             
-            // Get unique agencies (use standard agency types)
-            const agencies = ['Police', 'Fire', 'EMS'];
-            const agencySelect = document.getElementById('filter-unit-agency');
-            if (agencySelect) {
-                agencies.forEach(agency => {
-                    const option = document.createElement('option');
-                    option.value = agency;
-                    option.textContent = agency;
-                    agencySelect.appendChild(option);
-                });
+            if (units.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state text-center py-4">
+                        <i class="bi bi-inbox fs-1 text-muted"></i>
+                        <p class="text-muted mt-2">No recent units</p>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = units.map(unit => `
+                    <div class="recent-unit-item p-3 mb-2 border rounded" style="cursor: pointer;" onclick="viewUnitDetails(${unit.id})">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <div class="fw-bold">${unit.unit_number || 'Unknown'}</div>
+                            <small class="text-muted">${Dashboard.formatTime(unit.assigned_datetime)}</small>
+                        </div>
+                        <div class="text-muted small">
+                            <i class="bi bi-person-badge"></i> ${unit.agency_type || 'N/A'}
+                        </div>
+                        <div class="mt-2">
+                            <span class="badge ${
+                                unit.unit_status?.toLowerCase() === 'available' ? 'bg-success' : 
+                                unit.unit_status?.toLowerCase() === 'en route' || unit.unit_status?.toLowerCase() === 'enroute' ? 'bg-warning' :
+                                unit.unit_status?.toLowerCase() === 'on scene' || unit.unit_status?.toLowerCase() === 'onscene' ? 'bg-danger' :
+                                'bg-secondary'
+                            }">
+                                ${unit.unit_status || 'Unknown'}
+                            </span>
+                            ${unit.call_number ? `<span class="badge bg-secondary">#${unit.call_number}</span>` : ''}
+                        </div>
+                    </div>
+                `).join('');
             }
         } catch (error) {
-            console.error('[Units] Error populating filter options:', error);
+            console.error('[Units] Error loading recent activity:', error);
         }
     }
     
     async function loadUnits() {
         console.log('[Units] Loading units...');
+        console.log('[Units] Current filters:', currentFilters);
         
         try {
-            const filters = {
+            // Translate filters for API
+            const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
+            
+            const params = {
                 page: 1,
-                per_page: 500,  // Increased to handle more units
-                sort: 'assigned_datetime',
-                order: 'desc'
+                per_page: 500,
+                ...apiFilters
             };
             
-            // Handle time range filter
-            const timeRangeSelect = document.getElementById('filter-time-range');
-            const dateFromInput = document.getElementById('filter-date-from');
-            const dateToInput = document.getElementById('filter-date-to');
+            console.log('[Units] Fetching units with params:', params);
             
-            if (timeRangeSelect) {
-                const timeRange = timeRangeSelect.value;
-                
-                if (timeRange === 'custom') {
-                    // Use custom date range
-                    if (dateFromInput && dateFromInput.value) {
-                        filters.date_from = dateFromInput.value;
-                    }
-                    if (dateToInput && dateToInput.value) {
-                        filters.date_to = dateToInput.value;
-                    }
-                } else {
-                    // Calculate date range based on hours
-                    const hours = parseInt(timeRange) || 24;  // Default to 24 hours
-                    const now = new Date();
-                    const fromDate = new Date(now.getTime() - (hours * 60 * 60 * 1000));
-                    
-                    // Format dates as YYYY-MM-DD HH:MM:SS
-                    filters.date_from = fromDate.toISOString().slice(0, 19).replace('T', ' ');
-                    filters.date_to = now.toISOString().slice(0, 19).replace('T', ' ');
-                }
-            }
+            const url = '/units' + Dashboard.buildQueryString(params);
+            console.log('[Units] API URL:', url);
             
-            // Get filter values from form
-            const statusFilter = document.getElementById('filter-unit-status');
-            const typeFilter = document.getElementById('filter-unit-type');
-            const agencyFilter = document.getElementById('filter-unit-agency');
-            const searchFilter = document.getElementById('filter-unit-search');
+            const response = await Dashboard.apiRequest(url);
             
-            // Note: API doesn't support status filter, so we'll filter client-side
-            // The API supports: unit_type, jurisdiction, agency_type, unit_number, date_from, date_to
+            console.log('[Units] Response:', response);
             
-            if (typeFilter && typeFilter.value) {
-                filters.unit_type = typeFilter.value;
-            }
-            if (agencyFilter && agencyFilter.value) {
-                filters.agency_type = agencyFilter.value;
-            }
-            if (searchFilter && searchFilter.value) {
-                filters.unit_number = searchFilter.value;
-            }
-            
-            const url = '/units' + Dashboard.buildQueryString(filters);
-            console.log('[Units] Fetching:', Dashboard.config.apiBaseUrl + url);
-            
-            const response = await fetch(Dashboard.config.apiBaseUrl + url);
-            const result = await response.json();
-            
-            console.log('[Units] Response:', result);
-            
-            if (!result.success) {
-                throw new Error(result.error || 'Failed to load units');
-            }
-            
-            let filteredUnits = result.data?.items || [];
+            let filteredUnits = response?.items || [];
             console.log('[Units] Loaded', filteredUnits.length, 'units');
-            
-            // Apply client-side status filter (not supported by API)
-            if (statusFilter && statusFilter.value) {
-                const status = statusFilter.value;
-                filteredUnits = filteredUnits.filter(u => {
-                    if (status === 'offduty') return u.clear_datetime;
-                    if (status === 'onscene') return u.arrive_datetime && !u.clear_datetime;
-                    if (status === 'enroute') return u.enroute_datetime && !u.arrive_datetime;
-                    if (status === 'available') return u.assigned_datetime && !u.enroute_datetime && !u.clear_datetime;
-                    return true;
-                });
-            }
             
             // Update count
             const countEl = document.getElementById('units-count');

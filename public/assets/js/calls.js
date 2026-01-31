@@ -10,85 +10,57 @@
     let currentFilters = {};
     
     /**
-     * Initialize date filters with default (today)
+     * Load filters from Dashboard session storage
      */
-    function initializeDateFilters() {
-        const dateFromInput = document.getElementById('filter-date-from');
-        const dateToInput = document.getElementById('filter-date-to');
-        const quickPeriod = document.getElementById('calls-quick-period');
-        const dateFromCol = dateFromInput?.closest('.col-md-2');
-        const dateToCol = dateToInput?.closest('.col-md-2');
-        
-        // Hide date inputs initially (not custom)
-        if (dateFromCol) dateFromCol.style.display = 'none';
-        if (dateToCol) dateToCol.style.display = 'none';
-        
-        // Set default dates (today - last 24 hours)
-        if (dateFromInput && dateToInput) {
-            const now = new Date();
-            const todayStart = new Date(now.setHours(0,0,0,0));
-            dateToInput.value = new Date().toISOString().split('T')[0];
-            dateFromInput.value = todayStart.toISOString().split('T')[0];
+    function loadDashboardFilters() {
+        if (typeof Dashboard !== 'undefined' && Dashboard.filters) {
+            const savedFilters = Dashboard.filters.load();
+            if (savedFilters) {
+                currentFilters = savedFilters;
+                console.log('[Calls] Loaded filters from Dashboard:', currentFilters);
+                displayActiveFilters();
+                return true;
+            }
         }
+        console.log('[Calls] No saved filters found');
+        return false;
+    }
+    
+    /**
+     * Display active filters banner
+     */
+    function displayActiveFilters() {
+        const banner = document.getElementById('active-filters-card');
+        const display = document.getElementById('active-filters-display');
         
-        // Handle quick period selection
-        if (quickPeriod) {
-            quickPeriod.addEventListener('change', () => {
-                const period = quickPeriod.value;
-                
-                // Show/hide custom date fields
-                if (period === 'custom') {
-                    if (dateFromCol) dateFromCol.style.display = 'block';
-                    if (dateToCol) dateToCol.style.display = 'block';
-                    return; // Don't auto-update or trigger filter for custom
-                } else {
-                    if (dateFromCol) dateFromCol.style.display = 'none';
-                    if (dateToCol) dateToCol.style.display = 'none';
-                }
-                
-                const now = new Date();
-                let fromDate = new Date();
-                
-                switch(period) {
-                    case 'today':
-                        fromDate = new Date(now.setHours(0,0,0,0));
-                        break;
-                    case 'yesterday':
-                        fromDate = new Date(now.setDate(now.getDate() - 1));
-                        fromDate.setHours(0,0,0,0);
-                        now.setHours(23,59,59,999);
-                        break;
-                    case '7days':
-                        fromDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
-                        break;
-                    case '30days':
-                        fromDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-                        break;
-                    case 'thismonth':
-                        fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                        break;
-                    case 'lastmonth':
-                        fromDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                        now.setDate(0); // Last day of previous month
-                        break;
-                }
-                
-                if (dateFromInput && dateToInput) {
-                    dateFromInput.value = fromDate.toISOString().split('T')[0];
-                    dateToInput.value = new Date().toISOString().split('T')[0];
-                    
-                    // Trigger the filter automatically
-                    loadCalls(1);
-                }
-            });
+        if (!banner || !display) return;
+        
+        const filterCount = Object.keys(currentFilters).length;
+        if (filterCount > 0) {
+            const filterText = Object.entries(currentFilters)
+                .filter(([key, value]) => value && key !== 'quick_period')
+                .map(([key, value]) => `${key.replace('_', ' ')}: ${value}`)
+                .slice(0, 3)  // Show only first 3
+                .join(', ');
+            
+            display.textContent = filterText + (filterCount > 3 ? '...' : '');
+            banner.style.display = 'block';
+        } else {
+            banner.style.display = 'none';
         }
     }
     
-    // Initialize date filters
-    initializeDateFilters();
+    /**
+     * Initialize date filters - NOT USED (filters come from Dashboard)
+     */
+    function initializeDateFilters() {
+        // Filters now come from Dashboard session storage
+        // This function is kept for compatibility but does nothing
+        console.log('[Calls] Date filters managed by Dashboard');
+    }
     
     /**
-     * Load filter options
+     * Load filter options - DISABLED (no filter form)
      */
     async function loadFilterOptions() {
         try {
@@ -141,19 +113,14 @@
     async function loadCalls(page = 1) {
         currentPage = page;
         
-        // Get date filter values
-        const dateFrom = document.getElementById('filter-date-from')?.value;
-        const dateTo = document.getElementById('filter-date-to')?.value;
+        // Translate filters for API
+        const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
         
         const params = {
             page: page,
             per_page: 30,
-            ...currentFilters
+            ...apiFilters
         };
-        
-        // Add date filters if set
-        if (dateFrom) params.date_from = dateFrom;
-        if (dateTo) params.date_to = dateTo;
         
         try {
             const response = await Dashboard.apiRequest('/calls' + Dashboard.buildQueryString(params));
@@ -283,21 +250,50 @@
      * View call details
      */
     window.viewCallDetails = async function(callId) {
-        const modal = new bootstrap.Modal(document.getElementById('call-detail-modal'));
-        const content = document.getElementById('call-detail-content');
-        
-        content.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
-        modal.show();
+        console.log('[Calls] viewCallDetails called with ID:', callId);
         
         try {
-            const [call, unitsResponse, narrativesResponse] = await Promise.all([
+            const modalEl = document.getElementById('call-detail-modal');
+            if (!modalEl) {
+                console.error('[Calls] Modal element not found');
+                return;
+            }
+            
+            const modal = new bootstrap.Modal(modalEl);
+            const content = document.getElementById('call-detail-content');
+            
+            if (!content) {
+                console.error('[Calls] Modal content element not found');
+                return;
+            }
+            
+            content.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+            modal.show();
+            
+            console.log('[Calls] Fetching call details for ID:', callId);
+            
+            const [call, unitsResponse, narrativesResponse, personsResponse] = await Promise.all([
                 Dashboard.apiRequest(`/calls/${callId}`),
                 Dashboard.apiRequest(`/calls/${callId}/units`).catch(() => ({ items: [] })),
-                Dashboard.apiRequest(`/calls/${callId}/narratives`).catch(() => ({ items: [] }))
+                Dashboard.apiRequest(`/calls/${callId}/narratives`).catch(() => ({ items: [] })),
+                Dashboard.apiRequest(`/calls/${callId}/persons`).catch(() => [])
             ]);
             
             const units = unitsResponse?.items || unitsResponse || [];
             const narratives = narrativesResponse?.items || narrativesResponse || [];
+            const persons = personsResponse?.data || personsResponse || [];
+            
+            // Get latest priority and status from agency contexts
+            let latestPriority = 'N/A';
+            let latestStatus = 'N/A';
+            if (call.agency_contexts && call.agency_contexts.length > 0) {
+                // Sort by created_datetime descending to get latest
+                const sortedContexts = [...call.agency_contexts].sort((a, b) => 
+                    new Date(b.created_datetime) - new Date(a.created_datetime)
+                );
+                latestPriority = sortedContexts[0].priority || 'N/A';
+                latestStatus = sortedContexts[0].status || 'N/A';
+            }
             
             content.innerHTML = `
                 <div class="row">
@@ -307,15 +303,13 @@
                             <tr><th>Call ID:</th><td>${call.id}</td></tr>
                             <tr><th>Call Number:</th><td>${call.call_number || 'N/A'}</td></tr>
                             <tr><th>Call Source:</th><td>${call.call_source || 'N/A'}</td></tr>
-                            <tr><th>Type:</th><td>${call.call_type || 'N/A'}</td></tr>
                             <tr><th>Nature of Call:</th><td>${call.nature_of_call || 'N/A'}</td></tr>
-                            <tr><th>Priority:</th><td>${Dashboard.getPriorityBadge(call.priority)}</td></tr>
-                            <tr><th>Status:</th><td>${Dashboard.getStatusBadge(call.status)}</td></tr>
+                            <tr><th>Priority:</th><td>${Dashboard.getPriorityBadge(latestPriority)}</td></tr>
+                            <tr><th>Status:</th><td>${Dashboard.getStatusBadge(latestStatus)}</td></tr>
                             <tr><th>Received:</th><td>${Dashboard.formatDateTime(call.received_time)}</td></tr>
                             <tr><th>Created:</th><td>${Dashboard.formatDateTime(call.create_datetime)}</td></tr>
                             <tr><th>Closed:</th><td>${call.close_datetime ? Dashboard.formatDateTime(call.close_datetime) : 'N/A'}</td></tr>
                             <tr><th>Created By:</th><td>${call.created_by || 'N/A'}</td></tr>
-                            <tr><th>Agency:</th><td>${call.agency || 'N/A'}</td></tr>
                             <tr><th>Alarm Level:</th><td>${call.alarm_level || 'N/A'}</td></tr>
                             <tr><th>EMD Code:</th><td>${call.emd_code || 'N/A'}</td></tr>
                             <tr><th>Closed:</th><td>${call.closed_flag ? '<span class="badge bg-secondary">Yes</span>' : '<span class="badge bg-success">No</span>'}</td></tr>
@@ -351,21 +345,41 @@
                     </div>
                 </div>
                 
-                ${call.agency_contexts && call.agency_contexts.length > 0 ? `
+                ${(() => {
+                    // Deduplicate agency contexts by agency_type (only show one per agency type)
+                    if (!call.agency_contexts || call.agency_contexts.length === 0) return '';
+                    
+                    const uniqueContexts = [];
+                    const seenAgencyTypes = new Set();
+                    
+                    // Get the latest context for each agency type
+                    const sortedContexts = [...call.agency_contexts].sort((a, b) => 
+                        new Date(b.created_datetime) - new Date(a.created_datetime)
+                    );
+                    
+                    for (const ac of sortedContexts) {
+                        if (!seenAgencyTypes.has(ac.agency_type)) {
+                            seenAgencyTypes.add(ac.agency_type);
+                            uniqueContexts.push(ac);
+                        }
+                    }
+                    
+                    return `
                     <div class="row mt-3">
                         <div class="col-12">
-                            <h5>Agency Contexts (${call.agency_contexts.length})</h5>
+                            <h5>Agency Contexts (${uniqueContexts.length})</h5>
                             <div class="table-responsive">
                                 <table class="table table-sm">
-                                    <thead><tr><th>Agency Type</th><th>Call Type</th><th>Priority</th><th>Status</th><th>Dispatcher</th></tr></thead>
+                                    <thead><tr><th>Agency Type</th><th>Call Type</th><th>Priority</th><th>Status</th><th>Dispatcher</th><th>Timestamp</th></tr></thead>
                                     <tbody>
-                                        ${call.agency_contexts.map(ac => `
+                                        ${uniqueContexts.map(ac => `
                                             <tr>
                                                 <td>${ac.agency_type || 'N/A'}</td>
                                                 <td>${ac.call_type || 'N/A'}</td>
                                                 <td>${ac.priority || 'N/A'}</td>
                                                 <td>${Dashboard.getStatusBadge(ac.status)}</td>
                                                 <td>${ac.dispatcher || 'N/A'}</td>
+                                                <td>${Dashboard.formatDateTime(ac.created_datetime)}</td>
                                             </tr>
                                         `).join('')}
                                     </tbody>
@@ -373,21 +387,38 @@
                             </div>
                         </div>
                     </div>
-                ` : ''}
+                    `;
+                })()}
                 
-                ${call.incidents && call.incidents.length > 0 ? `
+                ${(() => {
+                    // Deduplicate incidents by jurisdiction (only show one per jurisdiction)
+                    if (!call.incidents || call.incidents.length === 0) return '';
+                    
+                    const uniqueIncidents = [];
+                    const seenJurisdictions = new Set();
+                    
+                    for (const inc of call.incidents) {
+                        if (!seenJurisdictions.has(inc.jurisdiction)) {
+                            seenJurisdictions.add(inc.jurisdiction);
+                            uniqueIncidents.push(inc);
+                        }
+                    }
+                    
+                    return `
                     <div class="row mt-3">
                         <div class="col-12">
-                            <h5>Incidents (${call.incidents.length})</h5>
+                            <h5>Incidents (${uniqueIncidents.length})</h5>
                             <div class="table-responsive">
                                 <table class="table table-sm">
-                                    <thead><tr><th>Type</th><th>Subtype</th><th>Code</th></tr></thead>
+                                    <thead><tr><th>Agency Type</th><th>Incident Number</th><th>Type</th><th>Jurisdiction</th><th>Created</th></tr></thead>
                                     <tbody>
-                                        ${call.incidents.map(inc => `
+                                        ${uniqueIncidents.map(inc => `
                                             <tr>
+                                                <td>${inc.agency_type || 'N/A'}</td>
+                                                <td>${inc.incident_number || 'N/A'}</td>
                                                 <td>${inc.incident_type || 'N/A'}</td>
-                                                <td>${inc.incident_subtype || 'N/A'}</td>
-                                                <td>${inc.incident_code || 'N/A'}</td>
+                                                <td>${inc.jurisdiction || 'N/A'}</td>
+                                                <td>${Dashboard.formatDateTime(inc.create_datetime)}</td>
                                             </tr>
                                         `).join('')}
                                     </tbody>
@@ -395,7 +426,45 @@
                             </div>
                         </div>
                     </div>
-                ` : ''}
+                    `;
+                })()}
+                
+                ${(() => {
+                    // Create incident summary section - one row per unique jurisdiction
+                    if (!call.incidents || call.incidents.length === 0) return '';
+                    
+                    const uniqueIncidents = [];
+                    const seenJurisdictions = new Set();
+                    
+                    for (const inc of call.incidents) {
+                        if (!seenJurisdictions.has(inc.jurisdiction)) {
+                            seenJurisdictions.add(inc.jurisdiction);
+                            uniqueIncidents.push(inc);
+                        }
+                    }
+                    
+                    return `
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h5>Incident Summary</h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead><tr><th>Agency Type</th><th>Jurisdiction</th><th>Incident Number</th></tr></thead>
+                                    <tbody>
+                                        ${uniqueIncidents.map(inc => `
+                                            <tr>
+                                                <td>${inc.agency_type || 'N/A'}</td>
+                                                <td>${inc.jurisdiction || 'N/A'}</td>
+                                                <td>${inc.incident_number || 'N/A'}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                })()}
                 
                 <div class="row mt-3">
                     <div class="col-12">
@@ -430,6 +499,65 @@
                     </div>
                 </div>
                 
+                ${(() => {
+                    // Persons section - deduplicate by name and role
+                    if (!persons || persons.length === 0) return '';
+                    
+                    const uniquePersons = [];
+                    const seenPersons = new Map();
+                    
+                    for (const person of persons) {
+                        const fullName = [person.first_name, person.middle_name, person.last_name, person.name_suffix]
+                            .filter(Boolean).join(' ');
+                        const key = `${fullName}-${person.role}`;
+                        
+                        if (!seenPersons.has(key)) {
+                            seenPersons.set(key, person);
+                            uniquePersons.push(person);
+                        }
+                    }
+                    
+                    return `
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h5>Persons Involved (${uniquePersons.length})</h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Role</th>
+                                            <th>Phone</th>
+                                            <th>DOB</th>
+                                            <th>Sex</th>
+                                            <th>Race</th>
+                                            <th>Primary Caller</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${uniquePersons.map(p => {
+                                            const fullName = [p.first_name, p.middle_name, p.last_name, p.name_suffix]
+                                                .filter(Boolean).join(' ');
+                                            return `
+                                            <tr>
+                                                <td>${fullName || 'N/A'}</td>
+                                                <td><span class="badge bg-info">${p.role || 'N/A'}</span></td>
+                                                <td>${p.contact_phone || '-'}</td>
+                                                <td>${p.date_of_birth ? Dashboard.formatDateTime(p.date_of_birth) : '-'}</td>
+                                                <td>${p.sex || '-'}</td>
+                                                <td>${p.race || '-'}</td>
+                                                <td>${p.primary_caller_flag ? '<span class="badge bg-primary">Yes</span>' : ''}</td>
+                                            </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                })()}
+                
                 <div class="row mt-3">
                     <div class="col-12">
                         <h5>Narratives (${call.counts?.narratives || narratives.length})</h5>
@@ -450,15 +578,6 @@
                     </div>
                 </div>
                 
-                ${call.counts?.persons > 0 ? `
-                    <div class="row mt-3">
-                        <div class="col-12">
-                            <div class="alert alert-info">
-                                <i class="bi bi-people-fill"></i> ${call.counts.persons} person(s) associated with this call
-                            </div>
-                        </div>
-                    </div>
-                ` : ''}
             `;
             
         } catch (error) {
@@ -493,46 +612,191 @@
     });
     
     /**
-     * Handle filter form submission
+     * Filter form handlers - NOW ENABLED (modal filter form)
      */
-    document.getElementById('calls-filter-form')?.addEventListener('submit', function(e) {
-        e.preventDefault();
+    const filterForm = document.getElementById('dashboard-filter-form');
+    if (filterForm) {
+        // Quick period selector
+        const quickPeriod = document.getElementById('dashboard-quick-period');
+        const dateFromInput = document.getElementById('dashboard-date-from');
+        const dateToInput = document.getElementById('dashboard-date-to');
+        let programmaticChange = false;
         
-        const formData = new FormData(this);
-        currentFilters = {};
-        
-        for (const [key, value] of formData.entries()) {
-            if (value) {
-                currentFilters[key] = value;
-            }
+        if (quickPeriod) {
+            quickPeriod.addEventListener('change', () => {
+                const period = quickPeriod.value;
+                let fromDate = new Date();
+                let toDate = new Date();
+                
+                switch(period) {
+                    case 'today':
+                        fromDate.setHours(0,0,0,0);
+                        toDate.setDate(toDate.getDate() + 1);
+                        toDate.setHours(0,0,0,0);
+                        break;
+                    case 'yesterday':
+                        fromDate.setDate(fromDate.getDate() - 1);
+                        fromDate.setHours(0,0,0,0);
+                        toDate.setHours(0,0,0,0);
+                        break;
+                    case '7days':
+                        fromDate = new Date(fromDate.getTime() - (7 * 24 * 60 * 60 * 1000));
+                        fromDate.setHours(0,0,0,0);
+                        toDate.setDate(toDate.getDate() + 1);
+                        toDate.setHours(0,0,0,0);
+                        break;
+                    case '30days':
+                        fromDate = new Date(fromDate.getTime() - (30 * 24 * 60 * 60 * 1000));
+                        fromDate.setHours(0,0,0,0);
+                        toDate.setDate(toDate.getDate() + 1);
+                        toDate.setHours(0,0,0,0);
+                        break;
+                    case 'thismonth':
+                        fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+                        toDate.setDate(toDate.getDate() + 1);
+                        toDate.setHours(0,0,0,0);
+                        break;
+                    case 'lastmonth':
+                        fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth() - 1, 1);
+                        toDate = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 1);
+                        break;
+                    case 'custom':
+                        return;
+                }
+                
+                if (period !== 'custom' && dateFromInput && dateToInput) {
+                    programmaticChange = true;
+                    
+                    dateFromInput.value = fromDate.toISOString().split('T')[0];
+                    dateToInput.value = toDate.toISOString().split('T')[0];
+                    
+                    currentFilters.date_from = dateFromInput.value;
+                    currentFilters.date_to = dateToInput.value;
+                    currentFilters.quick_period = period;
+                    
+                    Dashboard.filters.save(currentFilters);
+                    
+                    console.log('[Calls] Quick period changed to', period, 'Filters:', currentFilters);
+                    
+                    // Update active filters display
+                    displayActiveFilters();
+                    
+                    // Reload page data
+                    updateCallStatistics();
+                    loadCalls(1);
+                    
+                    setTimeout(() => { programmaticChange = false; }, 100);
+                }
+            });
         }
         
-        loadCalls(1);
-    });
+        filterForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (programmaticChange) {
+                console.log('[Calls] Skipping form submit - programmatic change');
+                return;
+            }
+            
+            // Get all filter values from form
+            const formData = new FormData(filterForm);
+            currentFilters = {};
+            
+            for (const [key, value] of formData.entries()) {
+                if (value !== '') {
+                    currentFilters[key] = value;
+                }
+            }
+            
+            // Save filters to session storage
+            Dashboard.filters.save(currentFilters);
+            
+            console.log('[Calls] Filters updated:', currentFilters);
+            
+            // Update active filters display
+            displayActiveFilters();
+            
+            // Reload page data
+            await updateCallStatistics();
+            await loadCalls(1);
+        });
+        
+        // Clear filters button
+        const clearButton = document.getElementById('clear-filters');
+        if (clearButton) {
+            clearButton.addEventListener('click', async () => {
+                currentFilters = {};
+                Dashboard.filters.clear();
+                filterForm.reset();
+                
+                // Hide active filters banner
+                const banner = document.getElementById('active-filters-card');
+                if (banner) banner.style.display = 'none';
+                
+                // Reload page data
+                await updateCallStatistics();
+                await loadCalls(1);
+            });
+        }
+    }
     
     /**
-     * Handle filter reset
-     */
-    document.getElementById('reset-filters')?.addEventListener('click', function() {
-        currentFilters = {};
-        loadCalls(1);
-    });
-    
-    /**
-     * Handle refresh button
+     * Handle refresh button (if exists)
      */
     document.getElementById('refresh-calls')?.addEventListener('click', function() {
         loadCalls(currentPage);
     });
     
-    // Load filter options
-    await loadFilterOptions();
+    // Load Dashboard filters first
+    loadDashboardFilters();
+    
+    // Load filter options - NO LONGER NEEDED (filters from Dashboard)
+    // await loadFilterOptions();
+    
+    // Update statistics
+    await updateCallStatistics();
     
     // Initial load
     await loadCalls(1);
     
     // Setup auto-refresh
-    Dashboard.setupAutoRefresh(() => loadCalls(currentPage));
+    Dashboard.setupAutoRefresh(async () => {
+        await updateCallStatistics();
+        await loadCalls(currentPage);
+    });
+    
+    /**
+     * Update call statistics cards
+     */
+    async function updateCallStatistics() {
+        try {
+            // Translate filters for API
+            const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
+            const queryString = Dashboard.buildQueryString(apiFilters);
+            
+            // Use /stats endpoint which calculates across ALL filtered records
+            const stats = await Dashboard.apiRequest('/stats' + queryString);
+            
+            const totalCalls = stats.total_calls || 0;
+            const activeCalls = stats.calls_by_status?.open || 0;
+            const closedCalls = stats.calls_by_status?.closed || 0;
+            const avgMin = stats.response_times?.average_minutes || stats.avg_response_time_minutes;
+            
+            // Update cards
+            const updateCard = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = value;
+            };
+            
+            updateCard('calls-stat-total', totalCalls);
+            updateCard('calls-stat-active', activeCalls);
+            updateCard('calls-stat-closed', closedCalls);
+            updateCard('calls-stat-response', avgMin ? `${Math.round(avgMin)}m` : 'N/A');
+            
+        } catch (error) {
+            console.error('[Calls] Error updating statistics:', error);
+        }
+    }
     
     // Check for hash to auto-open call details
     if (window.location.hash && window.location.hash.startsWith('#call-')) {

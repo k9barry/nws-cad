@@ -80,6 +80,126 @@ const Dashboard = {
     },
     
     /**
+     * Centralized Filter Management
+     */
+    filters: {
+        /**
+         * Save current filters to session storage
+         */
+        save(filters) {
+            sessionStorage.setItem('nws_cad_filters', JSON.stringify(filters));
+            console.log('[Dashboard] Filters saved:', filters);
+        },
+        
+        /**
+         * Load filters from session storage
+         */
+        load() {
+            const saved = sessionStorage.getItem('nws_cad_filters');
+            if (saved) {
+                try {
+                    const filters = JSON.parse(saved);
+                    console.log('[Dashboard] Filters loaded:', filters);
+                    return filters;
+                } catch (e) {
+                    console.error('[Dashboard] Error loading filters:', e);
+                    return null;
+                }
+            }
+            return null;
+        },
+        
+        /**
+         * Clear saved filters
+         */
+        clear() {
+            sessionStorage.removeItem('nws_cad_filters');
+            console.log('[Dashboard] Filters cleared');
+        },
+        
+        /**
+         * Translate user-friendly filter names to API parameter names
+         * @param {Object} filters - User filters from form
+         * @returns {Object} - API-compatible parameters
+         */
+        translateForAPI(filters) {
+            const apiParams = {};
+            
+            for (const [key, value] of Object.entries(filters)) {
+                if (key === 'status') {
+                    // Translate status to closed_flag
+                    // API expects 'true' or 'false' as strings
+                    if (value === 'closed') {
+                        apiParams.closed_flag = 'true';
+                    } else if (value === 'active') {
+                        apiParams.closed_flag = 'false';
+                    }
+                    // If status is empty, don't add closed_flag filter
+                } else if (key !== 'quick_period') {
+                    // Copy other filters (skip quick_period as it's UI-only)
+                    apiParams[key] = value;
+                }
+            }
+            
+            return apiParams;
+        },
+        
+        /**
+         * Get current filters from form
+         */
+        getFromForm(formId) {
+            const form = document.getElementById(formId);
+            if (!form) return {};
+            
+            const formData = new FormData(form);
+            const filters = {};
+            
+            for (const [key, value] of formData.entries()) {
+                if (value !== '') {
+                    filters[key] = value;
+                }
+            }
+            
+            return filters;
+        },
+        
+        /**
+         * Apply filters to form fields
+         */
+        applyToForm(formId, filters) {
+            if (!filters) return;
+            
+            const form = document.getElementById(formId);
+            if (!form) return;
+            
+            Object.entries(filters).forEach(([key, value]) => {
+                const field = form.querySelector(`[name="${key}"]`);
+                if (field) {
+                    field.value = value;
+                }
+            });
+            
+            console.log('[Dashboard] Filters applied to form:', formId);
+        },
+        
+        /**
+         * Build query string from filters
+         */
+        toQueryString(filters) {
+            if (!filters || Object.keys(filters).length === 0) return '';
+            
+            const params = new URLSearchParams();
+            Object.entries(filters).forEach(([key, value]) => {
+                if (value !== '' && value !== null && value !== undefined) {
+                    params.append(key, value);
+                }
+            });
+            
+            return params.toString() ? '?' + params.toString() : '';
+        }
+    },
+    
+    /**
      * Show error message
      */
     showError(message) {
@@ -174,13 +294,25 @@ const Dashboard = {
      * Get priority badge HTML
      */
     getPriorityBadge(priority) {
+        if (!priority) return '<span class="badge bg-secondary">Unknown</span>';
+        
+        // Extract number from priority string (e.g., "2 - Police Medium" -> "2")
+        const priorityNum = String(priority).match(/^(\d+)/)?.[1];
+        
         const badges = {
             '1': '<span class="badge bg-danger">Priority 1</span>',
             '2': '<span class="badge bg-warning">Priority 2</span>',
             '3': '<span class="badge bg-info">Priority 3</span>',
-            '4': '<span class="badge bg-secondary">Priority 4</span>'
+            '4': '<span class="badge bg-secondary">Priority 4</span>',
+            '5': '<span class="badge bg-secondary">Priority 5</span>'
         };
-        return badges[priority] || '<span class="badge bg-secondary">Unknown</span>';
+        
+        // If we have the full priority string, show it; otherwise show generic
+        if (priorityNum && badges[priorityNum]) {
+            return `<span class="badge bg-${priorityNum === '1' ? 'danger' : priorityNum === '2' ? 'warning' : priorityNum === '3' ? 'info' : 'secondary'}">${priority}</span>`;
+        }
+        
+        return badges[priorityNum] || badges[priority] || '<span class="badge bg-secondary">' + priority + '</span>';
     },
     
     /**

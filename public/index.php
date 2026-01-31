@@ -75,21 +75,6 @@ $pageTitle = ucfirst($page);
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link <?= $page === 'calls' ? 'active' : '' ?>" href="/calls">
-                            <i class="bi bi-telephone"></i> Calls
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?= $page === 'units' ? 'active' : '' ?>" href="/units">
-                            <i class="bi bi-truck"></i> Units
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?= $page === 'analytics' ? 'active' : '' ?>" href="/analytics">
-                            <i class="bi bi-graph-up"></i> Analytics
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link" id="dozzle-link" href="#" target="_blank" rel="noopener noreferrer">
                             <i class="bi bi-file-text"></i> Logs
                         </a>
@@ -146,11 +131,8 @@ $pageTitle = ucfirst($page);
     
     <!-- Custom JS -->
     <script>
-        // Detect if we're in Codespaces and use the correct URL
-        const isCodespaces = window.location.hostname.includes('github.dev') || window.location.hostname.includes('githubpreview.dev');
-        const baseUrl = isCodespaces 
-            ? window.location.origin  // Use the current origin in Codespaces
-            : 'http://localhost:8080'; // Use localhost for local development
+        // Always use the current origin for API calls (works for local, remote, and Codespaces)
+        const baseUrl = window.location.origin;
         
         window.APP_CONFIG = {
             apiBaseUrl: baseUrl + '/api.php',
@@ -159,63 +141,35 @@ $pageTitle = ucfirst($page);
         };
         
         console.log('[NWS CAD] Configuration loaded:', {
-            isCodespaces: isCodespaces,
             baseUrl: baseUrl,
             apiBaseUrl: window.APP_CONFIG.apiBaseUrl,
             hostname: window.location.hostname,
             origin: window.location.origin
         });
         
-        // Helper function to construct Codespaces URL for a given port
-        function getCodespacesUrl(port) {
+        // Helper function to get external service URL
+        function getServiceUrl(port) {
+            // Check if hostname looks like Codespaces
             const hostname = window.location.hostname;
-            // Extract the codespace base name (everything before the first -NNNN)
-            // Example: congenial-succotash-jjg77v7vrxjc5g7p-8080.app.github.dev
-            //       -> congenial-succotash-jjg77v7vrxjc5g7p
-            // Then append: -{port}.app.github.dev
-            const match = hostname.match(/^([a-zA-Z0-9-]+)-\d+\./i);
-            if (match) {
-                return window.location.protocol + '//' + match[1] + '-' + port + '.app.github.dev';
+            if (hostname.includes('github.dev') || hostname.includes('githubpreview.dev')) {
+                // Extract the codespace base name (everything before the first -NNNN)
+                const match = hostname.match(/^([a-zA-Z0-9-]+)-\d+\./i);
+                if (match) {
+                    return window.location.protocol + '//' + match[1] + '-' + port + '.app.github.dev';
+                }
             }
-            // Fallback: construct URL from components (handles URLs without explicit port)
-            return `${window.location.protocol}//${window.location.hostname}:${port}`;
+            // For local or other environments, use the current hostname with specified port
+            return `${window.location.protocol}//${window.location.hostname.split(':')[0]}:${port}`;
         }
         
         // Set DBeaver URL dynamically
-        let dbeaverUrl;
-        if (isCodespaces) {
-            dbeaverUrl = getCodespacesUrl(8978);
-            console.log('[NWS CAD] DBeaver URL constructed:', {
-                originalHostname: window.location.hostname,
-                dbeaverUrl: dbeaverUrl
-            });
-        } else {
-            dbeaverUrl = 'http://localhost:8978';
-        }
-        
-        const dbeaverLink = document.getElementById('dbeaver-link');
-        if (dbeaverLink) {
-            dbeaverLink.href = dbeaverUrl;
-        }
+        const dbeaverUrl = getServiceUrl(8978);
+        document.getElementById('dbeaver-link').href = dbeaverUrl;
         
         // Set Dozzle (Logs) URL dynamically using configured port
         const dozzlePort = <?= json_encode($dozzlePort) ?>;
-        let dozzleUrl;
-        if (isCodespaces) {
-            dozzleUrl = getCodespacesUrl(dozzlePort);
-            console.log('[NWS CAD] Dozzle URL constructed:', {
-                originalHostname: window.location.hostname,
-                dozzleUrl: dozzleUrl,
-                port: dozzlePort
-            });
-        } else {
-            dozzleUrl = `http://localhost:${dozzlePort}`;
-        }
-        
-        const dozzleLink = document.getElementById('dozzle-link');
-        if (dozzleLink) {
-            dozzleLink.href = dozzleUrl;
-        }
+        const dozzleUrl = getServiceUrl(dozzlePort);
+        document.getElementById('dozzle-link').href = dozzleUrl;
         
         console.log('APP_CONFIG initialized:', window.APP_CONFIG);
     </script>

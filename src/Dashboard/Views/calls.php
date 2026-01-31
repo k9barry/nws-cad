@@ -1,116 +1,135 @@
-<!-- Calls List View -->
+<!-- Calls View -->
 <div class="row mb-4">
-    <div class="col-12">
-        <h1 class="display-6 mb-3">
-            <i class="bi bi-telephone"></i> Calls Management
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h1 class="display-6 mb-0">
+            <i class="bi bi-telephone"></i> All Calls
         </h1>
+        <div class="d-flex gap-2">
+            <a href="/" class="btn btn-primary">
+                <i class="bi bi-arrow-left"></i> Return to Dashboard
+            </a>
+            <a href="/units" class="btn btn-outline-success">
+                <i class="bi bi-truck"></i> Units
+            </a>
+            <a href="/analytics" class="btn btn-outline-info">
+                <i class="bi bi-graph-up"></i> Analytics
+            </a>
+        </div>
     </div>
 </div>
 
-<!-- Filters -->
-<div class="card mb-4">
-    <div class="card-header bg-white">
-        <h5 class="card-title mb-0">
-            <i class="bi bi-funnel"></i> Filters
-        </h5>
+<!-- Active Filters Info -->
+<div class="card mb-4 border-info" id="active-filters-card" style="display: none;">
+    <div class="card-body py-2">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-info-circle text-info me-2"></i>
+            <span class="text-muted">Filters Active: </span>
+            <span id="active-filters-display" class="ms-2 fw-bold"></span>
+            <button type="button" class="btn btn-sm btn-outline-primary ms-auto" data-bs-toggle="modal" data-bs-target="#filters-modal">
+                <i class="bi bi-funnel"></i> Change Filters
+            </button>
+        </div>
     </div>
-    <div class="card-body">
-        <form id="calls-filter-form">
-            <div class="row g-3">
-                <div class="col-md-2">
-                    <label class="form-label">Quick Select</label>
-                    <select class="form-select" id="calls-quick-period">
-                        <option value="today" selected>Today</option>
-                        <option value="yesterday">Yesterday</option>
-                        <option value="7days">Last 7 Days</option>
-                        <option value="30days">Last 30 Days</option>
-                        <option value="thismonth">This Month</option>
-                        <option value="lastmonth">Last Month</option>
-                        <option value="custom">Custom Range</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Date From</label>
-                    <input type="date" class="form-control" id="filter-date-from" name="date_from">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Date To</label>
-                    <input type="date" class="form-control" id="filter-date-to" name="date_to">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Call Type</label>
-                    <select class="form-select" id="filter-call-type" name="call_type">
-                        <option value="">All Types</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Agency</label>
-                    <select class="form-select" id="filter-agency" name="agency_type">
-                        <option value="">All Agencies</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Jurisdiction</label>
-                    <select class="form-select" id="filter-jurisdiction" name="jurisdiction">
-                        <option value="">All Jurisdictions</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Location Search</label>
-                    <input type="text" class="form-control" id="filter-location" name="location" placeholder="Address, city, or place...">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Incident Number</label>
-                    <input type="text" class="form-control" id="filter-search" name="search" placeholder="Incident number...">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">&nbsp;</label>
+</div>
+
+<!-- Call Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card stat-card border-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <button type="submit" class="btn btn-primary w-100">
-                            <i class="bi bi-search"></i> Filter
-                        </button>
+                        <h6 class="text-muted mb-1">Total Calls</h6>
+                        <h2 class="mb-0" id="calls-stat-total">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
                     </div>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">&nbsp;</label>
-                    <div>
-                        <button type="reset" class="btn btn-secondary w-100" id="reset-filters">
-                            <i class="bi bi-x-circle"></i> Reset
-                        </button>
+                    <div class="stat-icon bg-primary">
+                        <i class="bi bi-telephone-fill"></i>
                     </div>
                 </div>
             </div>
-        </form>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card stat-card border-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Active Calls</h6>
+                        <h2 class="mb-0 text-success" id="calls-stat-active">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
+                    </div>
+                    <div class="stat-icon bg-success">
+                        <i class="bi bi-telephone-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card stat-card border-secondary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Closed Calls</h6>
+                        <h2 class="mb-0" id="calls-stat-closed">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
+                    </div>
+                    <div class="stat-icon bg-secondary">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card stat-card border-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Avg Response</h6>
+                        <h2 class="mb-0" id="calls-stat-response">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
+                    </div>
+                    <div class="stat-icon bg-info">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Results -->
+<!-- Calls Table -->
 <div class="card">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <h5 class="card-title mb-0">
-            <i class="bi bi-list-ul"></i> Calls List
-            <span class="badge bg-primary ms-2" id="calls-count">0</span>
+            <i class="bi bi-list"></i> Call List
         </h5>
         <div>
-            <button class="btn btn-sm btn-success" id="export-csv">
-                <i class="bi bi-download"></i> Export CSV
-            </button>
-            <button class="btn btn-sm btn-info" id="refresh-calls">
-                <i class="bi bi-arrow-clockwise"></i> Refresh
+            <button class="btn btn-sm btn-outline-primary" onclick="window.print()">
+                <i class="bi bi-printer"></i> Print
             </button>
         </div>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover table-striped mb-0" id="calls-table">
-                <thead class="table-dark">
+            <table class="table table-hover mb-0" id="calls-table">
+                <thead class="table-light">
                     <tr>
-                        <th>Incident Number</th>
-                        <th>Date/Time</th>
+                        <th>ID</th>
+                        <th>Call Number</th>
+                        <th>Time</th>
                         <th>Type</th>
                         <th>Location</th>
                         <th>Jurisdiction</th>
-                        <th>Agency</th>
                         <th>Priority</th>
                         <th>Status</th>
                         <th>Units</th>
@@ -121,38 +140,148 @@
                     <tr>
                         <td colspan="10" class="text-center py-4">
                             <div class="spinner-border text-primary"></div>
-                            <p class="text-muted mt-2">Loading calls...</p>
                         </td>
                     </tr>
                 </tbody>
             </table>
         </div>
-    </div>
-    <div class="card-footer bg-white">
-        <div class="d-flex justify-content-between align-items-center">
-            <div id="pagination-info" class="text-muted">
-                Showing 0 of 0 calls
-            </div>
-            <nav>
-                <ul class="pagination mb-0" id="pagination">
-                </ul>
+        
+        <!-- Pagination -->
+        <div class="card-footer bg-white">
+            <nav aria-label="Calls pagination">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="text-muted">
+                        <span id="pagination-info">Showing 0 of 0 calls</span>
+                        <span class="ms-3">Total: <strong id="calls-count">0</strong></span>
+                    </div>
+                    <ul class="pagination pagination-sm mb-0" id="pagination">
+                        <!-- Pagination will be inserted here -->
+                    </ul>
+                </div>
             </nav>
         </div>
     </div>
 </div>
 
-<!-- Call Detail Modal -->
-<div class="modal fade" id="call-detail-modal" tabindex="-1">
+<!-- Call Details Modal -->
+<div class="modal fade" id="call-detail-modal" tabindex="-1" aria-labelledby="callDetailModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Call Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="callDetailModalLabel">Call Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" id="call-detail-content">
                 <div class="text-center py-4">
                     <div class="spinner-border text-primary"></div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Filters Modal -->
+<div class="modal fade" id="filters-modal" tabindex="-1" aria-labelledby="filtersModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="filtersModalLabel">
+                    <i class="bi bi-funnel"></i> Global Filters
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="dashboard-filter-form" class="row g-3">
+                    <!-- Date Range -->
+                    <div class="col-md-3">
+                        <label class="form-label">Quick Select</label>
+                        <select class="form-select" id="dashboard-quick-period" name="quick_period">
+                            <option value="">Custom Range</option>
+                            <option value="today">Today</option>
+                            <option value="yesterday">Yesterday</option>
+                            <option value="7days" selected>Last 7 Days</option>
+                            <option value="30days">Last 30 Days</option>
+                            <option value="thismonth">This Month</option>
+                            <option value="lastmonth">Last Month</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">From Date</label>
+                        <input type="date" class="form-control" id="dashboard-date-from" name="date_from">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">To Date</label>
+                        <input type="date" class="form-control" id="dashboard-date-to" name="date_to">
+                    </div>
+                    
+                    <!-- Agency and Jurisdiction -->
+                    <div class="col-md-3">
+                        <label class="form-label">Agency Type</label>
+                        <select class="form-select" id="dashboard-agency" name="agency_type">
+                            <option value="">All Agencies</option>
+                            <option value="Police">Police</option>
+                            <option value="Fire">Fire</option>
+                            <option value="EMS">EMS</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Jurisdiction</label>
+                        <select class="form-select" id="dashboard-jurisdiction" name="jurisdiction">
+                            <option value="">All Jurisdictions</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Call Status -->
+                    <div class="col-md-4">
+                        <label class="form-label">Call Status</label>
+                        <select class="form-select" id="dashboard-call-status" name="status">
+                            <option value="">All Statuses</option>
+                            <option value="active">Active</option>
+                            <option value="closed">Closed</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Unit Status -->
+                    <div class="col-md-4">
+                        <label class="form-label">Unit Status</label>
+                        <select class="form-select" id="dashboard-unit-status" name="unit_status">
+                            <option value="">All Units</option>
+                            <option value="available">Available</option>
+                            <option value="enroute">En Route</option>
+                            <option value="onscene">On Scene</option>
+                            <option value="offduty">Off Duty</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Priority -->
+                    <div class="col-md-4">
+                        <label class="form-label">Priority</label>
+                        <select class="form-select" id="dashboard-priority" name="priority">
+                            <option value="">All Priorities</option>
+                            <option value="1">Priority 1</option>
+                            <option value="2">Priority 2</option>
+                            <option value="3">Priority 3</option>
+                            <option value="4">Priority 4</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Search -->
+                    <div class="col-md-8">
+                        <label class="form-label">Search</label>
+                        <input type="text" class="form-control" id="dashboard-search" name="search" 
+                               placeholder="Call ID, Unit ID, Location...">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="clear-filters">
+                    <i class="bi bi-x-circle"></i> Clear Filters
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="submit" form="dashboard-filter-form" class="btn btn-primary" data-bs-dismiss="modal">
+                    <i class="bi bi-check-circle"></i> Apply Filters
+                </button>
             </div>
         </div>
     </div>
