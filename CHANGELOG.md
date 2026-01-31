@@ -57,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Example: 19 versions of same call → only 1 file processed
 - 73 of 89 sample files automatically skipped as older versions
 
-## [1.0.0] - 2026-01-25
+## [1.0.1] - 2026-01-25
 
 ### Added
 - Dashboard main page with live data refresh

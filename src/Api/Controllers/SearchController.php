@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace NwsCad\Api\Controllers;
 
 use NwsCad\Database;

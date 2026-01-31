@@ -38,21 +38,18 @@ class XxeTest extends TestCase
         }
     }
 
-    public function testLibxmlDisableEntityLoaderIsEnabled(): void
+    public function testLibxmlNonetOptionDisablesExternalEntities(): void
     {
         // Create a minimal XML file
         $xmlPath = $this->tempDir . '/test.xml';
         file_put_contents($xmlPath, '<?xml version="1.0"?><root><value>test</value></root>');
         
-        // Test that entity loader is disabled during parsing
-        $previousValue = libxml_disable_entity_loader(true);
-        
-        try {
-            $xml = simplexml_load_file($xmlPath, 'SimpleXMLElement', LIBXML_NOENT);
-            $this->assertNotFalse($xml);
-        } finally {
-            libxml_disable_entity_loader($previousValue);
-        }
+        // In PHP 8.0+, external entity loading is disabled by default
+        // Use LIBXML_NONET to prevent network access during XML parsing
+        libxml_use_internal_errors(true);
+        $xml = simplexml_load_file($xmlPath, 'SimpleXMLElement', LIBXML_NONET);
+        $this->assertNotFalse($xml);
+        libxml_clear_errors();
     }
 
     public function testXxeAttackWithFileSystem(): void
@@ -260,19 +257,17 @@ XML;
         file_put_contents($xmlPath, $cdataXml);
         
         // CDATA should be treated as text content, not executed
+        // In PHP 8.0+, use LIBXML_NONET for security instead of deprecated libxml_disable_entity_loader
         libxml_use_internal_errors(true);
-        $previousValue = libxml_disable_entity_loader(true);
         
-        try {
-            $xml = simplexml_load_file($xmlPath);
-            $this->assertNotFalse($xml);
-            
-            // CDATA content should be preserved as text
-            $nature = (string)$xml->NatureOfCall;
-            $this->assertEquals("<script>alert('test')</script>", $nature);
-        } finally {
-            libxml_disable_entity_loader($previousValue);
-        }
+        $xml = simplexml_load_file($xmlPath, 'SimpleXMLElement', LIBXML_NONET);
+        $this->assertNotFalse($xml);
+        
+        // CDATA content should be preserved as text
+        $nature = (string)$xml->NatureOfCall;
+        $this->assertEquals("<script>alert('test')</script>", $nature);
+        
+        libxml_clear_errors();
     }
 
     public function testLibxmlOptionsAreSecure(): void

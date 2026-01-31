@@ -145,7 +145,7 @@ This will verify:
 To add custom fields or tables:
 
 1. Modify both `mysql/init.sql` and `postgres/init.sql`
-2. Update the XML parser (`src/XmlParser.php`)
+2. Update the XML parser (`src/AegisXmlParser.php`)
 3. Rebuild databases: `docker-compose down -v && docker-compose up -d`
 4. Test with sample data
 

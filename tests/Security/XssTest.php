@@ -83,7 +83,7 @@ class XssTest extends TestCase
         $maliciousData = '" onclick="alert(1)"';
         $escaped = htmlspecialchars($maliciousData, ENT_QUOTES, 'UTF-8');
         
-        // When used in: <div data-value="<?= $escaped ?>">
+        // When used in HTML attributes like: <div data-value="...">
         $this->assertStringNotContainsString('onclick=', $escaped);
         $this->assertStringContainsString('&quot;', $escaped);
     }
