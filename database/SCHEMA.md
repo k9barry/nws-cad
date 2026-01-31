@@ -343,7 +343,7 @@ If your NWS CAD export includes additional fields:
 1. **Identify the XML element** containing the new data
 2. **Determine the appropriate table** (or create a new one)
 3. **Add the column** to both MySQL and PostgreSQL schemas
-4. **Update the parser** (`src/XmlParser.php`) to extract the field
+4. **Update the parser** (`src/AegisXmlParser.php`) to extract the field
 5. **Rebuild the database** with `docker-compose down -v && docker-compose up -d`
 
 ### Example: Adding a Custom Field
