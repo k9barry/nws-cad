@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Dozzle Docker Log Viewer** - Real-time container log monitoring service
+  - Added Dozzle service to docker-compose.yml (port 9999, localhost-only by default)
+  - Added DOZZLE_PORT, DOZZLE_USERNAME, DOZZLE_PASSWORD configuration to .env.example
+  - Logs link in navigation now opens Dozzle in new tab
+  - Security: Binds to localhost only, supports optional authentication
+- **Enhanced DEBUG Logging** - Comprehensive step-by-step logging throughout codebase
+  - DEBUG level shows detailed step-by-step processing information
+  - INFO level shows only major milestones
+  - Updated FileWatcher.php with DEBUG logging for file scanning, stability checks, processing
+  - Updated AegisXmlParser.php with DEBUG logging for XML parsing, database operations
+  - Updated Database.php with DEBUG logging (sanitized, no sensitive credentials exposed)
+  - Updated watcher.php with DEBUG logging for service startup
 - Agency and Jurisdiction filters to Analytics page
 - Call counts to Call Distribution chart labels
 - Dynamic calculation of busiest hour from actual call data
@@ -17,6 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unique constraints on unit_logs table for (unit_id, log_datetime, status, location)
 - Unique constraints on narratives table for (call_id, create_datetime, create_user, text)
 - Location field to unit_logs table to store log location data
+
+### Changed
+- Logs page replaced with Dozzle external service for real-time container log viewing
+- Removed internal logs.php view and logs.js frontend components
+- Logs navigation link now opens Dozzle in a new browser tab
+- LOG_LEVEL environment variable now controls verbosity (DEBUG for detailed, INFO for milestones)
+
+### Removed
+- Internal logs page frontend (logs.php, logs.js) - replaced by Dozzle service
+- /logs route from dashboard routing
 
 ### Fixed
 - Analytics page stats calculation using correct data sources

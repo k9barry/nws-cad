@@ -32,10 +32,13 @@ class Database
         self::$dbType = $dbConfig['type'];
 
         $logger = Logger::getInstance();
-        $logger->info("Attempting to connect to {$dbConfig['type']} database");
+        $logger->info("Connecting to {$dbConfig['type']} database");
+        // Note: Sensitive connection details (host, port, credentials) are not logged for security
 
         try {
+            $logger->debug("Building DSN string for {$dbConfig['type']}");
             $dsn = self::buildDsn($dbConfig);
+            
             $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -44,8 +47,10 @@ class Database
 
             if ($dbConfig['type'] === 'mysql') {
                 $options[PDO::MYSQL_ATTR_INIT_COMMAND] = "SET NAMES {$dbConfig['charset']}";
+                $logger->debug("MySQL charset configured");
             }
 
+            $logger->debug("Creating PDO connection...");
             self::$connection = new PDO(
                 $dsn,
                 $dbConfig['username'],
@@ -53,10 +58,12 @@ class Database
                 $options
             );
 
-            $logger->info("Successfully connected to database");
+            $logger->info("Database connection established successfully");
+            $logger->debug("PDO connection created with error mode EXCEPTION");
         } catch (PDOException $e) {
-            $logger->error("Database connection failed: " . $e->getMessage());
-            throw new Exception("Database connection failed: " . $e->getMessage());
+            // Log generic error message, avoid exposing connection details
+            $logger->error("Database connection failed");
+            throw new Exception("Database connection failed. Check your database configuration.");
         }
     }
 
@@ -92,12 +99,15 @@ class Database
      */
     public static function testConnection(): bool
     {
+        $logger = Logger::getInstance();
         try {
+            $logger->debug("Testing database connection health...");
             $pdo = self::getConnection();
             $pdo->query('SELECT 1');
+            $logger->debug("Database health check passed");
             return true;
         } catch (Exception $e) {
-            Logger::getInstance()->error("Database health check failed: " . $e->getMessage());
+            $logger->error("Database health check failed: " . $e->getMessage());
             return false;
         }
     }

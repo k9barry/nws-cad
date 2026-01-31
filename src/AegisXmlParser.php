@@ -27,6 +27,7 @@ class AegisXmlParser
     {
         $this->db = Database::getConnection();
         $this->logger = Logger::getInstance();
+        $this->logger->debug("AegisXmlParser initialized with database connection");
     }
 
     /**
@@ -38,49 +39,63 @@ class AegisXmlParser
     public function processFile(string $filePath): bool
     {
         try {
-            $this->logger->info("Processing Aegis CAD XML file: " . basename($filePath));
+            $filename = basename($filePath);
+            $this->logger->info("Processing XML file: {$filename}");
+            $this->logger->debug("Full file path: {$filePath}");
             
             // Check if already processed
-            if ($this->isFileProcessed(basename($filePath), $filePath)) {
-                $this->logger->info("File already processed, skipping: " . basename($filePath));
+            $this->logger->debug("Checking if file was previously processed...");
+            if ($this->isFileProcessed($filename, $filePath)) {
+                $this->logger->info("File already processed, skipping: {$filename}");
                 return true;
             }
+            $this->logger->debug("File has not been processed before");
             
             // Load XML with security measures
+            $this->logger->debug("Loading XML file with XXE protection...");
             $xml = $this->loadXmlFile($filePath);
             
             if ($xml === false) {
                 throw new Exception('Failed to load XML file');
             }
+            $this->logger->debug("XML file loaded successfully");
 
             // Register namespaces
+            $namespaceCount = count($this->namespaces);
             foreach ($this->namespaces as $prefix => $uri) {
                 $xml->registerXPathNamespace($prefix, $uri);
             }
+            $this->logger->debug("Registered {$namespaceCount} XML namespace(s)");
 
             // Begin transaction
+            $this->logger->debug("Starting database transaction...");
             $this->db->beginTransaction();
 
             // Parse and insert call data
+            $this->logger->debug("Parsing and inserting call data...");
             $callId = $this->insertCall($xml, $filePath);
+            $this->logger->debug("Call data inserted with database ID: {$callId}");
 
             // Mark file as processed
-            $this->markFileAsProcessed(basename($filePath), $filePath, 1);
+            $this->logger->debug("Marking file as processed in database...");
+            $this->markFileAsProcessed($filename, $filePath, 1);
 
             // Commit transaction
+            $this->logger->debug("Committing database transaction...");
             $this->db->commit();
 
-            $this->logger->info("Successfully processed file: " . basename($filePath) . " (Call ID: $callId)");
+            $this->logger->info("File processed successfully: {$filename} (Call ID: {$callId})");
             return true;
 
         } catch (Exception $e) {
             if ($this->db->inTransaction()) {
+                $this->logger->debug("Rolling back database transaction due to error");
                 $this->db->rollBack();
             }
             
-            $this->logger->error("Error processing file " . basename($filePath) . ": " . $e->getMessage());
+            $this->logger->error("Error processing file {$filename}: " . $e->getMessage());
             $this->logger->error("Stack trace: " . $e->getTraceAsString());
-            $this->markFileAsFailed(basename($filePath), $filePath, $e->getMessage());
+            $this->markFileAsFailed($filename, $filePath, $e->getMessage());
             return false;
         }
     }
@@ -94,24 +109,29 @@ class AegisXmlParser
     private function loadXmlFile(string $filePath): SimpleXMLElement|false
     {
         try {
+            $this->logger->debug("Checking if file exists: {$filePath}");
             if (!file_exists($filePath)) {
                 $this->logger->error("File does not exist: {$filePath}");
                 return false;
             }
             
             // Read file content and strip BOM if present
+            $this->logger->debug("Reading file contents...");
             $content = file_get_contents($filePath);
             if ($content === false) {
                 $this->logger->error("Failed to read file: {$filePath}");
                 return false;
             }
+            $this->logger->debug("File size: " . strlen($content) . " bytes");
             
             // Remove UTF-8 BOM (EF BB BF) if present
             // Many NWS CAD XML exports include BOM which can cause parsing issues
+            $this->logger->debug("Checking for and stripping BOM...");
             $content = $this->stripBOM($content);
             
             // XXE Protection: In PHP 8.0+, external entity loading is disabled by default
             // LIBXML_NONET prevents network access during XML parsing
+            $this->logger->debug("Parsing XML with XXE protection (LIBXML_NONET)...");
             libxml_use_internal_errors(true);
             $xml = simplexml_load_string($content, 'SimpleXMLElement', LIBXML_NOCDATA | LIBXML_NONET);
             
@@ -124,6 +144,7 @@ class AegisXmlParser
                 return false;
             }
             
+            $this->logger->debug("XML parsed successfully");
             libxml_clear_errors();
             return $xml;
             
@@ -173,6 +194,8 @@ class AegisXmlParser
      */
     private function insertCall(SimpleXMLElement $xml, string $filePath): int
     {
+        $this->logger->debug("Extracting call data from XML...");
+        
         // Extract call data with proper type handling
         $callData = [
             'call_id' => $this->parseInt((string)$xml->CallId),
@@ -193,14 +216,17 @@ class AegisXmlParser
             'xml_data' => json_encode($this->xmlToArray($xml))
         ];
 
+        $this->logger->debug("Extracted call data: call_id={$callData['call_id']}, call_number={$callData['call_number']}, nature={$callData['nature_of_call']}");
+
         // Check if call already exists
+        $this->logger->debug("Checking if call already exists in database...");
         $existingCallStmt = $this->db->prepare("SELECT id FROM calls WHERE call_id = ?");
         $existingCallStmt->execute([$callData['call_id']]);
         $existingCall = $existingCallStmt->fetch();
 
         if ($existingCall) {
             // Update existing call - child records will be upserted, not deleted
-            $this->logger->info("Call ID {$callData['call_id']} already exists, updating record and adding new child data");
+            $this->logger->debug("Call ID {$callData['call_id']} already exists in database, updating...");
             
             $dbCallId = (int)$existingCall['id'];
             
@@ -229,8 +255,10 @@ class AegisXmlParser
             
             $stmt = $this->db->prepare($sql);
             $stmt->execute($updateData);
+            $this->logger->debug("Call record updated successfully");
         } else {
             // Insert new call
+            $this->logger->debug("Call ID {$callData['call_id']} is new, inserting into database...");
             $sql = "INSERT INTO calls (
                 call_id, call_number, call_source, caller_name, caller_phone,
                 nature_of_call, additional_info, create_datetime, close_datetime,
@@ -246,9 +274,11 @@ class AegisXmlParser
             $stmt = $this->db->prepare($sql);
             $stmt->execute($callData);
             $dbCallId = (int)$this->db->lastInsertId();
+            $this->logger->debug("New call inserted with database ID: {$dbCallId}");
         }
 
         // Upsert child records (insert new, update existing based on unique constraints)
+        $this->logger->debug("Processing child records...");
         $this->insertAgencyContexts($xml, $dbCallId);
         $this->insertLocation($xml, $dbCallId);
         $this->insertIncidents($xml, $dbCallId);
@@ -257,6 +287,7 @@ class AegisXmlParser
         $this->insertPersons($xml, $dbCallId);
         $this->insertVehicles($xml, $dbCallId);
         $this->insertCallDispositions($xml, $dbCallId);
+        $this->logger->debug("All child records processed successfully");
 
         return $dbCallId;
     }
@@ -267,8 +298,12 @@ class AegisXmlParser
     private function insertAgencyContexts(SimpleXMLElement $xml, int $callId): void
     {
         if (!isset($xml->AgencyContexts->AgencyContext)) {
+            $this->logger->debug("  No agency contexts found in XML");
             return;
         }
+
+        $count = count($xml->AgencyContexts->AgencyContext);
+        $this->logger->debug("  Inserting {$count} agency context(s)...");
 
         $sql = "INSERT INTO agency_contexts (
             call_id, agency_type, call_type, priority, status, dispatcher,
@@ -308,9 +343,11 @@ class AegisXmlParser
     private function insertLocation(SimpleXMLElement $xml, int $callId): void
     {
         if (!isset($xml->Location)) {
+            $this->logger->debug("  No location found in XML");
             return;
         }
 
+        $this->logger->debug("  Inserting location data...");
         $loc = $xml->Location;
         
         $data = [
@@ -380,8 +417,12 @@ class AegisXmlParser
     private function insertIncidents(SimpleXMLElement $xml, int $callId): void
     {
         if (!isset($xml->Incidents->Incident)) {
+            $this->logger->debug("  No incidents found in XML");
             return;
         }
+
+        $count = count($xml->Incidents->Incident);
+        $this->logger->debug("  Inserting {$count} incident(s)...");
 
         $sql = "INSERT INTO incidents (
             call_id, incident_number, incident_type, type_description,
@@ -415,8 +456,12 @@ class AegisXmlParser
     private function insertUnits(SimpleXMLElement $xml, int $callId): void
     {
         if (!isset($xml->AssignedUnits->Unit)) {
+            $this->logger->debug("  No assigned units found in XML");
             return;
         }
+
+        $count = count($xml->AssignedUnits->Unit);
+        $this->logger->debug("  Processing {$count} assigned unit(s)...");
 
         $dbType = Database::getDbType();
         
@@ -641,8 +686,12 @@ class AegisXmlParser
     private function insertNarratives(SimpleXMLElement $xml, int $callId): void
     {
         if (!isset($xml->Narratives->Narrative)) {
+            $this->logger->debug("  No narratives found in XML");
             return;
         }
+
+        $count = count($xml->Narratives->Narrative);
+        $this->logger->debug("  Inserting {$count} narrative(s)...");
 
         $dbType = Database::getDbType();
         
@@ -686,8 +735,12 @@ class AegisXmlParser
     private function insertPersons(SimpleXMLElement $xml, int $callId): void
     {
         if (!isset($xml->Persons->Person)) {
+            $this->logger->debug("  No persons found in XML");
             return;
         }
+
+        $count = count($xml->Persons->Person);
+        $this->logger->debug("  Inserting {$count} person(s)...");
 
         $sql = "INSERT INTO persons (
             call_id, first_name, middle_name, last_name, name_suffix,
@@ -738,8 +791,12 @@ class AegisXmlParser
     private function insertVehicles(SimpleXMLElement $xml, int $callId): void
     {
         if (!isset($xml->Vehicles->Vehicle)) {
+            $this->logger->debug("  No vehicles found in XML");
             return;
         }
+
+        $count = count($xml->Vehicles->Vehicle);
+        $this->logger->debug("  Inserting {$count} vehicle(s)...");
 
         $sql = "INSERT INTO vehicles (
             call_id, license_plate, license_state, make, model,
@@ -777,8 +834,12 @@ class AegisXmlParser
     private function insertCallDispositions(SimpleXMLElement $xml, int $callId): void
     {
         if (!isset($xml->Dispositions->CallDisposition)) {
+            $this->logger->debug("  No call dispositions found in XML");
             return;
         }
+
+        $count = count($xml->Dispositions->CallDisposition);
+        $this->logger->debug("  Inserting {$count} call disposition(s)...");
 
         $sql = "INSERT INTO call_dispositions (
             call_id, disposition_name, description, count, disposition_datetime
