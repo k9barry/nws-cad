@@ -8,24 +8,7 @@
     
     console.log('[Analytics] Script loaded');
     
-    let currentFilters = {};
-    
-    /**
-     * Load filters from Dashboard session storage
-     */
-    function loadDashboardFilters() {
-        if (typeof Dashboard !== 'undefined' && Dashboard.filters) {
-            const savedFilters = Dashboard.filters.load();
-            if (savedFilters) {
-                currentFilters = savedFilters;
-                console.log('[Analytics] Loaded filters from Dashboard:', currentFilters);
-                displayActiveFilters();
-                return true;
-            }
-        }
-        console.log('[Analytics] No saved filters found');
-        return false;
-    }
+    let filterManager = null;
     
     /**
      * Display active filters banner
@@ -36,9 +19,11 @@
         
         if (!banner || !display) return;
         
-        const filterCount = Object.keys(currentFilters).length;
+        const filters = filterManager.getFilters();
+        const filterCount = Object.keys(filters).length;
+        
         if (filterCount > 0) {
-            const filterText = Object.entries(currentFilters)
+            const filterText = Object.entries(filters)
                 .filter(([key, value]) => value && key !== 'quick_period')
                 .map(([key, value]) => `${key.replace('_', ' ')}: ${value}`)
                 .slice(0, 3)  // Show only first 3
@@ -52,151 +37,12 @@
     }
     
     /**
-     * Load filter options
+     * Handle filter changes
      */
-    async function loadFilterOptions() {
-        try {
-            const stats = await Dashboard.apiRequest('/stats');
-            
-            // Populate jurisdiction filter
-            const jurisdictionSelect = document.getElementById('analytics-jurisdiction');
-            if (jurisdictionSelect && stats.calls_by_jurisdiction) {
-                stats.calls_by_jurisdiction.forEach(j => {
-                    const option = document.createElement('option');
-                    option.value = j.jurisdiction;
-                    option.textContent = j.jurisdiction;
-                    jurisdictionSelect.appendChild(option);
-                });
-            }
-        } catch (error) {
-            console.error('[Analytics] Error loading filter options:', error);
-        }
-    }
-    
-    /**
-     * Set default date range (last 30 days, including today)
-     */
-    function setDefaultDateRange() {
-        const today = new Date();
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(today.getDate() - 30);
-        const tomorrow = new Date();
-        tomorrow.setDate(today.getDate() + 1);
-        
-        const dateFromEl = document.getElementById('analytics-date-from');
-        const dateToEl = document.getElementById('analytics-date-to');
-        
-        if (dateFromEl && dateToEl) {
-            currentDateFrom = thirtyDaysAgo.toISOString().split('T')[0];
-            currentDateTo = tomorrow.toISOString().split('T')[0];
-            
-            dateFromEl.value = currentDateFrom;
-            dateToEl.value = currentDateTo;
-        }
-    }
-    
-    /**
-     * Handle quick period selection
-     */
-    function setupQuickPeriodSelector() {
-        const quickPeriodEl = document.getElementById('quick-period');
-        if (quickPeriodEl) {
-            quickPeriodEl.addEventListener('change', function() {
-                const value = this.value;
-                const today = new Date();
-                const dateFromEl = document.getElementById('analytics-date-from');
-                const dateToEl = document.getElementById('analytics-date-to');
-                
-                if (!dateFromEl || !dateToEl) return;
-                
-                let fromDate, toDate;
-                
-                switch(value) {
-                    case 'today':
-                        fromDate = new Date(today);
-                        fromDate.setHours(0,0,0,0);
-                        toDate = new Date(today);
-                        toDate.setDate(toDate.getDate() + 1);
-                        toDate.setHours(0,0,0,0);
-                        break;
-                    case 'yesterday':
-                        fromDate = new Date(today);
-                        fromDate.setDate(today.getDate() - 1);
-                        fromDate.setHours(0,0,0,0);
-                        toDate = new Date(today);
-                        toDate.setHours(0,0,0,0);
-                        break;
-                    case '7days':
-                        fromDate = new Date();
-                        fromDate.setDate(today.getDate() - 7);
-                        fromDate.setHours(0,0,0,0);
-                        toDate = new Date(today);
-                        toDate.setDate(toDate.getDate() + 1);
-                        toDate.setHours(0,0,0,0);
-                        break;
-                    case '30days':
-                        fromDate = new Date();
-                        fromDate.setDate(today.getDate() - 30);
-                        fromDate.setHours(0,0,0,0);
-                        toDate = new Date(today);
-                        toDate.setDate(toDate.getDate() + 1);
-                        toDate.setHours(0,0,0,0);
-                        break;
-                    case 'thismonth':
-                        fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
-                        toDate = new Date(today);
-                        toDate.setDate(toDate.getDate() + 1);
-                        toDate.setHours(0,0,0,0);
-                        break;
-                    case 'lastmonth':
-                        fromDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-                        toDate = new Date(today.getFullYear(), today.getMonth(), 1);
-                        break;
-                    default:
-                        return; // Custom range, do nothing
-                }
-                
-                if (fromDate && toDate) {
-                    dateFromEl.value = fromDate.toISOString().split('T')[0];
-                    dateToEl.value = toDate.toISOString().split('T')[0];
-                    
-                    // Trigger form submission
-                    document.getElementById('analytics-period-form')?.dispatchEvent(new Event('submit'));
-                }
-            });
-        }
-    }
-    
-    /**
-     * Handle period form submission
-     */
-    function setupPeriodForm() {
-        const formEl = document.getElementById('analytics-period-form');
-        if (formEl) {
-            formEl.addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                const dateFromEl = document.getElementById('analytics-date-from');
-                const dateToEl = document.getElementById('analytics-date-to');
-                const agencyEl = document.getElementById('analytics-agency');
-                const jurisdictionEl = document.getElementById('analytics-jurisdiction');
-                
-                if (dateFromEl && dateToEl) {
-                    currentDateFrom = dateFromEl.value;
-                    currentDateTo = dateToEl.value;
-                    currentAgency = agencyEl?.value || null;
-                    currentJurisdiction = jurisdictionEl?.value || null;
-                    
-                    console.log('[Analytics] Filters updated:', {
-                        dateFrom: currentDateFrom,
-                        dateTo: currentDateTo,
-                        agency: currentAgency,
-                        jurisdiction: currentJurisdiction
-                    });
-                    loadAnalytics();
-                }
-            });
-        }
+    async function onFilterChange(filters) {
+        console.log('[Analytics] Filters changed:', filters);
+        displayActiveFilters();
+        await loadAnalytics();
     }
     
     async function init() {
@@ -208,132 +54,15 @@
         
         console.log('[Analytics] Initializing analytics page...');
         
-        // Load Dashboard filters first
-        loadDashboardFilters();
+        // Initialize FilterManager
+        filterManager = new FilterManager({
+            formId: 'dashboard-filter-form',
+            onFilterChange: onFilterChange,
+            searchDebounceMs: 300
+        });
         
-        // Setup filter form handler
-        const filterForm = document.getElementById('dashboard-filter-form');
-        if (filterForm) {
-            // Quick period selector
-            const quickPeriod = document.getElementById('dashboard-quick-period');
-            const dateFromInput = document.getElementById('dashboard-date-from');
-            const dateToInput = document.getElementById('dashboard-date-to');
-            let programmaticChange = false;
-            
-            if (quickPeriod) {
-                quickPeriod.addEventListener('change', () => {
-                    const period = quickPeriod.value;
-                    let fromDate = new Date();
-                    let toDate = new Date();
-                    
-                    switch(period) {
-                        case 'today':
-                            fromDate.setHours(0,0,0,0);
-                            toDate.setDate(toDate.getDate() + 1);
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case 'yesterday':
-                            fromDate.setDate(fromDate.getDate() - 1);
-                            fromDate.setHours(0,0,0,0);
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case '7days':
-                            fromDate = new Date(fromDate.getTime() - (7 * 24 * 60 * 60 * 1000));
-                            fromDate.setHours(0,0,0,0);
-                            toDate.setDate(toDate.getDate() + 1);
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case '30days':
-                            fromDate = new Date(fromDate.getTime() - (30 * 24 * 60 * 60 * 1000));
-                            fromDate.setHours(0,0,0,0);
-                            toDate.setDate(toDate.getDate() + 1);
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case 'thismonth':
-                            fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
-                            toDate.setDate(toDate.getDate() + 1);
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case 'lastmonth':
-                            fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth() - 1, 1);
-                            toDate = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 1);
-                            break;
-                        case 'custom':
-                            return;
-                    }
-                    
-                    if (period !== 'custom' && dateFromInput && dateToInput) {
-                        programmaticChange = true;
-                        
-                        dateFromInput.value = fromDate.toISOString().split('T')[0];
-                        dateToInput.value = toDate.toISOString().split('T')[0];
-                        
-                        currentFilters.date_from = dateFromInput.value;
-                        currentFilters.date_to = dateToInput.value;
-                        currentFilters.quick_period = period;
-                        
-                        Dashboard.filters.save(currentFilters);
-                        
-                        console.log('[Analytics] Quick period changed to', period, 'Filters:', currentFilters);
-                        
-                        // Update active filters display
-                        displayActiveFilters();
-                        
-                        // Reload page data
-                        loadAnalytics();
-                        
-                        setTimeout(() => { programmaticChange = false; }, 100);
-                    }
-                });
-            }
-            
-            filterForm.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                if (programmaticChange) {
-                    console.log('[Analytics] Skipping form submit - programmatic change');
-                    return;
-                }
-                
-                // Get all filter values from form
-                const formData = new FormData(filterForm);
-                currentFilters = {};
-                
-                for (const [key, value] of formData.entries()) {
-                    if (value !== '') {
-                        currentFilters[key] = value;
-                    }
-                }
-                
-                // Save filters to session storage
-                Dashboard.filters.save(currentFilters);
-                
-                console.log('[Analytics] Filters updated:', currentFilters);
-                
-                // Update active filters display
-                displayActiveFilters();
-                
-                // Reload page data
-                await loadAnalytics();
-            });
-            
-            // Clear filters button
-            const clearButton = document.getElementById('clear-filters');
-            if (clearButton) {
-                clearButton.addEventListener('click', async () => {
-                    currentFilters = {};
-                    Dashboard.filters.clear();
-                    filterForm.reset();
-                    
-                    // Hide active filters banner
-                    const banner = document.getElementById('active-filters-card');
-                    if (banner) banner.style.display = 'none';
-                    
-                    // Reload page data
-                    await loadAnalytics();
-                });
-            }
-        }
+        await filterManager.init();
+        displayActiveFilters();
         
         // Load initial data
         await loadAnalytics();
@@ -352,11 +81,12 @@
     
     async function loadAnalytics() {
         console.log('[Analytics] Loading analytics data...');
-        console.log('[Analytics] Current filters:', currentFilters);
+        const filters = filterManager.getFilters();
+        console.log('[Analytics] Current filters:', filters);
         
         try {
-            // Use filters from Dashboard
-            const queryString = Dashboard.buildQueryString(currentFilters);
+            // Use filters from FilterManager
+            const queryString = Dashboard.buildQueryString(filters);
             
             console.log('[Analytics] Using query string:', queryString);
             
@@ -415,7 +145,14 @@
         updateStatsCard('analytics-stat-units', uniqueUnits);
         
         // Top call type
-        if (stats.calls_by_type && stats.calls_by_type.length > 0) {
+        if (stats.top_call_types && stats.top_call_types.length > 0) {
+            const topType = stats.top_call_types[0];
+            const displayText = (topType.call_type || topType.type || 'N/A').length > 20 
+                ? (topType.call_type || topType.type || 'N/A').substring(0, 17) + '...'
+                : (topType.call_type || topType.type || 'N/A');
+            updateStatsCard('analytics-stat-toptype', displayText);
+        } else if (stats.calls_by_type && stats.calls_by_type.length > 0) {
+            // Fallback to calls_by_type if available
             const topType = stats.calls_by_type[0];
             const displayText = (topType.call_type || 'N/A').length > 20 
                 ? (topType.call_type || 'N/A').substring(0, 17) + '...'

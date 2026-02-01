@@ -84,7 +84,7 @@ class UnitsController
 
             if (isset($filters['date_to'])) {
                 $where[] = "u.assigned_datetime <= :date_to";
-                $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+                $params[':date_to'] = $filters['date_to'];
             }
 
             $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';

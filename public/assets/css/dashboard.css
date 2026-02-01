@@ -54,6 +54,21 @@ span.navbar-text i.bi.bi-circle-fill.pulse::before,
     font-size: 0.75rem;
 }
 
+/* Clickable stat cards */
+.clickable-stat {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.clickable-stat:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.clickable-stat:active {
+    transform: translateY(-1px);
+}
+
 /* Statistics Cards */
 .stat-card {
     border-left: 4px solid;

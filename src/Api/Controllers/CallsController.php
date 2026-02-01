@@ -95,8 +95,9 @@ class CallsController
             }
 
             if (isset($filters['date_to'])) {
+                // Append time to include entire day (date_to is inclusive)
                 $where[] = "c.create_datetime <= :date_to";
-                $params[':date_to'] = $filters['date_to'];
+                $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
             }
 
             if (isset($filters['nature_of_call'])) {

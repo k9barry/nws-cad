@@ -1,50 +1,63 @@
-<!-- Analytics View -->
+<!-- Main Dashboard View -->
 <div class="row mb-4">
-    <div class="col-12 d-flex justify-content-between align-items-center">
+    <div class="col-12">
         <h1 class="display-6 mb-0">
-            <i class="bi bi-graph-up"></i> Analytics & Reports
+            <i class="bi bi-speedometer2"></i> Dashboard Control Center
         </h1>
-        <div class="d-flex gap-2">
-            <a href="/" class="btn btn-primary">
-                <i class="bi bi-arrow-left"></i> Return to Dashboard
-            </a>
-            <a href="/calls" class="btn btn-outline-primary">
-                <i class="bi bi-telephone"></i> Calls
-            </a>
-            <a href="/units" class="btn btn-outline-success">
-                <i class="bi bi-truck"></i> Units
-            </a>
+    </div>
+</div>
+
+<!-- Active Filters Summary & Button -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card bg-light">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-funnel me-2"></i>
+                        <span class="text-muted">Active Filters: </span>
+                        <span id="filter-summary" class="fw-bold">Last 7 Days</span>
+                    </div>
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#filters-modal">
+                        <i class="bi bi-sliders"></i> Change Filters
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Active Filters Info -->
-<div class="card mb-4 border-info" id="active-filters-card" style="display: none;">
-    <div class="card-body py-2">
-        <div class="d-flex align-items-center">
-            <i class="bi bi-info-circle text-info me-2"></i>
-            <span class="text-muted">Filters Active: </span>
-            <span id="active-filters-display" class="ms-2 fw-bold"></span>
-            <button type="button" class="btn btn-sm btn-outline-primary ms-auto" data-bs-toggle="modal" data-bs-target="#filters-modal">
-                <i class="bi bi-funnel"></i> Change Filters
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- Analytics Statistics Cards -->
-<div class="row mb-4" id="analytics-stats-cards">
+<!-- Statistics Cards - 4 Essential Cards -->
+<div class="row mb-4" id="stats-cards">
     <div class="col-md-3 col-sm-6 mb-3">
-        <div class="card stat-card border-primary">
+        <div class="card stat-card border-primary clickable-stat" data-bs-toggle="modal" data-bs-target="#filters-modal" style="cursor: pointer;">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-muted mb-1">Total Calls</h6>
-                        <h2 class="mb-0" id="analytics-stat-total">
+                        <h2 class="mb-0" id="stat-total-calls">
                             <span class="spinner-border spinner-border-sm"></span>
                         </h2>
                     </div>
                     <div class="stat-icon bg-primary">
+                        <i class="bi bi-funnel"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card stat-card border-danger clickable-stat" onclick="filterDashboard('active')" style="cursor: pointer;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Active Calls</h6>
+                        <h2 class="mb-0 text-danger" id="stat-active-calls">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
+                    </div>
+                    <div class="stat-icon bg-danger">
                         <i class="bi bi-telephone-fill"></i>
                     </div>
                 </div>
@@ -53,17 +66,17 @@
     </div>
     
     <div class="col-md-3 col-sm-6 mb-3">
-        <div class="card stat-card border-info">
+        <div class="card stat-card border-secondary clickable-stat" onclick="filterDashboard('closed')" style="cursor: pointer;">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted mb-1">Avg Response Time</h6>
-                        <h2 class="mb-0" id="analytics-stat-response">
+                        <h6 class="text-muted mb-1">Closed Calls</h6>
+                        <h2 class="mb-0" id="stat-closed-calls">
                             <span class="spinner-border spinner-border-sm"></span>
                         </h2>
                     </div>
-                    <div class="stat-icon bg-info">
-                        <i class="bi bi-clock-history"></i>
+                    <div class="stat-icon bg-secondary">
+                        <i class="bi bi-check-circle"></i>
                     </div>
                 </div>
             </div>
@@ -71,12 +84,12 @@
     </div>
     
     <div class="col-md-3 col-sm-6 mb-3">
-        <div class="card stat-card border-success">
+        <div class="card stat-card border-success clickable-stat" onclick="navigateToFiltered('units', {status: 'available'})" style="cursor: pointer;">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted mb-1">Total Units</h6>
-                        <h2 class="mb-0" id="analytics-stat-units">
+                        <h6 class="text-muted mb-1">Available Units</h6>
+                        <h2 class="mb-0 text-success" id="stat-available-units">
                             <span class="spinner-border spinner-border-sm"></span>
                         </h2>
                     </div>
@@ -87,83 +100,64 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Active Calls Map and Recent Calls -->
+<div class="row mb-4">
+    <!-- Map - 1/4 Width, Tall for Madison County -->
+    <div class="col-lg-3 mb-3">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-map"></i> Active Calls Map
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div id="calls-map" style="height: 800px;"></div>
+            </div>
+        </div>
+    </div>
     
-    <div class="col-md-3 col-sm-6 mb-3">
-        <div class="card stat-card border-warning">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h6 class="text-muted mb-1">Top Call Type</h6>
-                        <h2 class="mb-0" id="analytics-stat-toptype" style="font-size: 0.9rem;">
-                            <span class="spinner-border spinner-border-sm"></span>
-                        </h2>
-                    </div>
-                    <div class="stat-icon bg-warning">
-                        <i class="bi bi-star-fill"></i>
-                    </div>
+    <!-- Recent Calls Table - 3/4 Width -->
+    <div class="col-lg-9 mb-3">
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-table"></i> <span id="recent-activity-title">Recent Calls</span>
+                </h5>
+                <a href="/calls" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-eye"></i> View All
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 800px; overflow-y: auto;">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>Call #</th>
+                                <th>Time</th>
+                                <th>Type</th>
+                                <th>Location</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Units</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="calls-table-body">
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <div class="spinner-border text-primary"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Charts Row 1 -->
-<div class="row mb-4">
-    <div class="col-lg-8 mb-3">
-        <div class="card">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-graph-up"></i> Incidents by Jurisdiction
-                </h5>
-            </div>
-            <div class="card-body">
-                <canvas id="analytics-volume-chart"></canvas>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-lg-4 mb-3">
-        <div class="card">
-            <div class="card-header bg-white">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-pie-chart"></i> Call Distribution
-                </h5>
-            </div>
-            <div class="card-body">
-                <canvas id="analytics-distribution-chart"></canvas>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Charts Row 2 -->
-<div class="row mb-4">
-    <div class="col-lg-6 mb-3">
-        <div class="card">
-            <div class="card-header bg-white">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-clock"></i> Response Time Analysis
-                </h5>
-            </div>
-            <div class="card-body">
-                <canvas id="analytics-response-chart"></canvas>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-lg-6 mb-3">
-        <div class="card">
-            <div class="card-header bg-white">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-building"></i> Calls by Agency
-                </h5>
-            </div>
-            <div class="card-body">
-                <canvas id="analytics-agency-chart"></canvas>
-            </div>
-        </div>
-    </div>
-</div>
 <!-- Filters Modal -->
 <div class="modal fade" id="filters-modal" tabindex="-1" aria-labelledby="filtersModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
@@ -189,11 +183,11 @@
                             <option value="lastmonth">Last Month</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-3" id="date-from-field">
                         <label class="form-label">From Date</label>
                         <input type="date" class="form-control" id="dashboard-date-from" name="date_from">
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-3" id="date-to-field">
                         <label class="form-label">To Date</label>
                         <input type="date" class="form-control" id="dashboard-date-to" name="date_to">
                     </div>
@@ -267,6 +261,23 @@
                 <button type="submit" form="dashboard-filter-form" class="btn btn-primary" data-bs-dismiss="modal">
                     <i class="bi bi-check-circle"></i> Apply Filters
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Call Detail Modal -->
+<div class="modal fade" id="call-detail-modal" tabindex="-1" aria-labelledby="callDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="callDetailModalLabel">Call Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="call-detail-content">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary"></div>
+                </div>
             </div>
         </div>
     </div>

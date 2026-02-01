@@ -1,5 +1,5 @@
 /**
- * Calls Page Script - Refactored with FilterManager
+ * Calls Page Script
  * Handles the calls list and filtering
  */
 
@@ -7,7 +7,24 @@
     'use strict';
     
     let currentPage = 1;
-    let filterManager = null;
+    let currentFilters = {};
+    
+    /**
+     * Load filters from Dashboard session storage
+     */
+    function loadDashboardFilters() {
+        if (typeof Dashboard !== 'undefined' && Dashboard.filters) {
+            const savedFilters = Dashboard.filters.load();
+            if (savedFilters) {
+                currentFilters = savedFilters;
+                console.log('[Calls] Loaded filters from Dashboard:', currentFilters);
+                displayActiveFilters();
+                return true;
+            }
+        }
+        console.log('[Calls] No saved filters found');
+        return false;
+    }
     
     /**
      * Display active filters banner
@@ -18,14 +35,12 @@
         
         if (!banner || !display) return;
         
-        const filters = filterManager.getFilters();
-        const filterCount = Object.keys(filters).length;
-        
+        const filterCount = Object.keys(currentFilters).length;
         if (filterCount > 0) {
-            const filterText = Object.entries(filters)
+            const filterText = Object.entries(currentFilters)
                 .filter(([key, value]) => value && key !== 'quick_period')
                 .map(([key, value]) => `${key.replace('_', ' ')}: ${value}`)
-                .slice(0, 3)
+                .slice(0, 3)  // Show only first 3
                 .join(', ');
             
             display.textContent = filterText + (filterCount > 3 ? '...' : '');
@@ -36,29 +51,53 @@
     }
     
     /**
-     * Handle filter changes
-     */
-    async function onFilterChange(filters) {
-        console.log('[Calls] Filters changed:', filters);
-        displayActiveFilters();
-        await updateCallStatistics();
-        await loadCalls(1);
-    }
-    
-    /**
-     * Load filter options - REMOVED (handled by FilterManager)
-     */
-    async function loadFilterOptions() {
-        // Filter options now loaded by FilterManager
-        console.log('[Calls] Filter options managed by FilterManager');
-    }
-    
-    /**
-     * Initialize date filters - REMOVED (handled by FilterManager)
+     * Initialize date filters - NOT USED (filters come from Dashboard)
      */
     function initializeDateFilters() {
-        // Date filters now managed by FilterManager
-        console.log('[Calls] Date filters managed by FilterManager');
+        // Filters now come from Dashboard session storage
+        // This function is kept for compatibility but does nothing
+        console.log('[Calls] Date filters managed by Dashboard');
+    }
+    
+    /**
+     * Load filter options - DISABLED (no filter form)
+     */
+    async function loadFilterOptions() {
+        try {
+            // Load unique values for filter dropdowns
+            const stats = await Dashboard.apiRequest('/stats');
+            
+            // Populate jurisdiction filter
+            const jurisdictionSelect = document.getElementById('filter-jurisdiction');
+            if (jurisdictionSelect && stats.calls_by_jurisdiction) {
+                stats.calls_by_jurisdiction.forEach(j => {
+                    const option = document.createElement('option');
+                    option.value = j.jurisdiction;
+                    option.textContent = j.jurisdiction;
+                    jurisdictionSelect.appendChild(option);
+                });
+            }
+            
+            // Populate call type filter
+            const callTypeSelect = document.getElementById('filter-call-type');
+            if (callTypeSelect && stats.top_call_types) {
+                stats.top_call_types.forEach(ct => {
+                    const option = document.createElement('option');
+                    option.value = ct.call_type;
+                    option.textContent = ct.call_type;
+                    callTypeSelect.appendChild(option);
+                });
+            }
+            
+            // Populate agency filter (from agency types in stats)
+            const agencySelect = document.getElementById('filter-agency');
+            if (agencySelect) {
+                // Static agency types based on schema
+                const agencyTypes = ['Police', 'Fire', 'EMS'];
+                agencyTypes.forEach(agency => {
+                    const option = document.createElement('option');
+                    option.value = agency;
+                    option.textContent = agency;
                     agencySelect.appendChild(option);
                 });
             }
@@ -74,9 +113,8 @@
     async function loadCalls(page = 1) {
         currentPage = page;
         
-        // Get filters from FilterManager
-        const filters = filterManager.getFilters();
-        const apiFilters = filterManager.translateForAPI(filters);
+        // Translate filters for API
+        const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
         
         const params = {
             page: page,
@@ -553,9 +591,7 @@
      */
     document.getElementById('export-csv')?.addEventListener('click', async function() {
         try {
-            const filters = filterManager.getFilters();
-            const apiFilters = filterManager.translateForAPI(filters);
-            const params = { ...apiFilters, per_page: 1000 };
+            const params = { ...currentFilters, per_page: 1000 };
             const calls = await Dashboard.apiRequest('/calls' + Dashboard.buildQueryString(params));
             
             const exportData = calls.map(call => ({
@@ -576,9 +612,133 @@
     });
     
     /**
-     * Filter form handlers - FilterManager handles all of this
+     * Filter form handlers - NOW ENABLED (modal filter form)
      */
-    // FilterManager automatically sets up all event handlers
+    const filterForm = document.getElementById('dashboard-filter-form');
+    if (filterForm) {
+        // Quick period selector
+        const quickPeriod = document.getElementById('dashboard-quick-period');
+        const dateFromInput = document.getElementById('dashboard-date-from');
+        const dateToInput = document.getElementById('dashboard-date-to');
+        let programmaticChange = false;
+        
+        if (quickPeriod) {
+            quickPeriod.addEventListener('change', () => {
+                const period = quickPeriod.value;
+                let fromDate = new Date();
+                let toDate = new Date();
+                
+                switch(period) {
+                    case 'today':
+                        fromDate.setHours(0,0,0,0);
+                        toDate.setDate(toDate.getDate() + 1);
+                        toDate.setHours(0,0,0,0);
+                        break;
+                    case 'yesterday':
+                        fromDate.setDate(fromDate.getDate() - 1);
+                        fromDate.setHours(0,0,0,0);
+                        toDate.setHours(0,0,0,0);
+                        break;
+                    case '7days':
+                        fromDate = new Date(fromDate.getTime() - (7 * 24 * 60 * 60 * 1000));
+                        fromDate.setHours(0,0,0,0);
+                        toDate.setDate(toDate.getDate() + 1);
+                        toDate.setHours(0,0,0,0);
+                        break;
+                    case '30days':
+                        fromDate = new Date(fromDate.getTime() - (30 * 24 * 60 * 60 * 1000));
+                        fromDate.setHours(0,0,0,0);
+                        toDate.setDate(toDate.getDate() + 1);
+                        toDate.setHours(0,0,0,0);
+                        break;
+                    case 'thismonth':
+                        fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+                        toDate.setDate(toDate.getDate() + 1);
+                        toDate.setHours(0,0,0,0);
+                        break;
+                    case 'lastmonth':
+                        fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth() - 1, 1);
+                        toDate = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 1);
+                        break;
+                    case 'custom':
+                        return;
+                }
+                
+                if (period !== 'custom' && dateFromInput && dateToInput) {
+                    programmaticChange = true;
+                    
+                    dateFromInput.value = fromDate.toISOString().split('T')[0];
+                    dateToInput.value = toDate.toISOString().split('T')[0];
+                    
+                    currentFilters.date_from = dateFromInput.value;
+                    currentFilters.date_to = dateToInput.value;
+                    currentFilters.quick_period = period;
+                    
+                    Dashboard.filters.save(currentFilters);
+                    
+                    console.log('[Calls] Quick period changed to', period, 'Filters:', currentFilters);
+                    
+                    // Update active filters display
+                    displayActiveFilters();
+                    
+                    // Reload page data
+                    updateCallStatistics();
+                    loadCalls(1);
+                    
+                    setTimeout(() => { programmaticChange = false; }, 100);
+                }
+            });
+        }
+        
+        filterForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (programmaticChange) {
+                console.log('[Calls] Skipping form submit - programmatic change');
+                return;
+            }
+            
+            // Get all filter values from form
+            const formData = new FormData(filterForm);
+            currentFilters = {};
+            
+            for (const [key, value] of formData.entries()) {
+                if (value !== '') {
+                    currentFilters[key] = value;
+                }
+            }
+            
+            // Save filters to session storage
+            Dashboard.filters.save(currentFilters);
+            
+            console.log('[Calls] Filters updated:', currentFilters);
+            
+            // Update active filters display
+            displayActiveFilters();
+            
+            // Reload page data
+            await updateCallStatistics();
+            await loadCalls(1);
+        });
+        
+        // Clear filters button
+        const clearButton = document.getElementById('clear-filters');
+        if (clearButton) {
+            clearButton.addEventListener('click', async () => {
+                currentFilters = {};
+                Dashboard.filters.clear();
+                filterForm.reset();
+                
+                // Hide active filters banner
+                const banner = document.getElementById('active-filters-card');
+                if (banner) banner.style.display = 'none';
+                
+                // Reload page data
+                await updateCallStatistics();
+                await loadCalls(1);
+            });
+        }
+    }
     
     /**
      * Handle refresh button (if exists)
@@ -587,18 +747,16 @@
         loadCalls(currentPage);
     });
     
-    // Initialize FilterManager
-    filterManager = new FilterManager({
-        formId: 'dashboard-filter-form',
-        onFilterChange: onFilterChange,
-        searchDebounceMs: 300
-    });
+    // Load Dashboard filters first
+    loadDashboardFilters();
     
-    await filterManager.init();
-    displayActiveFilters();
+    // Load filter options - NO LONGER NEEDED (filters from Dashboard)
+    // await loadFilterOptions();
     
-    // Initial data load
+    // Update statistics
     await updateCallStatistics();
+    
+    // Initial load
     await loadCalls(1);
     
     // Setup auto-refresh
@@ -612,9 +770,8 @@
      */
     async function updateCallStatistics() {
         try {
-            // Get filters from FilterManager
-            const filters = filterManager.getFilters();
-            const apiFilters = filterManager.translateForAPI(filters);
+            // Translate filters for API
+            const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
             const queryString = Dashboard.buildQueryString(apiFilters);
             
             // Use /stats endpoint which calculates across ALL filtered records

@@ -1,0 +1,665 @@
+/**
+ * Dashboard Main Page Script
+ * Handles the main dashboard overview page
+ */
+
+(function() {
+    'use strict';
+    
+    console.log('[Dashboard Main] Script loaded');
+    console.log('[Dashboard Main] Document state:', document.readyState);
+    console.log('[Dashboard Main] Dashboard available:', typeof Dashboard !== 'undefined');
+    console.log('[Dashboard Main] MapManager available:', typeof MapManager !== 'undefined');
+    console.log('[Dashboard Main] ChartManager available:', typeof ChartManager !== 'undefined');
+    
+    // Wait for both DOM and Dashboard to be ready
+    async function init() {
+        console.log('[Dashboard Main] Init called');
+        
+        if (typeof Dashboard === 'undefined') {
+            console.error('[Dashboard Main] Dashboard object not found, retrying in 100ms...');
+            setTimeout(init, 100);
+            return;
+        }
+        
+        console.log('[Dashboard Main] Dashboard config:', Dashboard.config);
+        console.log('[Dashboard Main] API Base URL:', Dashboard.config.apiBaseUrl);
+        
+        await initDashboard();
+    }
+    
+    // Check DOM ready state
+    if (document.readyState === 'loading') {
+        console.log('[Dashboard Main] Waiting for DOM...');
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        console.log('[Dashboard Main] DOM already ready');
+        init();
+    }
+    
+    async function initDashboard() {
+        console.log('[Dashboard Main] Starting dashboard initialization...');
+        
+        // Check managers availability
+        const managers = {
+            MapManager: typeof MapManager !== 'undefined',
+            ChartManager: typeof ChartManager !== 'undefined'
+        };
+        
+        console.log('[Dashboard Main] Managers:', managers);
+        
+        // Global filter manager
+        let filterManager = null;
+        
+        /**
+         * Handle filter changes
+         */
+        async function onFilterChange(filters) {
+            console.log('[Dashboard Main] Filters changed:', filters);
+            updateFilterSummary();
+            await refreshDashboard();
+        }
+        
+        // Initialize map
+        let map = null;
+        if (managers.MapManager) {
+            try {
+                const mapEl = document.getElementById('calls-map');
+                if (mapEl) {
+                    map = MapManager.initMap('calls-map');
+                    console.log('[Dashboard Main] Map initialized');
+                } else {
+                    console.warn('[Dashboard Main] Map element not found');
+                }
+            } catch (error) {
+                console.error('[Dashboard Main] Map init failed:', error);
+            }
+        }
+        
+        /**
+         * Update filter summary display
+         */
+        function updateFilterSummary() {
+            const summaryEl = document.getElementById('filter-summary');
+            if (!summaryEl) return;
+            
+            const currentFilters = filterManager.getFilters();
+            const parts = [];
+            
+            // Quick period or date range
+            if (currentFilters.quick_period) {
+                const periods = {
+                    'today': 'Today',
+                    'yesterday': 'Yesterday',
+                    '7days': 'Last 7 Days',
+                    '30days': 'Last 30 Days',
+                    'thismonth': 'This Month',
+                    'lastmonth': 'Last Month'
+                };
+                parts.push(periods[currentFilters.quick_period] || 'Custom Range');
+            } else if (currentFilters.date_from && currentFilters.date_to) {
+                parts.push(`${currentFilters.date_from} to ${currentFilters.date_to}`);
+            } else {
+                parts.push('All Time');
+            }
+            
+            // Add other filters
+            if (currentFilters.agency_type) parts.push(`Agency: ${currentFilters.agency_type}`);
+            if (currentFilters.jurisdiction) parts.push(`Jurisdiction: ${currentFilters.jurisdiction}`);
+            if (currentFilters.status) parts.push(`Status: ${currentFilters.status}`);
+            if (currentFilters.priority) parts.push(`Priority: ${currentFilters.priority}`);
+            
+            summaryEl.textContent = parts.join(' • ');
+        }
+        
+        /**
+         * Load statistics
+         */
+        async function loadStats() {
+            console.log('[Dashboard Main] Loading stats...');
+            const filters = filterManager.getFilters();
+            console.log('[Dashboard Main] Current filters:', filters);
+            try {
+                // Translate filters for API
+                const apiFilters = filterManager.translateForAPI(filters);
+                console.log('[Dashboard Main] Translated API filters:', apiFilters);
+                
+                const url = '/stats' + Dashboard.buildQueryString(apiFilters);
+                console.log('[Dashboard Main] Stats API URL:', url);
+                const stats = await Dashboard.apiRequest(url);
+                console.log('[Dashboard Main] Stats response:', stats);
+                
+                // Get units for available count (stats endpoint doesn't provide this)
+                const unitsParams = { per_page: 1000, ...apiFilters };
+                const units = await Dashboard.apiRequest('/units' + Dashboard.buildQueryString(unitsParams))
+                    .then(r => r?.items || []).catch(() => []);
+                
+                console.log('[Dashboard Main] Loaded', units.length, 'units from API');
+                
+                // Use stats from the API endpoint (respects all filters correctly)
+                const totalCalls = stats.total_calls || 0;
+                const activeCalls = stats.calls_by_status?.open || 0;
+                const closedCalls = stats.calls_by_status?.closed || 0;
+                const availableUnits = units.filter(u => u.unit_status?.toLowerCase() === 'available').length;
+                
+                // Get top call type from stats
+                let topCallType = 'N/A';
+                if (stats.top_call_types && stats.top_call_types.length > 0) {
+                    topCallType = stats.top_call_types[0].call_type;
+                    // Truncate if too long
+                    if (topCallType.length > 15) {
+                        topCallType = topCallType.substring(0, 12) + '...';
+                    }
+                }
+                
+                console.log('[Dashboard Main] Stats calculated:', {
+                    totalCalls,
+                    activeCalls,
+                    closedCalls,
+                    availableUnits,
+                    topCallType
+                });
+                
+                // Update stat cards (only the 4 we kept)
+                updateStatCard('stat-total-calls', totalCalls);
+                updateStatCard('stat-active-calls', activeCalls);
+                updateStatCard('stat-closed-calls', closedCalls);
+                updateStatCard('stat-available-units', availableUnits);
+                
+                console.log('[Dashboard Main] Stats updated');
+            } catch (error) {
+                console.error('[Dashboard Main] Stats error:', error);
+                if (Dashboard.showError) {
+                    Dashboard.showError('Failed to load statistics');
+                }
+            }
+        }
+        
+        // Helper to update stat cards
+        function updateStatCard(elementId, value) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = value;
+            }
+        }
+        
+        /**
+         * Load active calls (status=open) into the table
+         */
+        async function loadRecentCalls() {
+            console.log('[Dashboard Main] Loading recent calls...');
+            const filters = filterManager.getFilters();
+            console.log('[Dashboard Main] Current filters for recent calls:', filters);
+            try {
+                // Translate filters for API
+                const apiFilters = filterManager.translateForAPI(filters);
+                
+                const queryParams = {
+                    page: 1,
+                    per_page: 20, // Show more calls in the expanded table
+                    sort: 'create_datetime',
+                    order: 'desc',
+                    ...apiFilters
+                };
+                
+                // Default to active calls if no status filter
+                if (!filters.status) {
+                    queryParams.closed_flag = 'false';
+                }
+                
+                // Update card title based on filters
+                const titleEl = document.getElementById('recent-activity-title');
+                if (titleEl) {
+                    if (filters.status === 'active' || !filters.status) {
+                        titleEl.textContent = 'Recent Active Calls';
+                    } else if (filters.status === 'closed') {
+                        titleEl.textContent = 'Recent Closed Calls';
+                    } else {
+                        titleEl.textContent = 'Recent Calls';
+                    }
+                }
+                
+                const url = '/calls' + Dashboard.buildQueryString(queryParams);
+                console.log('[Dashboard Main] Recent calls API URL:', url);
+                console.log('[Dashboard Main] Query params:', queryParams);
+                
+                console.log('[Dashboard Main] Fetching:', Dashboard.config.apiBaseUrl + url);
+                
+                const response = await fetch(Dashboard.config.apiBaseUrl + url);
+                const result = await response.json();
+                
+                console.log('[Dashboard Main] Calls response:', result);
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'API failed');
+                }
+                
+                const calls = result.data?.items || [];
+                const tableBody = document.getElementById('calls-table-body');
+                
+                if (!tableBody) {
+                    console.warn('[Dashboard Main] calls-table-body not found');
+                    return;
+                }
+                
+                if (calls.length === 0) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="8" class="text-center py-4">
+                                <i class="bi bi-inbox fs-1 text-muted"></i>
+                                <p class="text-muted mt-2">No calls found</p>
+                            </td>
+                        </tr>
+                    `;
+                } else {
+                    tableBody.innerHTML = calls.map(call => {
+                        const statusBadge = call.closed_flag 
+                            ? '<span class="badge bg-success">Closed</span>' 
+                            : '<span class="badge bg-warning text-dark">Open</span>';
+                        
+                        const priorityBadge = call.priority 
+                            ? `<span class="badge bg-${call.priority === 'High' ? 'danger' : call.priority === 'Medium' ? 'warning' : 'secondary'}">${call.priority}</span>`
+                            : '<span class="badge bg-secondary">Normal</span>';
+                        
+                        return `
+                            <tr style="cursor: pointer;" onclick="viewCallDetails(${call.id})">
+                                <td>${call.call_number || call.id}</td>
+                                <td><small>${Dashboard.formatTime(call.create_datetime)}</small></td>
+                                <td>${call.call_types?.[0] || call.nature_of_call || 'Unknown'}</td>
+                                <td>
+                                    <small>
+                                        ${call.location?.address || call.location?.city || 'No address'}
+                                        ${call.location?.city ? `<br><span class="text-muted">${call.location.city}</span>` : ''}
+                                    </small>
+                                </td>
+                                <td>${priorityBadge}</td>
+                                <td>${statusBadge}</td>
+                                <td>
+                                    ${call.unit_count ? `<span class="badge bg-info">${call.unit_count}</span>` : '<span class="text-muted">0</span>'}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); viewCallDetails(${call.id})">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+                
+                console.log('[Dashboard Main] Calls table rendered:', calls.length);
+            } catch (error) {
+                console.error('[Dashboard Main] Recent calls error:', error);
+                const tableBody = document.getElementById('calls-table-body');
+                if (tableBody) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="8" class="text-center text-danger py-4">
+                                <i class="bi bi-exclamation-triangle"></i> Failed to load calls
+                            </td>
+                        </tr>
+                    `;
+                }
+                if (Dashboard.showError) {
+                    Dashboard.showError('Failed to load recent calls');
+                }
+            }
+        }
+        
+        /**
+         * Load map calls
+         */
+        async function loadCallsMap() {
+            console.log('[Dashboard Main] Loading map calls...');
+            
+            // Check if map manager is available
+            if (typeof MapManager === 'undefined') {
+                console.error('[Dashboard Main] MapManager not available');
+                return;
+            }
+            
+            try {
+                // Translate filters for API
+                const filters = filterManager.getFilters();
+                const apiFilters = filterManager.translateForAPI(filters);
+                
+                const queryParams = {
+                    page: 1,
+                    per_page: 100,
+                    ...apiFilters
+                };
+                
+                // Default to showing only open calls on map if no status filter set
+                if (!filters.status) {
+                    queryParams.closed_flag = 'false';
+                }
+                
+                const url = '/calls' + Dashboard.buildQueryString(queryParams);
+                
+                console.log('[Dashboard Main] Fetching calls for map from:', Dashboard.config.apiBaseUrl + url);
+                console.log('[Dashboard Main] Map query params:', queryParams);
+                const response = await fetch(Dashboard.config.apiBaseUrl + url);
+                const result = await response.json();
+                
+                console.log('[Dashboard Main] Map calls response:', result);
+                
+                if (result.success && result.data?.items) {
+                    const callsWithLoc = result.data.items
+                        .filter(c => c.location?.coordinates?.lat && c.location?.coordinates?.lng)
+                        .map(c => ({
+                            ...c,
+                            latitude: parseFloat(c.location.coordinates.lat),
+                            longitude: parseFloat(c.location.coordinates.lng),
+                            address: c.location?.address || c.location?.city
+                        }));
+                    
+                    console.log('[Dashboard Main] Calls with location:', callsWithLoc.length);
+                    
+                    if (callsWithLoc.length > 0) {
+                        // Make sure calls-map element exists
+                        const mapElement = document.getElementById('calls-map');
+                        if (mapElement) {
+                            console.log('[Dashboard Main] Showing', callsWithLoc.length, 'calls on map');
+                            MapManager.showCalls('calls-map', callsWithLoc);
+                            console.log('[Dashboard Main] Map updated and centered on calls');
+                        } else {
+                            console.warn('[Dashboard Main] calls-map element not found');
+                        }
+                    } else {
+                        console.log('[Dashboard Main] No calls with location data');
+                    }
+                } else {
+                    console.error('[Dashboard Main] API error:', result.error);
+                }
+            } catch (error) {
+                console.error('[Dashboard Main] Map calls error:', error);
+            }
+        }
+        
+        /**
+         * Load charts
+         */
+        async function loadCharts() {
+            if (!managers.ChartManager) {
+                console.log('[Dashboard Main] ChartManager not available');
+                return;
+            }
+            
+            console.log('[Dashboard Main] Loading charts...');
+            const filters = filterManager.getFilters();
+            console.log('[Dashboard Main] Current filters for charts:', filters);
+            try {
+                const url = '/stats' + Dashboard.buildQueryString(filters);
+                console.log('[Dashboard Main] Charts API URL:', url);
+                const stats = await Dashboard.apiRequest(url);
+                console.log('[Dashboard Main] Charts stats received:', stats);
+                
+                // Call volume trends chart (by jurisdiction)
+                const trendChartEl = document.getElementById('calls-trend-chart');
+                if (trendChartEl) {
+                    if (stats.calls_by_jurisdiction?.length > 0) {
+                        const colors = [
+                            'rgba(255, 99, 132, 0.6)',
+                            'rgba(54, 162, 235, 0.6)',
+                            'rgba(255, 205, 86, 0.6)',
+                            'rgba(75, 192, 192, 0.6)',
+                            'rgba(153, 102, 255, 0.6)',
+                            'rgba(255, 159, 64, 0.6)',
+                            'rgba(199, 199, 199, 0.6)',
+                            'rgba(83, 102, 255, 0.6)',
+                            'rgba(255, 99, 255, 0.6)',
+                            'rgba(99, 255, 132, 0.6)'
+                        ];
+                        const borderColors = colors.map(c => c.replace('0.6', '1'));
+                        
+                        ChartManager.createBarChart('calls-trend-chart', {
+                            labels: stats.calls_by_jurisdiction.map(j => j.jurisdiction),
+                            datasets: [{
+                                label: 'Calls by Jurisdiction',
+                                data: stats.calls_by_jurisdiction.map(j => j.count),
+                                backgroundColor: colors.slice(0, stats.calls_by_jurisdiction.length),
+                                borderColor: borderColors.slice(0, stats.calls_by_jurisdiction.length),
+                                borderWidth: 2
+                            }]
+                        });
+                        console.log('[Dashboard Main] Call volume trend chart by jurisdiction created');
+                    } else {
+                        ChartManager.showEmptyChart('calls-trend-chart', 'No jurisdiction data available');
+                    }
+                }
+                
+                // Call types chart
+                const typesChartEl = document.getElementById('call-types-chart');
+                if (typesChartEl) {
+                    if (stats.top_call_types?.length > 0) {
+                        ChartManager.createDoughnutChart('call-types-chart', {
+                            labels: stats.top_call_types.map(t => `${t.call_type || t.nature_of_call || 'Unknown'} (${t.count})`),
+                            datasets: [{
+                                data: stats.top_call_types.map(t => t.count),
+                                backgroundColor: [
+                                    'rgb(255, 99, 132)', 'rgb(54, 162, 235)',
+                                    'rgb(255, 205, 86)', 'rgb(75, 192, 192)',
+                                    'rgb(153, 102, 255)', 'rgb(255, 159, 64)'
+                                ]
+                            }]
+                        });
+                        console.log('[Dashboard Main] Call types chart created');
+                    } else {
+                        ChartManager.showEmptyChart('call-types-chart', 'No call type data available');
+                    }
+                }
+                
+                // Unit Activity chart - show unit statistics
+                const unitChartEl = document.getElementById('unit-activity-chart');
+                if (unitChartEl) {
+                    // For now, show total units and dispatch count
+                    // In future, this could query /stats/units for more detailed unit status
+                    const totalUnits = stats.total_units || 0;
+                    const activeCalls = stats.calls_by_status?.open || 0;
+                    
+                    ChartManager.createBarChart('unit-activity-chart', {
+                        labels: ['Total Units', 'Active Calls', 'Closed Calls'],
+                        datasets: [{
+                            label: 'Count',
+                            data: [
+                                totalUnits,
+                                activeCalls,
+                                stats.calls_by_status?.closed || 0
+                            ],
+                            backgroundColor: [
+                                'rgba(54, 162, 235, 0.6)',
+                                'rgba(255, 205, 86, 0.6)',
+                                'rgba(75, 192, 192, 0.6)'
+                            ],
+                            borderColor: [
+                                'rgb(54, 162, 235)',
+                                'rgb(255, 205, 86)',
+                                'rgb(75, 192, 192)'
+                            ],
+                            borderWidth: 2
+                        }]
+                    });
+                    console.log('[Dashboard Main] Unit activity chart created');
+                }
+            } catch (error) {
+                console.error('[Dashboard Main] Charts error:', error);
+            }
+        }
+        
+        /**
+         * Refresh all data
+         */
+        async function refreshDashboard() {
+            console.log('[Dashboard Main] === Refreshing ===');
+            
+            // Update filter summary
+            updateFilterSummary();
+            
+            try {
+                await Promise.all([
+                    loadStats(),
+                    loadRecentCalls(),
+                    loadCallsMap(),
+                    loadCharts()
+                ]);
+                console.log('[Dashboard Main] === Refresh complete ===');
+            } catch (error) {
+                console.error('[Dashboard Main] Refresh error:', error);
+            }
+        }
+        
+        // Global function for call details
+        window.viewCallDetails = async function(callId) {
+            console.log('[Dashboard Main] viewCallDetails called with ID:', callId);
+            
+            // Check if call details modal exists
+            const modalEl = document.getElementById('call-detail-modal');
+            if (!modalEl) {
+                console.warn('[Dashboard Main] Call detail modal not found on dashboard, navigating to calls page');
+                window.location.href = `/calls#call-${callId}`;
+                return;
+            }
+            
+            try {
+                const modal = new bootstrap.Modal(modalEl);
+                const content = document.getElementById('call-detail-content');
+                
+                if (!content) {
+                    console.error('[Dashboard Main] Modal content element not found');
+                    return;
+                }
+                
+                content.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+                modal.show();
+                
+                console.log('[Dashboard Main] Fetching call details for ID:', callId);
+                
+                const call = await Dashboard.apiRequest(`/calls/${callId}`);
+                
+                // Get latest priority and status from agency contexts
+                let latestPriority = 'N/A';
+                let latestStatus = 'N/A';
+                if (call.agency_contexts && call.agency_contexts.length > 0) {
+                    const sortedContexts = [...call.agency_contexts].sort((a, b) => 
+                        new Date(b.created_datetime) - new Date(a.created_datetime)
+                    );
+                    latestPriority = sortedContexts[0].priority || 'N/A';
+                    latestStatus = sortedContexts[0].status || 'N/A';
+                }
+                
+                content.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>Call Information</h5>
+                            <table class="table table-sm">
+                                <tr><th>Call ID:</th><td>${call.id}</td></tr>
+                                <tr><th>Call Number:</th><td>${call.call_number || 'N/A'}</td></tr>
+                                <tr><th>Nature of Call:</th><td>${call.nature_of_call || 'N/A'}</td></tr>
+                                <tr><th>Priority:</th><td>${Dashboard.getPriorityBadge(latestPriority)}</td></tr>
+                                <tr><th>Status:</th><td>${Dashboard.getStatusBadge(latestStatus)}</td></tr>
+                                <tr><th>Created:</th><td>${Dashboard.formatDateTime(call.create_datetime)}</td></tr>
+                                <tr><th>Closed:</th><td>${call.closed_flag ? '<span class="badge bg-secondary">Yes</span>' : '<span class="badge bg-success">No</span>'}</td></tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Location</h5>
+                            <table class="table table-sm">
+                                <tr><th>Address:</th><td>${call.location?.full_address || call.location?.address || 'N/A'}</td></tr>
+                                <tr><th>City:</th><td>${call.location?.city || 'N/A'}</td></tr>
+                                ${call.location?.coordinates ? `<tr><th>Coordinates:</th><td>${call.location.coordinates.lat}, ${call.location.coordinates.lng}</td></tr>` : ''}
+                            </table>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12 text-center">
+                            <a href="/calls#call-${callId}" class="btn btn-primary">
+                                <i class="bi bi-eye"></i> View Full Details
+                            </a>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('[Dashboard Main] Error loading call details:', error);
+                const content = document.getElementById('call-detail-content');
+                if (content) {
+                    content.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            Failed to load call details. Please try again.
+                        </div>
+                    `;
+                }
+            }
+        };
+        
+        // Global function for filtering dashboard by status
+        window.filterDashboard = function(status) {
+            console.log('[Dashboard Main] Filtering dashboard to:', status);
+            
+            if (!filterManager) {
+                console.error('[Dashboard Main] FilterManager not initialized');
+                return;
+            }
+            
+            // Get current filters
+            const currentFilters = filterManager.getFilters();
+            
+            // Update status
+            if (status === 'all') {
+                delete currentFilters.status;
+            } else {
+                currentFilters.status = status;
+            }
+            
+            // Save and trigger update
+            filterManager.save(currentFilters);
+            filterManager.triggerChange();
+            
+            // Update filter summary
+            updateFilterSummary();
+            
+            console.log('[Dashboard Main] Dashboard filtered to:', status);
+        };
+        
+        // Global function for navigating with filtered data
+        window.navigateToFiltered = function(page, additionalFilters) {
+            console.log('[Dashboard Main] Navigating to:', page, 'with filters:', additionalFilters);
+            
+            // Get current filters
+            const currentFilters = Dashboard.filters.load() || {};
+            
+            // Merge with additional filters
+            const mergedFilters = { ...currentFilters, ...additionalFilters };
+            
+            // Save merged filters
+            Dashboard.filters.save(mergedFilters);
+            
+            console.log('[Dashboard Main] Saved filters:', mergedFilters);
+            
+            // Navigate to page
+            window.location.href = `/${page}`;
+        };
+        
+        // Initialize FilterManager
+        filterManager = new FilterManager({
+            formId: 'dashboard-filter-form',
+            onFilterChange: onFilterChange,
+            searchDebounceMs: 300
+        });
+        
+        await filterManager.init();
+        updateFilterSummary();
+        
+        // Initial load
+        console.log('[Dashboard Main] Starting initial load...');
+        await refreshDashboard();
+        
+        // Auto-refresh
+        if (Dashboard.setupAutoRefresh) {
+            Dashboard.setupAutoRefresh(refreshDashboard);
+            console.log('[Dashboard Main] Auto-refresh enabled');
+        }
+        
+        console.log('[Dashboard Main] ✓ Initialization complete');
+    }
+})();

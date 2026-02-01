@@ -9,21 +9,37 @@ const MapManager = {
     
     /**
      * Initialize a map
-     * Default center can be configured via window.MAP_DEFAULT_CENTER or uses US geographic center
+     * Default center: Madison County, Indiana (40.1184° N, 85.6900° W)
      */
-    initMap(containerId, center = null, zoom = 12) {
-        // Use configured center or default to US geographic center (Lebanon, Kansas)
-        center = center || window.MAP_DEFAULT_CENTER || [39.8283, -98.5795];
+    initMap(containerId, center = null, zoom = 10.5) {
+        // Use configured center or default to Madison County, Indiana
+        center = center || window.MAP_DEFAULT_CENTER || [40.1184, -85.6900];
         if (this.maps[containerId]) {
             return this.maps[containerId];
         }
         
-        const map = L.map(containerId).setView(center, zoom);
+        // Define Madison County, Indiana boundaries (approximate)
+        // Southwest corner: ~39.95° N, 85.85° W
+        // Northeast corner: ~40.30° N, 85.50° W
+        const madisonCountyBounds = [
+            [39.90, -85.90],  // Southwest (with buffer)
+            [40.35, -85.45]   // Northeast (with buffer)
+        ];
+        
+        const map = L.map(containerId, {
+            maxBounds: madisonCountyBounds,
+            maxBoundsViscosity: 1.0,  // Makes bounds "hard" - prevents dragging outside
+            minZoom: 10.5,             // Minimum zoom level (fractional)
+            maxZoom: 21,               // Allow zooming in close for street detail
+            zoomSnap: 0.5,             // Allow half-level zoom increments
+            zoomDelta: 0.5             // Zoom by 0.5 levels when using controls
+        }).setView(center, zoom);
         
         // Add OpenStreetMap tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            maxZoom: 19
+            maxZoom: 21,               // Match map maxZoom
+            minZoom: 10.5              // Match map minZoom (fractional)
         }).addTo(map);
         
         this.maps[containerId] = map;

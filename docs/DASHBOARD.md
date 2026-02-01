@@ -7,14 +7,25 @@ The NWS CAD Dashboard is a comprehensive web-based interface for visualizing and
 ## Features
 
 ### 1. Main Dashboard (`/`)
-- **Real-time Statistics**: Active calls, available units, average response times
-- **Interactive Map**: Visual display of call locations using Leaflet.js
+- **Essential Statistics Cards** (4 cards, all clickable):
+  - **Total Calls** - Click to view all calls
+  - **Active Calls** - Click to view filtered active calls
+  - **Closed Calls** - Click to view filtered closed calls
+  - **Available Units** - Click to view filtered available units
+- **Interactive Map**: 
+  - Half-width portrait orientation (optimized for Madison County, Indiana)
+  - Default center: Madison County, Indiana (40.1184°N, 85.6900°W)
+  - Zoom level 10 (covers county + surrounding area)
+  - Visual display of call locations using Leaflet.js
 - **Recent Calls List**: Latest 10 calls with quick details
-- **Charts**: 
-  - Call volume trends by jurisdiction (bar chart)
-  - Call types distribution (doughnut chart)
-  - Unit activity (bar chart)
 - **Auto-refresh**: Updates every 30 seconds
+- **Global Filters**: Centralized filtering system shared across all pages
+  - Date range (quick select: today, 7 days, 30 days, etc.)
+  - Agency type (Police, Fire, EMS)
+  - Jurisdiction
+  - Status (active/closed)
+  - Priority levels
+  - Filters persist across page navigation
 
 ### 2. Calls Management (`/calls`)
 - **Advanced Filtering**:
@@ -35,11 +46,15 @@ The NWS CAD Dashboard is a comprehensive web-based interface for visualizing and
 
 ### 3. Units Status & Tracking (`/units`)
 - **Unit Statistics**: Available, en route, on scene, off duty counts
-- **Interactive Map**: Visual display of unit locations
-- **Filtering**:
+- **Interactive Map**: 
+  - Half-width portrait orientation (optimized for Madison County)
+  - Visual display of unit locations
+  - Default center: Madison County, Indiana
+- **Global Filtering**: Uses shared Dashboard filter system
+  - Date ranges
   - Unit status
-  - Unit type
-  - Agency
+  - Agency type
+  - Jurisdiction
   - Search by unit ID/badge
 - **Unit Details Modal**: Complete unit information including:
   - Unit metadata

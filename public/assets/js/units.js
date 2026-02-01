@@ -8,24 +8,7 @@
     
     console.log('[Units] Script loaded');
     
-    let currentFilters = {};
-    
-    /**
-     * Load filters from Dashboard session storage
-     */
-    function loadDashboardFilters() {
-        if (typeof Dashboard !== 'undefined' && Dashboard.filters) {
-            const savedFilters = Dashboard.filters.load();
-            if (savedFilters) {
-                currentFilters = savedFilters;
-                console.log('[Units] Loaded filters from Dashboard:', currentFilters);
-                displayActiveFilters();
-                return true;
-            }
-        }
-        console.log('[Units] No saved filters found');
-        return false;
-    }
+    let filterManager = null;
     
     /**
      * Display active filters banner
@@ -36,9 +19,11 @@
         
         if (!banner || !display) return;
         
-        const filterCount = Object.keys(currentFilters).length;
+        const filters = filterManager.getFilters();
+        const filterCount = Object.keys(filters).length;
+        
         if (filterCount > 0) {
-            const filterText = Object.entries(currentFilters)
+            const filterText = Object.entries(filters)
                 .filter(([key, value]) => value && key !== 'quick_period')
                 .map(([key, value]) => `${key.replace('_', ' ')}: ${value}`)
                 .slice(0, 3)  // Show only first 3
@@ -51,6 +36,17 @@
         }
     }
     
+    /**
+     * Handle filter changes
+     */
+    async function onFilterChange(filters) {
+        console.log('[Units] Filters changed:', filters);
+        displayActiveFilters();
+        await updateUnitStatistics();
+        await loadRecentUnits();
+        await loadUnits();
+    }
+    
     async function init() {
         if (typeof Dashboard === 'undefined') {
             console.error('[Units] Dashboard object not found, retrying...');
@@ -60,8 +56,15 @@
         
         console.log('[Units] Initializing units page...');
         
-        // Load Dashboard filters first
-        loadDashboardFilters();
+        // Initialize FilterManager
+        filterManager = new FilterManager({
+            formId: 'dashboard-filter-form',
+            onFilterChange: onFilterChange,
+            searchDebounceMs: 300
+        });
+        
+        await filterManager.init();
+        displayActiveFilters();
         
         // Initialize map
         if (typeof MapManager !== 'undefined') {
@@ -76,136 +79,6 @@
         await loadRecentUnits();
         
         await loadUnits();
-        
-        // Setup filter form handler
-        const filterForm = document.getElementById('dashboard-filter-form');
-        if (filterForm) {
-            // Quick period selector
-            const quickPeriod = document.getElementById('dashboard-quick-period');
-            const dateFromInput = document.getElementById('dashboard-date-from');
-            const dateToInput = document.getElementById('dashboard-date-to');
-            let programmaticChange = false;
-            
-            if (quickPeriod) {
-                quickPeriod.addEventListener('change', () => {
-                    const period = quickPeriod.value;
-                    let fromDate = new Date();
-                    let toDate = new Date();
-                    
-                    switch(period) {
-                        case 'today':
-                            fromDate.setHours(0,0,0,0);
-                            toDate.setDate(toDate.getDate() + 1);
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case 'yesterday':
-                            fromDate.setDate(fromDate.getDate() - 1);
-                            fromDate.setHours(0,0,0,0);
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case '7days':
-                            fromDate = new Date(fromDate.getTime() - (7 * 24 * 60 * 60 * 1000));
-                            fromDate.setHours(0,0,0,0);
-                            toDate.setDate(toDate.getDate() + 1);
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case '30days':
-                            fromDate = new Date(fromDate.getTime() - (30 * 24 * 60 * 60 * 1000));
-                            fromDate.setHours(0,0,0,0);
-                            toDate.setDate(toDate.getDate() + 1);
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case 'thismonth':
-                            fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
-                            toDate.setDate(toDate.getDate() + 1);
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case 'lastmonth':
-                            fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth() - 1, 1);
-                            toDate = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 1);
-                            break;
-                        case 'custom':
-                            return;
-                    }
-                    
-                    if (period !== 'custom' && dateFromInput && dateToInput) {
-                        programmaticChange = true;
-                        
-                        dateFromInput.value = fromDate.toISOString().split('T')[0];
-                        dateToInput.value = toDate.toISOString().split('T')[0];
-                        
-                        currentFilters.date_from = dateFromInput.value;
-                        currentFilters.date_to = dateToInput.value;
-                        currentFilters.quick_period = period;
-                        
-                        Dashboard.filters.save(currentFilters);
-                        
-                        console.log('[Units] Quick period changed to', period, 'Filters:', currentFilters);
-                        
-                        // Update active filters display
-                        displayActiveFilters();
-                        
-                        // Reload page data
-                        updateUnitStatistics();
-                        loadRecentUnits();
-                        loadUnits();
-                        
-                        setTimeout(() => { programmaticChange = false; }, 100);
-                    }
-                });
-            }
-            
-            filterForm.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                
-                if (programmaticChange) {
-                    console.log('[Units] Skipping form submit - programmatic change');
-                    return;
-                }
-                
-                // Get all filter values from form
-                const formData = new FormData(filterForm);
-                currentFilters = {};
-                
-                for (const [key, value] of formData.entries()) {
-                    if (value !== '') {
-                        currentFilters[key] = value;
-                    }
-                }
-                
-                // Save filters to session storage
-                Dashboard.filters.save(currentFilters);
-                
-                console.log('[Units] Filters updated:', currentFilters);
-                
-                // Update active filters display
-                displayActiveFilters();
-                
-                // Reload page data
-                await updateUnitStatistics();
-                await loadRecentUnits();
-                await loadUnits();
-            });
-            
-            // Clear filters button
-            const clearButton = document.getElementById('clear-filters');
-            if (clearButton) {
-                clearButton.addEventListener('click', async () => {
-                    currentFilters = {};
-                    Dashboard.filters.clear();
-                    filterForm.reset();
-                    
-                    // Hide active filters banner
-                    const banner = document.getElementById('active-filters-card');
-                    if (banner) banner.style.display = 'none';
-                    
-                    // Reload page data
-                    await updateUnitStatistics();
-                    await loadRecentUnits();
-                    await loadUnits();
-                });
-            }
-        }
         
         // Setup auto-refresh
         if (Dashboard.setupAutoRefresh) {
@@ -229,7 +102,8 @@
     async function updateUnitStatistics() {
         try {
             // Translate filters for API
-            const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
+            const filters = filterManager.getFilters();
+            const apiFilters = filterManager.translateForAPI(filters);
             const queryString = Dashboard.buildQueryString(apiFilters);
             
             // Fetch units with filters - use higher limit for statistics
@@ -267,7 +141,8 @@
         console.log('[Units] Loading recent unit activity...');
         try {
             // Translate filters for API
-            const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
+            const filters = filterManager.getFilters();
+            const apiFilters = filterManager.translateForAPI(filters);
             
             const queryParams = {
                 page: 1,
@@ -327,11 +202,12 @@
     
     async function loadUnits() {
         console.log('[Units] Loading units...');
-        console.log('[Units] Current filters:', currentFilters);
+        const filters = filterManager.getFilters();
+        console.log('[Units] Current filters:', filters);
         
         try {
             // Translate filters for API
-            const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
+            const apiFilters = filterManager.translateForAPI(filters);
             
             const params = {
                 page: 1,
@@ -490,15 +366,15 @@
         
         console.log('[Units] Added', markerCount, 'unit markers to map');
         
-        // Fit map to markers or set default view
+        // Fit map to markers or set default view (Madison County, IN)
         if (markerCount > 0) {
             MapManager.fitToMarkers('units-map');
         } else {
-            // Center on Indiana if no markers
+            // Center on Madison County, Indiana if no markers
             if (MapManager.maps['units-map']) {
-                MapManager.maps['units-map'].setView([40.0, -86.0], 7);
+                MapManager.maps['units-map'].setView([40.1184, -85.6900], 10);
             }
-            console.log('[Units] No units with location data found, centering on default location');
+            console.log('[Units] No units with location data found, centering on Madison County');
         }
     }
     

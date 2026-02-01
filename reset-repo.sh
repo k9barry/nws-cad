@@ -94,9 +94,57 @@ echo ""
 
 # Step 7: Clean database data directories
 echo -e "${YELLOW}Step 7: Cleaning database data...${NC}"
-safe_remove "data/mysql" ".gitkeep"
-safe_remove "data/postgres" ".gitkeep"
-safe_remove "data/dbeaver" ".gitkeep"
+echo ""
+echo -e "${RED}╔════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${RED}║  ⚠️  WARNING: DATABASE DELETION  ⚠️                        ║${NC}"
+echo -e "${RED}║                                                            ║${NC}"
+echo -e "${RED}║  This will PERMANENTLY DELETE ALL DATABASE DATA including: ║${NC}"
+echo -e "${RED}║  • All calls, incidents, units, and narratives            ║${NC}"
+echo -e "${RED}║  • All processed file history                             ║${NC}"
+echo -e "${RED}║  • All historical records                                 ║${NC}"
+echo -e "${RED}║                                                            ║${NC}"
+echo -e "${RED}║  THIS CANNOT BE UNDONE WITHOUT A BACKUP!                  ║${NC}"
+echo -e "${RED}╚════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+# Handle non-interactive mode - default to NOT deleting database
+if [ ! -t 0 ]; then
+    echo -e "${YELLOW}Non-interactive mode detected, SKIPPING database cleanup for safety${NC}"
+    skip_db='y'
+else
+    read -r -p "Do you want to DELETE all database data? Type 'DELETE' to confirm (or anything else to skip): " confirm_delete
+    echo ""
+    
+    if [ "$confirm_delete" = "DELETE" ]; then
+        skip_db='n'
+        echo -e "${YELLOW}Creating backup before deletion...${NC}"
+        BACKUP_DIR="backups"
+        mkdir -p "$BACKUP_DIR"
+        BACKUP_FILE="$BACKUP_DIR/nws_cad_$(date +%Y%m%d_%H%M%S).sql"
+        
+        # Try to create backup if MySQL is running
+        if docker ps | grep -q nws-cad-mysql; then
+            if docker exec nws-cad-mysql mysqldump -u nws_user -p'!BmgoQL4Fm4JiyJSoRnG' nws_cad > "$BACKUP_FILE" 2>/dev/null; then
+                echo -e "${GREEN}✓ Backup created: $BACKUP_FILE${NC}"
+            else
+                echo -e "${YELLOW}⚠ Could not create backup (MySQL may not be running)${NC}"
+            fi
+        else
+            echo -e "${YELLOW}⚠ MySQL container not running, skipping backup${NC}"
+        fi
+    else
+        skip_db='y'
+    fi
+fi
+
+if [[ "$skip_db" =~ ^[Yy]$ ]]; then
+    echo -e "${GREEN}✓ Skipping database cleanup (data preserved)${NC}"
+else
+    safe_remove "data/mysql" ".gitkeep"
+    safe_remove "data/postgres" ".gitkeep"
+    safe_remove "data/dbeaver" ".gitkeep"
+    echo -e "${RED}✓ Database data deleted${NC}"
+fi
 echo ""
 
 # Step 8: Remove test artifacts

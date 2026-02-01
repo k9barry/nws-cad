@@ -48,253 +48,17 @@
         
         console.log('[Dashboard Main] Managers:', managers);
         
-        // Global filter state
-        let currentFilters = {};
-        let programmaticChange = false; // Flag to prevent form submit loops during programmatic changes
+        // Global filter manager
+        let filterManager = null;
         
-        // Initialize date filters with default (last 7 days) or load from session
-        function initializeFilters() {
-            const dateFromInput = document.getElementById('dashboard-date-from');
-            const dateToInput = document.getElementById('dashboard-date-to');
-            const quickPeriod = document.getElementById('dashboard-quick-period');
-            const jurisdictionSelect = document.getElementById('dashboard-jurisdiction');
-            
-            // Check for saved filters first
-            const savedFilters = Dashboard.filters.load();
-            if (savedFilters && Object.keys(savedFilters).length > 0) {
-                console.log('[Dashboard Main] Loading saved filters:', savedFilters);
-                currentFilters = savedFilters;
-                
-                // Populate form with saved values
-                if (dateFromInput && savedFilters.date_from) {
-                    dateFromInput.value = savedFilters.date_from;
-                }
-                if (dateToInput && savedFilters.date_to) {
-                    dateToInput.value = savedFilters.date_to;
-                }
-                if (quickPeriod && savedFilters.quick_period) {
-                    quickPeriod.value = savedFilters.quick_period;
-                }
-                if (jurisdictionSelect && savedFilters.jurisdiction) {
-                    jurisdictionSelect.value = savedFilters.jurisdiction;
-                }
-                
-                // Load other filter fields
-                const agencySelect = document.getElementById('dashboard-agency');
-                const statusSelect = document.getElementById('dashboard-status');
-                const prioritySelect = document.getElementById('dashboard-priority');
-                
-                if (agencySelect && savedFilters.agency_type) {
-                    agencySelect.value = savedFilters.agency_type;
-                }
-                if (statusSelect && savedFilters.call_status) {
-                    statusSelect.value = savedFilters.call_status;
-                }
-                if (prioritySelect && savedFilters.priority) {
-                    prioritySelect.value = savedFilters.priority;
-                }
-            } else {
-                // Set default dates (last 7 days, including today)
-                console.log('[Dashboard Main] No saved filters, using defaults');
-                if (dateFromInput && dateToInput) {
-                    const now = new Date();
-                    const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
-                    const tomorrow = new Date(now.getTime() + (24 * 60 * 60 * 1000));
-                    
-                    dateFromInput.value = sevenDaysAgo.toISOString().split('T')[0];
-                    dateToInput.value = tomorrow.toISOString().split('T')[0];
-                    
-                    currentFilters.date_from = dateFromInput.value;
-                    currentFilters.date_to = dateToInput.value;
-                    
-                    // Set the quick period dropdown to match
-                    if (quickPeriod) {
-                        quickPeriod.value = '7days';
-                    }
-                    
-                    // Save defaults
-                    Dashboard.filters.save(currentFilters);
-                }
-            }
-            
-            // Update summary display
+        /**
+         * Handle filter changes
+         */
+        async function onFilterChange(filters) {
+            console.log('[Dashboard Main] Filters changed:', filters);
             updateFilterSummary();
-            
-            // Handle quick period selection
-            if (quickPeriod) {
-                quickPeriod.addEventListener('change', () => {
-                    const period = quickPeriod.value;
-                    let fromDate = new Date();
-                    let toDate = new Date();
-                    
-                    switch(period) {
-                        case 'today':
-                            fromDate.setHours(0,0,0,0);
-                            // For 'today', set toDate to tomorrow to include all of today
-                            toDate.setDate(toDate.getDate() + 1);
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case 'yesterday':
-                            fromDate.setDate(fromDate.getDate() - 1);
-                            fromDate.setHours(0,0,0,0);
-                            // For 'yesterday', set toDate to today to include all of yesterday
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case '7days':
-                            fromDate = new Date(fromDate.getTime() - (7 * 24 * 60 * 60 * 1000));
-                            fromDate.setHours(0,0,0,0);
-                            // Include today
-                            toDate.setDate(toDate.getDate() + 1);
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case '30days':
-                            fromDate = new Date(fromDate.getTime() - (30 * 24 * 60 * 60 * 1000));
-                            fromDate.setHours(0,0,0,0);
-                            // Include today
-                            toDate.setDate(toDate.getDate() + 1);
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case 'thismonth':
-                            fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
-                            // Set toDate to tomorrow to include today
-                            toDate.setDate(toDate.getDate() + 1);
-                            toDate.setHours(0,0,0,0);
-                            break;
-                        case 'lastmonth':
-                            fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth() - 1, 1);
-                            // Set toDate to first day of current month
-                            toDate = new Date(fromDate.getFullYear(), fromDate.getMonth() + 1, 1);
-                            break;
-                        case 'custom':
-                            return; // Don't auto-update dates for custom
-                    }
-                    
-                    if (period !== 'custom' && dateFromInput && dateToInput) {
-                        // Set flag to prevent form submit handler from interfering
-                        programmaticChange = true;
-                        
-                        dateFromInput.value = fromDate.toISOString().split('T')[0];
-                        dateToInput.value = toDate.toISOString().split('T')[0];
-                        
-                        // Manually update current filters and trigger refresh
-                        currentFilters.date_from = dateFromInput.value;
-                        currentFilters.date_to = dateToInput.value;
-                        currentFilters.quick_period = period; // Save quick period selection
-                        
-                        // Save to session storage
-                        Dashboard.filters.save(currentFilters);
-                        
-                        console.log('[Dashboard Main] Quick period changed to', period, 'Filters:', currentFilters);
-                        
-                        // Reload dashboard
-                        refreshDashboard();
-                        
-                        // Reset flag after refresh starts
-                        setTimeout(() => { programmaticChange = false; }, 100);
-                    }
-                });
-            }
-            
-            // Load jurisdictions
-            loadJurisdictions();
+            await refreshDashboard();
         }
-        
-        // Load jurisdictions for filter
-        async function loadJurisdictions() {
-            try {
-                const stats = await Dashboard.apiRequest('/stats');
-                const jurisdictionSelect = document.getElementById('dashboard-jurisdiction');
-                
-                if (jurisdictionSelect && stats.calls_by_jurisdiction) {
-                    stats.calls_by_jurisdiction.forEach(j => {
-                        const option = document.createElement('option');
-                        option.value = j.jurisdiction;
-                        option.textContent = j.jurisdiction;
-                        jurisdictionSelect.appendChild(option);
-                    });
-                }
-            } catch (error) {
-                console.error('[Dashboard Main] Error loading jurisdictions:', error);
-            }
-        }
-        
-        // Setup filter form
-        function setupFilterForm() {
-            const filterForm = document.getElementById('dashboard-filter-form');
-            
-            if (filterForm) {
-                filterForm.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    
-                    // Skip if this is a programmatic change from quick period selector
-                    if (programmaticChange) {
-                        console.log('[Dashboard Main] Ignoring form submit (programmatic change)');
-                        return;
-                    }
-                    
-                    // Get all filter values from form
-                    const formData = new FormData(filterForm);
-                    currentFilters = {};
-                    
-                    for (const [key, value] of formData.entries()) {
-                        if (value !== '') {
-                            currentFilters[key] = value;
-                        }
-                    }
-                    
-                    // Save filters to session storage
-                    Dashboard.filters.save(currentFilters);
-                    
-                    console.log('[Dashboard Main] Filters updated:', currentFilters);
-                    
-                    // Update filter summary
-                    updateFilterSummary();
-                    
-                    // Reload dashboard with new filters
-                    refreshDashboard();
-                });
-                
-                // Clear filters button
-                const clearButton = document.getElementById('clear-filters');
-                if (clearButton) {
-                    clearButton.addEventListener('click', () => {
-                        // Set flag to prevent form submit interference
-                        programmaticChange = true;
-                        
-                        currentFilters = {};
-                        Dashboard.filters.clear();
-                        
-                        // Reset to default (last 7 days)
-                        const now = new Date();
-                        const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
-                        const tomorrow = new Date(now.getTime() + (24 * 60 * 60 * 1000));
-                        
-                        const dateFromInput = document.getElementById('dashboard-date-from');
-                        const dateToInput = document.getElementById('dashboard-date-to');
-                        const quickPeriod = document.getElementById('dashboard-quick-period');
-                        
-                        if (dateFromInput) dateFromInput.value = sevenDaysAgo.toISOString().split('T')[0];
-                        if (dateToInput) dateToInput.value = tomorrow.toISOString().split('T')[0];
-                        if (quickPeriod) quickPeriod.value = '7days';
-                        
-                        currentFilters.date_from = dateFromInput.value;
-                        currentFilters.date_to = dateToInput.value;
-                        
-                        Dashboard.filters.save(currentFilters);
-                        
-                        // Reload
-                        refreshDashboard();
-                        
-                        // Reset flag
-                        setTimeout(() => { programmaticChange = false; }, 100);
-                    });
-                }
-            }
-        }
-
-        // Initialize filters
-        initializeFilters();
-        setupFilterForm();
         
         // Initialize map
         let map = null;
@@ -319,6 +83,7 @@
             const summaryEl = document.getElementById('filter-summary');
             if (!summaryEl) return;
             
+            const currentFilters = filterManager.getFilters();
             const parts = [];
             
             // Quick period or date range
@@ -352,10 +117,11 @@
          */
         async function loadStats() {
             console.log('[Dashboard Main] Loading stats...');
-            console.log('[Dashboard Main] Current filters:', currentFilters);
+            const filters = filterManager.getFilters();
+            console.log('[Dashboard Main] Current filters:', filters);
             try {
                 // Translate filters for API
-                const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
+                const apiFilters = filterManager.translateForAPI(filters);
                 console.log('[Dashboard Main] Translated API filters:', apiFilters);
                 
                 const url = '/stats' + Dashboard.buildQueryString(apiFilters);
@@ -394,17 +160,11 @@
                     topCallType
                 });
                 
-                // Update stat cards
+                // Update stat cards (only the 4 we kept)
                 updateStatCard('stat-total-calls', totalCalls);
                 updateStatCard('stat-active-calls', activeCalls);
                 updateStatCard('stat-closed-calls', closedCalls);
                 updateStatCard('stat-available-units', availableUnits);
-                
-                // Avg Response Time
-                const avgMin = stats.response_times?.average_minutes || stats.avg_response_time_minutes;
-                updateStatCard('stat-avg-response', avgMin ? `${Math.round(avgMin)}m` : 'N/A');
-                
-                updateStatCard('stat-top-call-type', topCallType);
                 
                 console.log('[Dashboard Main] Stats updated');
             } catch (error) {
@@ -424,37 +184,44 @@
         }
         
         /**
-         * Load active calls (status=open)
+         * Load active calls (status=open) into the table
          */
-        async function loadRecentCalls() {
-            console.log('[Dashboard Main] Loading recent calls...');
-            console.log('[Dashboard Main] Current filters for recent calls:', currentFilters);
+        let currentCallsPage = 1;
+        const callsPerPage = 20;
+        let totalCallsPages = 1;
+        let currentCallsTotal = 0;
+        
+        async function loadRecentCalls(page = 1) {
+            console.log('[Dashboard Main] Loading recent calls, page:', page);
+            currentCallsPage = page;
+            const filters = filterManager.getFilters();
+            console.log('[Dashboard Main] Current filters for recent calls:', filters);
             try {
                 // Translate filters for API
-                const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
+                const apiFilters = filterManager.translateForAPI(filters);
                 
                 const queryParams = {
-                    page: 1,
-                    per_page: 10,
+                    page: page,
+                    per_page: callsPerPage,
                     sort: 'create_datetime',
                     order: 'desc',
                     ...apiFilters
                 };
                 
                 // Default to active calls if no status filter
-                if (!currentFilters.status) {
+                if (!filters.status) {
                     queryParams.closed_flag = 'false';
                 }
                 
                 // Update card title based on filters
-                const titleEl = document.getElementById('recent-activity-title');
+                const titleEl = document.getElementById('recent-calls-title');
                 if (titleEl) {
-                    if (currentFilters.status === 'active' || !currentFilters.status) {
+                    if (filters.status === 'active' || !filters.status) {
                         titleEl.textContent = 'Recent Active Calls';
-                    } else if (currentFilters.status === 'closed') {
+                    } else if (filters.status === 'closed') {
                         titleEl.textContent = 'Recent Closed Calls';
                     } else {
-                        titleEl.textContent = 'Recent Activity';
+                        titleEl.textContent = 'Recent Calls';
                     }
                 }
                 
@@ -474,47 +241,126 @@
                 }
                 
                 const calls = result.data?.items || [];
-                const container = document.getElementById('recent-calls');
+                const pagination = result.data?.pagination || {};
+                currentCallsTotal = pagination.total || calls.length;
+                totalCallsPages = pagination.total_pages || 1;
                 
-                if (!container) {
-                    console.warn('[Dashboard Main] recent-calls container not found');
+                const tableBody = document.getElementById('recent-calls-body');
+                
+                if (!tableBody) {
+                    console.warn('[Dashboard Main] recent-calls-body not found');
                     return;
                 }
                 
                 if (calls.length === 0) {
-                    container.innerHTML = `
-                        <div class="empty-state text-center py-4">
-                            <i class="bi bi-inbox fs-1 text-muted"></i>
-                            <p class="text-muted mt-2">No active calls</p>
-                        </div>
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="8" class="text-center py-4">
+                                <i class="bi bi-inbox fs-1 text-muted"></i>
+                                <p class="text-muted mt-2">No calls found</p>
+                            </td>
+                        </tr>
                     `;
                 } else {
-                    container.innerHTML = calls.map(call => `
-                        <div class="recent-call-item p-3 mb-2 border rounded" style="cursor: pointer;" onclick="viewCallDetails(${call.id})">
-                            <div class="d-flex justify-content-between align-items-start mb-1">
-                                <div class="fw-bold">${call.call_types?.[0] || call.nature_of_call || 'Unknown'}</div>
-                                <small class="text-muted">${Dashboard.formatTime(call.create_datetime)}</small>
-                            </div>
-                            <div class="text-muted small">
-                                <i class="bi bi-geo-alt"></i> ${call.location?.address || call.location?.city || 'No address'}
-                            </div>
-                            <div class="mt-2">
-                                <span class="badge ${call.closed_flag ? 'bg-success' : 'bg-warning'}">
-                                    ${call.closed_flag ? 'Closed' : 'Open'}
-                                </span>
-                                ${call.call_number ? `<span class="badge bg-secondary">#${call.call_number}</span>` : ''}
-                                ${call.unit_count ? `<span class="badge bg-info">${call.unit_count} units</span>` : ''}
-                            </div>
-                        </div>
-                    `).join('');
+                    tableBody.innerHTML = calls.map(call => {
+                        const statusBadge = call.closed_flag 
+                            ? '<span class="badge bg-success">Closed</span>' 
+                            : '<span class="badge bg-warning text-dark">Open</span>';
+                        
+                        const priorityBadge = call.priority 
+                            ? `<span class="badge bg-${call.priority === 'High' ? 'danger' : call.priority === 'Medium' ? 'warning' : 'secondary'}">${call.priority}</span>`
+                            : '<span class="badge bg-secondary">Normal</span>';
+                        
+                        return `
+                            <tr style="cursor: pointer;" onclick="viewCallDetails(${call.id})">
+                                <td>${call.call_number || call.id}</td>
+                                <td><small>${Dashboard.formatTime(call.create_datetime)}</small></td>
+                                <td>${call.call_types?.[0] || call.nature_of_call || 'Unknown'}</td>
+                                <td>
+                                    <small>
+                                        ${call.location?.address || call.location?.city || 'No address'}
+                                        ${call.location?.city ? `<br><span class="text-muted">${call.location.city}</span>` : ''}
+                                    </small>
+                                </td>
+                                <td>${priorityBadge}</td>
+                                <td>${statusBadge}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-info" 
+                                            onclick="event.stopPropagation(); showUnitsPopover(${call.id}, this)"
+                                            ${call.unit_count ? '' : 'disabled'}>
+                                        <i class="bi bi-truck"></i> ${call.unit_count || 0}
+                                    </button>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); viewCallDetails(${call.id})">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
                 }
                 
-                console.log('[Dashboard Main] Active calls rendered:', calls.length);
+                console.log('[Dashboard Main] Calls table rendered:', calls.length);
+                
+                // Update pagination controls
+                updateCallsPagination(pagination);
+                
             } catch (error) {
-                console.error('[Dashboard Main] Active calls error:', error);
-                if (Dashboard.showError) {
-                    Dashboard.showError('Failed to load active calls');
+                console.error('[Dashboard Main] Recent calls error:', error);
+                const tableBody = document.getElementById('recent-calls-body');
+                if (tableBody) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="8" class="text-center text-danger py-4">
+                                <i class="bi bi-exclamation-triangle"></i> Failed to load calls
+                            </td>
+                        </tr>
+                    `;
                 }
+                if (Dashboard.showError) {
+                    Dashboard.showError('Failed to load recent calls');
+                }
+            }
+        }
+        
+        /**
+         * Update pagination controls
+         */
+        function updateCallsPagination(pagination) {
+            const container = document.getElementById('calls-pagination-container');
+            const prevBtn = document.getElementById('calls-prev-btn');
+            const nextBtn = document.getElementById('calls-next-btn');
+            const pageInfo = document.getElementById('calls-page-info');
+            const showingStart = document.getElementById('calls-showing-start');
+            const showingEnd = document.getElementById('calls-showing-end');
+            const totalEl = document.getElementById('calls-total');
+            
+            if (!container || !pagination) return;
+            
+            const total = pagination.total || 0;
+            const currentPage = pagination.current_page || currentCallsPage;
+            const totalPages = pagination.total_pages || totalCallsPages;
+            const perPage = pagination.per_page || callsPerPage;
+            
+            // Show pagination only if there's more than one page
+            if (totalPages > 1) {
+                container.style.display = 'flex';
+                
+                // Update page info
+                const start = (currentPage - 1) * perPage + 1;
+                const end = Math.min(currentPage * perPage, total);
+                
+                showingStart.textContent = start;
+                showingEnd.textContent = end;
+                totalEl.textContent = total;
+                pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+                
+                // Update button states
+                prevBtn.disabled = currentPage <= 1;
+                nextBtn.disabled = currentPage >= totalPages;
+            } else {
+                container.style.display = 'none';
             }
         }
         
@@ -532,7 +378,8 @@
             
             try {
                 // Translate filters for API
-                const apiFilters = Dashboard.filters.translateForAPI(currentFilters);
+                const filters = filterManager.getFilters();
+                const apiFilters = filterManager.translateForAPI(filters);
                 
                 const queryParams = {
                     page: 1,
@@ -541,7 +388,7 @@
                 };
                 
                 // Default to showing only open calls on map if no status filter set
-                if (!currentFilters.status) {
+                if (!filters.status) {
                     queryParams.closed_flag = 'false';
                 }
                 
@@ -597,9 +444,10 @@
             }
             
             console.log('[Dashboard Main] Loading charts...');
-            console.log('[Dashboard Main] Current filters for charts:', currentFilters);
+            const filters = filterManager.getFilters();
+            console.log('[Dashboard Main] Current filters for charts:', filters);
             try {
-                const url = '/stats' + Dashboard.buildQueryString(currentFilters);
+                const url = '/stats' + Dashboard.buildQueryString(filters);
                 console.log('[Dashboard Main] Charts API URL:', url);
                 const stats = await Dashboard.apiRequest(url);
                 console.log('[Dashboard Main] Charts stats received:', stats);
@@ -718,9 +566,498 @@
             }
         }
         
-        // Global function for call details
-        window.viewCallDetails = function(callId) {
-            window.location.href = `/calls?id=${callId}`;
+    window.viewCallDetails = async function(callId) {
+        console.log('[Dashboard Main] viewCallDetails called with ID:', callId);
+        
+        try {
+            const modalEl = document.getElementById('call-detail-modal');
+            if (!modalEl) {
+                console.error('[Dashboard Main] Modal element not found');
+                return;
+            }
+            
+            const modal = new bootstrap.Modal(modalEl);
+            const content = document.getElementById('call-detail-content');
+            
+            if (!content) {
+                console.error('[Dashboard Main] Modal content element not found');
+                return;
+            }
+            
+            content.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+            modal.show();
+            
+            console.log('[Dashboard Main] Fetching call details for ID:', callId);
+            
+            const [call, unitsResponse, narrativesResponse, personsResponse] = await Promise.all([
+                Dashboard.apiRequest(`/calls/${callId}`),
+                Dashboard.apiRequest(`/calls/${callId}/units`).catch(() => ({ items: [] })),
+                Dashboard.apiRequest(`/calls/${callId}/narratives`).catch(() => ({ items: [] })),
+                Dashboard.apiRequest(`/calls/${callId}/persons`).catch(() => [])
+            ]);
+            
+            const units = unitsResponse?.items || unitsResponse || [];
+            const narratives = narrativesResponse?.items || narrativesResponse || [];
+            const persons = personsResponse?.data || personsResponse || [];
+            
+            // Get latest priority and status from agency contexts
+            let latestPriority = 'N/A';
+            let latestStatus = 'N/A';
+            if (call.agency_contexts && call.agency_contexts.length > 0) {
+                // Sort by created_datetime descending to get latest
+                const sortedContexts = [...call.agency_contexts].sort((a, b) => 
+                    new Date(b.created_datetime) - new Date(a.created_datetime)
+                );
+                latestPriority = sortedContexts[0].priority || 'N/A';
+                latestStatus = sortedContexts[0].status || 'N/A';
+            }
+            
+            content.innerHTML = `
+                ${(() => {
+                    // Deduplicate agency contexts by agency_type (only show one per agency type)
+                    if (!call.agency_contexts || call.agency_contexts.length === 0) return '';
+                    
+                    const uniqueContexts = [];
+                    const seenAgencyTypes = new Set();
+                    
+                    // Get the latest context for each agency type
+                    const sortedContexts = [...call.agency_contexts].sort((a, b) => 
+                        new Date(b.created_datetime) - new Date(a.created_datetime)
+                    );
+                    
+                    for (const ac of sortedContexts) {
+                        if (!seenAgencyTypes.has(ac.agency_type)) {
+                            seenAgencyTypes.add(ac.agency_type);
+                            uniqueContexts.push(ac);
+                        }
+                    }
+                    
+                    return `
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <h5>Agency Contexts (${uniqueContexts.length})</h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead><tr><th>Agency Type</th><th>Call Type</th><th>Priority</th><th>Status</th><th>Dispatcher</th><th>Timestamp</th></tr></thead>
+                                    <tbody>
+                                        ${uniqueContexts.map(ac => `
+                                            <tr>
+                                                <td>${ac.agency_type || 'N/A'}</td>
+                                                <td>${ac.call_type || 'N/A'}</td>
+                                                <td>${ac.priority || 'N/A'}</td>
+                                                <td>${Dashboard.getStatusBadge(ac.status)}</td>
+                                                <td>${ac.dispatcher || 'N/A'}</td>
+                                                <td>${Dashboard.formatDateTime(ac.created_datetime)}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                })()}
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>Call Information</h5>
+                        <table class="table table-sm">
+                            <tr><th>Call ID:</th><td>${call.id}</td></tr>
+                            <tr><th>Call Number:</th><td>${call.call_number || 'N/A'}</td></tr>
+                            <tr><th>Call Source:</th><td>${call.call_source || 'N/A'}</td></tr>
+                            <tr><th>Nature of Call:</th><td>${call.nature_of_call || 'N/A'}</td></tr>
+                            <tr><th>Priority:</th><td>${Dashboard.getPriorityBadge(latestPriority)}</td></tr>
+                            <tr><th>Status:</th><td>${Dashboard.getStatusBadge(latestStatus)}</td></tr>
+                            <tr><th>Received:</th><td>${Dashboard.formatDateTime(call.received_time)}</td></tr>
+                            <tr><th>Created:</th><td>${Dashboard.formatDateTime(call.create_datetime)}</td></tr>
+                            <tr><th>Closed:</th><td>${call.close_datetime ? Dashboard.formatDateTime(call.close_datetime) : 'N/A'}</td></tr>
+                            <tr><th>Created By:</th><td>${call.created_by || 'N/A'}</td></tr>
+                            <tr><th>Alarm Level:</th><td>${call.alarm_level || 'N/A'}</td></tr>
+                            <tr><th>EMD Code:</th><td>${call.emd_code || 'N/A'}</td></tr>
+                            <tr><th>Closed:</th><td>${call.closed_flag ? '<span class="badge bg-secondary">Yes</span>' : '<span class="badge bg-success">No</span>'}</td></tr>
+                            <tr><th>Canceled:</th><td>${call.canceled_flag ? '<span class="badge bg-warning">Yes</span>' : '<span class="badge bg-success">No</span>'}</td></tr>
+                        </table>
+                        
+                        ${call.caller && (call.caller.name || call.caller.phone) ? `
+                            <h5 class="mt-3">Caller Information</h5>
+                            <table class="table table-sm">
+                                ${call.caller.name ? `<tr><th>Name:</th><td>${call.caller.name}</td></tr>` : ''}
+                                ${call.caller.phone ? `<tr><th>Phone:</th><td>${call.caller.phone}</td></tr>` : ''}
+                            </table>
+                        ` : ''}
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Location</h5>
+                        <table class="table table-sm">
+                            <tr><th>Full Address:</th><td>${call.location?.full_address || 'N/A'}</td></tr>
+                            ${call.location?.house_number ? `<tr><th>House Number:</th><td>${call.location.house_number}</td></tr>` : ''}
+                            ${call.location?.prefix_directional ? `<tr><th>Direction:</th><td>${call.location.prefix_directional}</td></tr>` : ''}
+                            ${call.location?.street_name ? `<tr><th>Street Name:</th><td>${call.location.street_name}</td></tr>` : ''}
+                            ${call.location?.street_type ? `<tr><th>Street Type:</th><td>${call.location.street_type}</td></tr>` : ''}
+                            <tr><th>City:</th><td>${call.location?.city || 'N/A'}</td></tr>
+                            ${call.location?.state ? `<tr><th>State:</th><td>${call.location.state}</td></tr>` : ''}
+                            ${call.location?.zip ? `<tr><th>ZIP:</th><td>${call.location.zip}</td></tr>` : ''}
+                            ${call.location?.common_name ? `<tr><th>Common Name:</th><td>${call.location.common_name}</td></tr>` : ''}
+                            ${call.location?.nearest_cross_streets ? `<tr><th>Cross Streets:</th><td>${call.location.nearest_cross_streets}</td></tr>` : ''}
+                            <tr><th>Coordinates:</th><td>${call.location?.coordinates ? `${call.location.coordinates.lat}, ${call.location.coordinates.lng}` : 'N/A'}</td></tr>
+                            ${call.location?.police_beat ? `<tr><th>Police Beat:</th><td>${call.location.police_beat}</td></tr>` : ''}
+                            ${call.location?.ems_district ? `<tr><th>EMS District:</th><td>${call.location.ems_district}</td></tr>` : ''}
+                            ${call.location?.fire_quadrant ? `<tr><th>Fire Quadrant:</th><td>${call.location.fire_quadrant}</td></tr>` : ''}
+                        </table>
+                    </div>
+                </div>
+                
+                ${(() => {
+                    // Deduplicate incidents by jurisdiction (only show one per jurisdiction)
+                    if (!call.incidents || call.incidents.length === 0) return '';
+                    
+                    const uniqueIncidents = [];
+                    const seenJurisdictions = new Set();
+                    
+                    for (const inc of call.incidents) {
+                        if (!seenJurisdictions.has(inc.jurisdiction)) {
+                            seenJurisdictions.add(inc.jurisdiction);
+                            uniqueIncidents.push(inc);
+                        }
+                    }
+                    
+                    return `
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h5>Incidents (${uniqueIncidents.length})</h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead><tr><th>Agency Type</th><th>Incident Number</th><th>Type</th><th>Jurisdiction</th><th>Created</th></tr></thead>
+                                    <tbody>
+                                        ${uniqueIncidents.map(inc => `
+                                            <tr>
+                                                <td>${inc.agency_type || 'N/A'}</td>
+                                                <td>${inc.incident_number || 'N/A'}</td>
+                                                <td>${inc.incident_type || 'N/A'}</td>
+                                                <td>${inc.jurisdiction || 'N/A'}</td>
+                                                <td>${Dashboard.formatDateTime(inc.create_datetime)}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                })()}
+                
+                ${(() => {
+                    // Create incident summary section - one row per unique jurisdiction
+                    if (!call.incidents || call.incidents.length === 0) return '';
+                    
+                    const uniqueIncidents = [];
+                    const seenJurisdictions = new Set();
+                    
+                    for (const inc of call.incidents) {
+                        if (!seenJurisdictions.has(inc.jurisdiction)) {
+                            seenJurisdictions.add(inc.jurisdiction);
+                            uniqueIncidents.push(inc);
+                        }
+                    }
+                    
+                    return `
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h5>Incident Summary</h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead><tr><th>Agency Type</th><th>Jurisdiction</th><th>Incident Number</th></tr></thead>
+                                    <tbody>
+                                        ${uniqueIncidents.map(inc => `
+                                            <tr>
+                                                <td>${inc.agency_type || 'N/A'}</td>
+                                                <td>${inc.jurisdiction || 'N/A'}</td>
+                                                <td>${inc.incident_number || 'N/A'}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                })()}
+                
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <h5>Assigned Units (${call.counts?.units || units.length})</h5>
+                        ${units.length > 0 ? `
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead><tr><th>Unit</th><th>Type</th><th>Status</th><th>Assigned</th><th>Enroute</th><th>Arrived</th><th>Primary</th></tr></thead>
+                                    <tbody>
+                                        ${units.map(u => {
+                                            const status = u.timestamps?.clear ? 'Clear' : 
+                                                          u.timestamps?.arrive ? 'On Scene' :
+                                                          u.timestamps?.enroute ? 'Enroute' :
+                                                          u.timestamps?.dispatch ? 'Dispatched' :
+                                                          u.timestamps?.assigned ? 'Assigned' : 'Unknown';
+                                            return `
+                                            <tr>
+                                                <td>${u.unit_number || u.unit_id || 'N/A'}</td>
+                                                <td>${u.unit_type || 'N/A'}</td>
+                                                <td>${Dashboard.getStatusBadge(status)}</td>
+                                                <td>${Dashboard.formatDateTime(u.timestamps?.assigned || u.assigned_datetime || u.assigned_time)}</td>
+                                                <td>${u.timestamps?.enroute ? Dashboard.formatDateTime(u.timestamps.enroute) : '-'}</td>
+                                                <td>${u.timestamps?.arrive ? Dashboard.formatDateTime(u.timestamps.arrive) : '-'}</td>
+                                                <td>${u.is_primary ? '<span class="badge bg-primary">Yes</span>' : ''}</td>
+                                            </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ` : '<p class="text-muted">No units assigned</p>'}
+                    </div>
+                </div>
+                
+                ${(() => {
+                    // Persons section - deduplicate by name and role
+                    if (!persons || persons.length === 0) return '';
+                    
+                    const uniquePersons = [];
+                    const seenPersons = new Map();
+                    
+                    for (const person of persons) {
+                        const fullName = [person.first_name, person.middle_name, person.last_name, person.name_suffix]
+                            .filter(Boolean).join(' ');
+                        const key = `${fullName}-${person.role}`;
+                        
+                        if (!seenPersons.has(key)) {
+                            seenPersons.set(key, person);
+                            uniquePersons.push(person);
+                        }
+                    }
+                    
+                    return `
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h5>Persons Involved (${uniquePersons.length})</h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Role</th>
+                                            <th>Phone</th>
+                                            <th>DOB</th>
+                                            <th>Sex</th>
+                                            <th>Race</th>
+                                            <th>Primary Caller</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${uniquePersons.map(p => {
+                                            const fullName = [p.first_name, p.middle_name, p.last_name, p.name_suffix]
+                                                .filter(Boolean).join(' ');
+                                            return `
+                                            <tr>
+                                                <td>${fullName || 'N/A'}</td>
+                                                <td><span class="badge bg-info">${p.role || 'N/A'}</span></td>
+                                                <td>${p.contact_phone || '-'}</td>
+                                                <td>${p.date_of_birth ? Dashboard.formatDateTime(p.date_of_birth) : '-'}</td>
+                                                <td>${p.sex || '-'}</td>
+                                                <td>${p.race || '-'}</td>
+                                                <td>${p.primary_caller_flag ? '<span class="badge bg-primary">Yes</span>' : ''}</td>
+                                            </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                })()}
+                
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <h5>Narratives (${call.counts?.narratives || narratives.length})</h5>
+                        ${narratives.length > 0 ? 
+                            narratives.map(n => `
+                                <div class="card mb-2">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <small class="text-muted">${Dashboard.formatDateTime(n.create_datetime)}</small>
+                                            ${n.create_user ? `<small class="text-muted">By: ${n.create_user}</small>` : ''}
+                                            ${n.narrative_type ? `<span class="badge bg-info ms-2">${n.narrative_type}</span>` : ''}
+                                        </div>
+                                        <p class="mb-0 mt-2">${n.text}</p>
+                                    </div>
+                                </div>
+                            `).join('') 
+                            : '<p class="text-muted">No narratives</p>'}
+                    </div>
+                </div>
+                
+            `;
+            
+        } catch (error) {
+            console.error('Error loading call details:', error);
+            content.innerHTML = '<div class="alert alert-danger">Failed to load call details</div>';
+        }
+    };
+        
+        // Global function for filtering dashboard by status
+        // Global function for showing units popover
+        window.showUnitsPopover = async function(callId, buttonElement) {
+            console.log('[Dashboard Main] Showing units for call:', callId);
+            
+            try {
+                // Fetch units for this call
+                const response = await fetch(`${Dashboard.config.apiBaseUrl}/calls/${callId}/units`);
+                const result = await response.json();
+                
+                // Handle different response formats (items vs data array)
+                const units = result.success ? (result.data || result.items || []) : [];
+                
+                if (units.length === 0) {
+                    // Show "no units" message
+                    showPopover(buttonElement, '<div class="text-muted"><i class="bi bi-info-circle"></i> No units assigned</div>');
+                    return;
+                }
+                
+                // Build units list HTML
+                const unitsHtml = units.map(u => {
+                    // Determine status from timestamps
+                    const status = u.timestamps?.clear ? 'Clear' : 
+                                  u.timestamps?.arrive ? 'On Scene' :
+                                  u.timestamps?.enroute ? 'Enroute' :
+                                  u.timestamps?.dispatch ? 'Dispatched' :
+                                  u.timestamps?.assigned ? 'Assigned' : 'Unknown';
+                    
+                    const statusBadge = status === 'Clear' ? 'success' :
+                                       status === 'On Scene' ? 'primary' :
+                                       status === 'Enroute' ? 'warning' :
+                                       status === 'Dispatched' ? 'info' :
+                                       status === 'Assigned' ? 'secondary' : 'secondary';
+                    
+                    const primaryBadge = u.is_primary ? '<span class="badge bg-danger ms-1">Primary</span>' : '';
+                    
+                    return `
+                        <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                            <div>
+                                <strong>${u.unit_number || 'Unknown'}</strong>
+                                ${primaryBadge}
+                                ${u.unit_type ? `<br><small class="text-muted">${u.unit_type}</small>` : ''}
+                            </div>
+                            <span class="badge bg-${statusBadge}">${status}</span>
+                        </div>
+                    `;
+                }).join('');
+                
+                const popoverContent = `
+                    <div style="min-width: 200px; max-width: 300px;">
+                        <div class="fw-bold mb-2">
+                            <i class="bi bi-truck"></i> Assigned Units (${units.length})
+                        </div>
+                        ${unitsHtml}
+                        <div class="text-center mt-2">
+                            <button id="units-full-details-btn" class="btn btn-sm btn-outline-primary" data-call-id="${callId}">
+                                <i class="bi bi-eye"></i> Full Details
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                showPopover(buttonElement, popoverContent);
+                
+                // Add event listener to the button after popover is created
+                setTimeout(() => {
+                    const detailsBtn = document.getElementById('units-full-details-btn');
+                    if (detailsBtn) {
+                        detailsBtn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            const callId = this.getAttribute('data-call-id');
+                            console.log('[Dashboard Main] Full Details clicked for call:', callId);
+                            hidePopover();
+                            setTimeout(() => {
+                                viewCallDetails(parseInt(callId));
+                            }, 150);
+                        });
+                    }
+                }, 50);
+                
+            } catch (error) {
+                console.error('[Dashboard Main] Error fetching units:', error);
+                showPopover(buttonElement, '<div class="text-danger"><i class="bi bi-exclamation-triangle"></i> Failed to load units</div>');
+            }
+        };
+        
+        // Helper function to show popover
+        function showPopover(element, content) {
+            // Remove any existing popover
+            hidePopover();
+            
+            // Create popover element
+            const popover = document.createElement('div');
+            popover.id = 'units-popover';
+            popover.className = 'popover bs-popover-auto fade show';
+            popover.style.cssText = 'position: absolute; z-index: 1070;';
+            
+            popover.innerHTML = `
+                <div class="popover-arrow"></div>
+                <div class="popover-body p-3">
+                    ${content}
+                </div>
+            `;
+            
+            document.body.appendChild(popover);
+            
+            // Position popover
+            const rect = element.getBoundingClientRect();
+            popover.style.left = (rect.left - popover.offsetWidth - 10) + 'px';
+            popover.style.top = (rect.top - (popover.offsetHeight / 2) + (rect.height / 2)) + 'px';
+            
+            // Add click listener to close on outside click
+            setTimeout(() => {
+                document.addEventListener('click', hidePopover);
+            }, 100);
+        }
+        
+        // Helper function to hide popover
+        window.hidePopover = function() {
+            const popover = document.getElementById('units-popover');
+            if (popover) {
+                popover.remove();
+                document.removeEventListener('click', hidePopover);
+            }
+        };
+        
+        window.filterDashboard = function(status) {
+            console.log('[Dashboard Main] Filtering dashboard to:', status);
+            
+            if (!filterManager) {
+                console.error('[Dashboard Main] FilterManager not initialized');
+                return;
+            }
+            
+            // Get current filters
+            const currentFilters = filterManager.getFilters();
+            
+            // Update status
+            if (status === 'all') {
+                delete currentFilters.status;
+            } else {
+                currentFilters.status = status;
+            }
+            
+            // Save filters
+            filterManager.currentFilters = currentFilters;
+            filterManager.save();
+            
+            // Update filter summary
+            updateFilterSummary();
+            
+            // Refresh dashboard with new filters
+            refreshDashboard();
+            
+            console.log('[Dashboard Main] Dashboard filtered to:', status);
         };
         
         // Global function for navigating with filtered data
@@ -741,6 +1078,36 @@
             // Navigate to page
             window.location.href = `/${page}`;
         };
+        
+        // Initialize FilterManager
+        filterManager = new FilterManager({
+            formId: 'dashboard-filter-form',
+            onFilterChange: onFilterChange,
+            searchDebounceMs: 300
+        });
+        
+        await filterManager.init();
+        updateFilterSummary();
+        
+        // Initialize pagination event listeners
+        const prevBtn = document.getElementById('calls-prev-btn');
+        const nextBtn = document.getElementById('calls-next-btn');
+        
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                if (currentCallsPage > 1) {
+                    loadRecentCalls(currentCallsPage - 1);
+                }
+            });
+        }
+        
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                if (currentCallsPage < totalCallsPages) {
+                    loadRecentCalls(currentCallsPage + 1);
+                }
+            });
+        }
         
         // Initial load
         console.log('[Dashboard Main] Starting initial load...');

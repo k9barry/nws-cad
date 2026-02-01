@@ -18,15 +18,12 @@ $uri = rtrim($uri, '/') ?: '/';
 // API base URL (adjust based on environment)
 $apiBaseUrl = 'http://localhost:8080/api';
 
-// Get Dozzle port from environment (default 9999)
-$dozzlePort = getenv('DOZZLE_PORT') ?: '9999';
+// Get Dozzle port from environment (default 8081 - external Dozzle container)
+$dozzlePort = getenv('DOZZLE_PORT') ?: '8081';
 
-// Define routes
+// Define routes (dashboard-only)
 $routes = [
     '/' => 'dashboard',
-    '/calls' => 'calls',
-    '/units' => 'units',
-    '/analytics' => 'analytics',
 ];
 
 // Get page from route
@@ -77,11 +74,6 @@ $pageTitle = ucfirst($page);
                     <li class="nav-item">
                         <a class="nav-link" id="dozzle-link" href="#" target="_blank" rel="noopener noreferrer">
                             <i class="bi bi-file-text"></i> Logs
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" id="dbeaver-link" href="#" target="_blank" rel="noopener noreferrer">
-                            <i class="bi bi-database"></i> DBeaver
                         </a>
                     </li>
                 </ul>
@@ -162,10 +154,6 @@ $pageTitle = ucfirst($page);
             return `${window.location.protocol}//${window.location.hostname.split(':')[0]}:${port}`;
         }
         
-        // Set DBeaver URL dynamically
-        const dbeaverUrl = getServiceUrl(8978);
-        document.getElementById('dbeaver-link').href = dbeaverUrl;
-        
         // Set Dozzle (Logs) URL dynamically using configured port
         const dozzlePort = <?= json_encode($dozzlePort) ?>;
         const dozzleUrl = getServiceUrl(dozzlePort);
@@ -174,17 +162,13 @@ $pageTitle = ucfirst($page);
         console.log('APP_CONFIG initialized:', window.APP_CONFIG);
     </script>
     <script src="/assets/js/dashboard.js?v=<?= time() ?>"></script>
+    <script src="/assets/js/filter-manager.js?v=<?= time() ?>"></script>
     <script src="/assets/js/maps.js?v=<?= time() ?>"></script>
     <script src="/assets/js/charts.js?v=<?= time() ?>"></script>
     
     <!-- Page-specific scripts -->
     <?php if ($page === 'dashboard'): ?>
         <script src="/assets/js/dashboard-main.js?v=<?= time() ?>"></script>
-    <?php elseif ($page === 'calls'): ?>
-        <script src="/assets/js/calls.js?v=<?= time() ?>"></script>
-    <?php elseif ($page === 'units'): ?>
-        <script src="/assets/js/units.js?v=<?= time() ?>"></script>
-    <?php elseif ($page === 'analytics'): ?>
         <script src="/assets/js/analytics.js?v=<?= time() ?>"></script>
     <?php endif; ?>
 </body>

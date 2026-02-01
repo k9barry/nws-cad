@@ -196,6 +196,128 @@ const Dashboard = {
             });
             
             return params.toString() ? '?' + params.toString() : '';
+        },
+        
+        /**
+         * Setup quick period change handler with date field visibility
+         */
+        setupQuickPeriodHandler() {
+            const quickPeriod = document.getElementById('dashboard-quick-period');
+            const dateFromField = document.getElementById('date-from-field');
+            const dateToField = document.getElementById('date-to-field');
+            const dateFromInput = document.getElementById('dashboard-date-from');
+            const dateToInput = document.getElementById('dashboard-date-to');
+            
+            if (!quickPeriod) return;
+            
+            // Toggle date fields visibility
+            const toggleDateFields = () => {
+                const showCustom = quickPeriod.value === '';
+                if (dateFromField) dateFromField.style.display = showCustom ? 'block' : 'none';
+                if (dateToField) dateToField.style.display = showCustom ? 'block' : 'none';
+            };
+            
+            // Initial state
+            toggleDateFields();
+            
+            // Listen for changes
+            quickPeriod.addEventListener('change', () => {
+                toggleDateFields();
+                
+                const period = quickPeriod.value;
+                if (period && period !== '') {
+                    const dates = this.calculateDateRange(period);
+                    if (dateFromInput && dates.from) dateFromInput.value = dates.from;
+                    if (dateToInput && dates.to) dateToInput.value = dates.to;
+                }
+            });
+        },
+        
+        /**
+         * Calculate date range from quick period
+         */
+        calculateDateRange(period) {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            let from, to;
+            
+            switch(period) {
+                case 'today':
+                    from = new Date(today);
+                    to = new Date(today);
+                    to.setDate(to.getDate() + 1);
+                    break;
+                case 'yesterday':
+                    from = new Date(today);
+                    from.setDate(from.getDate() - 1);
+                    to = new Date(today);
+                    break;
+                case '7days':
+                    from = new Date(today);
+                    from.setDate(from.getDate() - 7);
+                    to = new Date(today);
+                    to.setDate(to.getDate() + 1);
+                    break;
+                case '30days':
+                    from = new Date(today);
+                    from.setDate(from.getDate() - 30);
+                    to = new Date(today);
+                    to.setDate(to.getDate() + 1);
+                    break;
+                case 'thismonth':
+                    from = new Date(today.getFullYear(), today.getMonth(), 1);
+                    to = new Date(today);
+                    to.setDate(to.getDate() + 1);
+                    break;
+                case 'lastmonth':
+                    from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                    to = new Date(today.getFullYear(), today.getMonth(), 1);
+                    break;
+                default:
+                    return { from: null, to: null };
+            }
+            
+            return {
+                from: from.toISOString().split('T')[0],
+                to: to.toISOString().split('T')[0]
+            };
+        },
+        
+        /**
+         * Load and populate jurisdiction dropdown from API (descending sort)
+         */
+        async loadJurisdictions() {
+            try {
+                const stats = await Dashboard.apiRequest('/stats');
+                const select = document.getElementById('dashboard-jurisdiction');
+                
+                if (!select || !stats.calls_by_jurisdiction) return;
+                
+                // Clear existing options except "All"
+                while (select.options.length > 1) {
+                    select.remove(1);
+                }
+                
+                // Sort descending by jurisdiction name
+                const jurisdictions = stats.calls_by_jurisdiction
+                    .map(j => j.jurisdiction)
+                    .filter(j => j) // Remove nulls
+                    .sort((a, b) => b.localeCompare(a)); // Descending
+                
+                // Remove duplicates
+                const uniqueJurisdictions = [...new Set(jurisdictions)];
+                
+                uniqueJurisdictions.forEach(jurisdiction => {
+                    const option = document.createElement('option');
+                    option.value = jurisdiction;
+                    option.textContent = jurisdiction;
+                    select.appendChild(option);
+                });
+                
+                console.log('[Dashboard] Loaded', uniqueJurisdictions.length, 'jurisdictions');
+            } catch (error) {
+                console.error('[Dashboard] Error loading jurisdictions:', error);
+            }
         }
     },
     

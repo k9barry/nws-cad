@@ -85,7 +85,7 @@ class StatsController
         }
         if (isset($filters['date_to'])) {
             $dateWhere[] = "c.create_datetime <= :date_to";
-            $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+            $params[':date_to'] = $filters['date_to'];
         }
 
         // Build agency type filter
@@ -156,7 +156,7 @@ class StatsController
         $sql = "
             SELECT 
                 ac.call_type,
-                COUNT(DISTINCT c.id) as count
+                COUNT(*) as count
             FROM calls c
             INNER JOIN agency_contexts ac ON c.id = ac.call_id
             {$jurisdictionJoin}
@@ -191,6 +191,7 @@ class StatsController
             AND i.jurisdiction IS NOT NULL
             GROUP BY i.jurisdiction
             ORDER BY count DESC
+            LIMIT 10
         ";
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -224,7 +225,7 @@ class StatsController
 
         if (isset($filters['date_to'])) {
             $where[] = "u.assigned_datetime <= :date_to";
-            $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+            $params[':date_to'] = $filters['date_to'];
         }
 
         $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -255,7 +256,7 @@ class StatsController
 
         if (isset($filters['date_to'])) {
             $where[] = "u.assigned_datetime <= :date_to";
-            $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+            $params[':date_to'] = $filters['date_to'];
         }
 
         $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -313,7 +314,7 @@ class StatsController
                 }
                 if (isset($filters['date_to'])) {
                     $where[] = "c.create_datetime <= :date_to";
-                    $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+                    $params[':date_to'] = $filters['date_to'];
                 }
                 
                 // Agency type filter
@@ -582,7 +583,7 @@ class StatsController
 
             if (isset($filters['date_to'])) {
                 $where[] = "u.assigned_datetime <= :date_to";
-                $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+                $params[':date_to'] = $filters['date_to'];
             }
 
             // Unit type filter
@@ -748,7 +749,7 @@ class StatsController
 
             if (isset($filters['date_to'])) {
                 $where[] = "u.assigned_datetime <= :date_to";
-                $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+                $params[':date_to'] = $filters['date_to'];
             }
 
             // Agency type filter

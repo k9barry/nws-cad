@@ -19,7 +19,8 @@ tests/
 │   ├── ApiCallsTest.php
 │   ├── ApiUnitsTest.php
 │   ├── ApiSearchTest.php
-│   └── ApiStatsTest.php
+│   ├── ApiStatsTest.php
+│   └── ApiFilteringTest.php  ⭐ NEW - Comprehensive filter tests
 ├── Performance/            # Performance tests
 │   ├── DatabaseQueryTest.php
 │   └── ApiEndpointTest.php
@@ -28,6 +29,43 @@ tests/
     ├── XssTest.php
     └── XxeTest.php
 ```
+
+## 🆕 New: Comprehensive Filter Testing
+
+The new `ApiFilteringTest.php` provides exhaustive testing of all filter parameters:
+
+### What's Tested
+- ✅ Date range filtering (date_from, date_to)
+- ✅ Status filtering (active/closed via closed_flag)
+- ✅ Agency type filtering (Police, Fire, EMS)
+- ✅ Jurisdiction filtering
+- ✅ Combined filter scenarios (2-3 filters at once)
+- ✅ Search functionality (LIKE queries)
+- ✅ SQL injection protection in all filter params
+- ✅ NULL value handling
+- ✅ Empty result sets
+- ✅ Case sensitivity
+- ✅ Pagination with filters
+- ✅ Performance with multiple filters (<100ms)
+
+### Running Filter Tests
+```bash
+# Run all filtering tests
+composer run-script test:integration -- --filter ApiFilteringTest
+
+# Run specific filter test
+./vendor/bin/phpunit tests/Integration/ApiFilteringTest.php --filter testFilterByDateRange
+
+# Run with coverage
+composer run-script test:coverage -- --filter ApiFilteringTest
+```
+
+### Filter Test Data
+Tests use seeded data:
+- 7 calls spanning 30 days
+- 3 agency types (Police, Fire, EMS)
+- 3 jurisdictions (Anderson, Elwood, Alexandria)
+- Mix of active/closed calls
 
 ## Quick Start
 
