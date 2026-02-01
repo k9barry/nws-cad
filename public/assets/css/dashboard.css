@@ -365,6 +365,20 @@ footer a:hover {
     }
 }
 
+/* Landscape orientation optimizations for tablets and larger devices */
+@media (min-width: 992px) and (orientation: landscape) {
+    #calls-map, #units-map {
+        height: 550px !important;
+    }
+}
+
+/* Ensure maps are properly sized on ultra-wide displays */
+@media (min-width: 1400px) {
+    #calls-map, #units-map {
+        height: 600px !important;
+    }
+}
+
 @media (max-width: 576px) {
     .navbar-brand {
         font-size: 1rem;
