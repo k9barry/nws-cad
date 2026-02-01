@@ -18,7 +18,21 @@ const MapManager = {
             return this.maps[containerId];
         }
         
-        const map = L.map(containerId).setView(center, zoom);
+        // Define geographic boundaries (continental US + buffer)
+        // Southwest: [24.5, -125] (Southern CA/TX), Northeast: [49.5, -66] (Northern ME/WA)
+        const maxBounds = window.MAP_MAX_BOUNDS || [
+            [24.5, -125.0],  // Southwest corner
+            [49.5, -66.0]    // Northeast corner
+        ];
+        
+        const map = L.map(containerId, {
+            center: center,
+            zoom: zoom,
+            maxBounds: maxBounds,
+            maxBoundsViscosity: 0.75, // Resistance when dragging outside bounds (0-1)
+            minZoom: 4,  // Prevent zooming out too far
+            maxZoom: 19
+        });
         
         // Add OpenStreetMap tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

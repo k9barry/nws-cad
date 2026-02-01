@@ -109,7 +109,7 @@
 
 <!-- Map and Unit List -->
 <div class="row mb-4">
-    <div class="col-lg-8 mb-3">
+    <div class="col-lg-9 mb-3">
         <div class="card">
             <div class="card-header bg-white">
                 <h5 class="card-title mb-0">
@@ -122,7 +122,7 @@
         </div>
     </div>
     
-    <div class="col-lg-4 mb-3">
+    <div class="col-lg-3 mb-3">
         <div class="card">
             <div class="card-header bg-white">
                 <h5 class="card-title mb-0">
