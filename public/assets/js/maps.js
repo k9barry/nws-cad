@@ -160,15 +160,21 @@ const MapManager = {
      * Create popup HTML for a call
      */
     createCallPopup(call) {
+        // Extract first values from arrays if available
+        const callType = call.call_types?.[0] || call.call_type || call.nature_of_call || 'N/A';
+        const priority = call.priorities?.[0] || call.priority || 'Normal';
+        const status = call.statuses?.[0] || call.status || (call.closed_flag ? 'Closed' : 'Active');
+        const time = call.create_datetime || call.received_time || call.created_at || 'N/A';
+        
         return `
             <div class="map-popup">
-                <h6><i class="bi bi-telephone"></i> Call #${call.id || call.call_id}</h6>
+                <h6><i class="bi bi-telephone"></i> Call #${call.call_number || call.id || call.call_id}</h6>
                 <div class="mb-2">
-                    <strong>Type:</strong> ${call.call_type || 'N/A'}<br>
-                    <strong>Priority:</strong> ${Dashboard.getPriorityBadge(call.priority)}<br>
-                    <strong>Status:</strong> ${Dashboard.getStatusBadge(call.status)}<br>
-                    <strong>Location:</strong> ${call.address || call.location || 'N/A'}<br>
-                    <strong>Time:</strong> ${Dashboard.formatTime(call.received_time || call.created_at)}
+                    <strong>Type:</strong> ${callType}<br>
+                    <strong>Priority:</strong> ${Dashboard.getPriorityBadge(priority)}<br>
+                    <strong>Status:</strong> ${Dashboard.getStatusBadge(status)}<br>
+                    <strong>Location:</strong> ${call.address || call.location?.address || 'N/A'}<br>
+                    <strong>Time:</strong> ${Dashboard.formatTime(time)}
                 </div>
                 <button class="btn btn-sm btn-primary" onclick="viewCallDetails(${call.id || call.call_id})">
                     View Details
