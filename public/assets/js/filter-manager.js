@@ -27,13 +27,26 @@ class FilterManager {
         
         if (savedFilters) {
             this.currentFilters = savedFilters;
-            this.applyToForm(savedFilters);
+            
+            // Recalculate dates if using a quick period to ensure fresh dates
+            if (this.currentFilters.quick_period && this.currentFilters.quick_period !== '') {
+                const dates = this.calculateDateRange(this.currentFilters.quick_period);
+                this.currentFilters.date_from = dates.from;
+                this.currentFilters.date_to = dates.to;
+                console.log('[FilterManager] Recalculated dates for quick period:', this.currentFilters.quick_period, dates);
+            }
+            
+            this.applyToForm(this.currentFilters);
         } else {
             // No saved filters - apply default: Today
             this.currentFilters = {
                 quick_period: 'today'
             };
-            console.log('[FilterManager] No saved filters, using default: Today');
+            // Calculate today's dates
+            const dates = this.calculateDateRange('today');
+            this.currentFilters.date_from = dates.from;
+            this.currentFilters.date_to = dates.to;
+            console.log('[FilterManager] No saved filters, using default: Today with dates:', dates);
         }
         
         // Setup event handlers
