@@ -113,6 +113,18 @@ class Database
     }
 
     /**
+     * Force reconnection to database
+     * Useful when connection has been lost (e.g., MySQL timeout)
+     */
+    public static function reconnect(): void
+    {
+        $logger = Logger::getInstance();
+        $logger->info("Forcing database reconnection...");
+        self::$connection = null;
+        self::connect();
+    }
+
+    /**
      * Prevent cloning and serialization
      */
     private function __construct() {}
