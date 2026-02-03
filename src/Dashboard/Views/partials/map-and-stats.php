@@ -106,8 +106,8 @@
                             <tr>
                                 <th style="width: 10%;">Call ID</th>
                                 <th style="width: 15%;">Received</th>
-                                <th style="width: 20%;">Location</th>
-                                <th style="width: 15%;">Nature</th>
+                                <th style="width: 20%;">Call Type</th>
+                                <th style="width: 15%;">Location</th>
                                 <th style="width: 10%;">Priority</th>
                                 <th style="width: 10%;">Status</th>
                                 <th style="width: 10%;">Units</th>

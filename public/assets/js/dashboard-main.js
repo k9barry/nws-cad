@@ -277,10 +277,7 @@
                                 <td><small>${Dashboard.formatTime(call.create_datetime)}</small></td>
                                 <td>${call.call_types?.[0] || call.nature_of_call || 'Unknown'}</td>
                                 <td>
-                                    <small>
-                                        ${call.location?.address || call.location?.city || 'No address'}
-                                        ${call.location?.city ? `<br><span class="text-muted">${call.location.city}</span>` : ''}
-                                    </small>
+                                    <small>${call.location?.address || call.location?.city || 'No address'}</small>
                                 </td>
                                 <td>${priorityBadge}</td>
                                 <td>${statusBadge}</td>
