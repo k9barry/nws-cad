@@ -33,7 +33,9 @@ set_exception_handler(function ($e) {
 });
 
 // Create router
-$router = new Router('/api.php');
+// Initialize router with correct basePath
+// IMPORTANT: Must be '/api' NOT '/api.php' to match URI paths correctly
+$router = new Router('/api');
 
 // API info endpoint
 $router->get('/', function() {
@@ -93,7 +95,11 @@ $router->delete('/logs/cleanup', [LogsController::class, 'cleanup']);
 
 // Dispatch request
 try {
-    $router->dispatch(Router::getMethod(), Router::getUri());
+    // Get URI path without query string
+    $uri = Router::getUri();
+    $uri = parse_url($uri, PHP_URL_PATH);
+    
+    $router->dispatch(Router::getMethod(), $uri);
 } catch (Exception $e) {
     error_log($e->getMessage() . "\n" . $e->getTraceAsString());
     Response::serverError('An unexpected error occurred');

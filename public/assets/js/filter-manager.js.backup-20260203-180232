@@ -323,18 +323,18 @@ class FilterManager {
             console.log('[FilterManager] Quick period changed to:', period, 'Dates:', this.currentFilters.date_from, '-', this.currentFilters.date_to);
             this.loadJurisdictions();
             this.loadAgencies();
-            
-            // Trigger change to update dashboard/analytics
-            this.save();
-            this.updateURL();
-            this.triggerChange();
         });
     }
     
     /**
      * Setup real-time search with debouncing
+     * DISABLED FOR PERFORMANCE: Filters now require clicking "Apply Filters" button
      */
     setupSearchHandler() {
+        // Real-time search disabled - users must click Apply Filters
+        console.log('[FilterManager] Real-time search disabled - use Apply Filters button');
+        
+        /* COMMENTED OUT FOR PERFORMANCE
         const searchInput = document.querySelector(`#${this.formId} [name="search"]`);
         if (!searchInput) return;
         
@@ -354,6 +354,7 @@ class FilterManager {
                 }
             }, this.searchDebounceMs);
         });
+        */
     }
     
     /**

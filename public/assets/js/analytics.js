@@ -85,17 +85,21 @@
         console.log('[Analytics] Current filters:', filters);
         
         try {
-            // Use filters from FilterManager
-            const queryString = Dashboard.buildQueryString(filters);
+            // Translate filters for API (converts status to closed_flag, etc.)
+            const apiFilters = filterManager.translateForAPI(filters);
+            const queryString = Dashboard.buildQueryString(apiFilters);
             
+            console.log('[Analytics] Translated API filters:', apiFilters);
             console.log('[Analytics] Using query string:', queryString);
             
             // Fetch both general stats and detailed call stats (which includes agency data)
+            // NOTE: Reduced per_page from 10000 to 500 for performance (was causing 2-5 second delays)
+            // Top locations/units tables only show top 5, so we don't need all records
             const [stats, callStats, calls, units] = await Promise.all([
                 Dashboard.apiRequest('/stats' + queryString),
                 Dashboard.apiRequest('/stats/calls' + queryString).catch(() => null),
-                Dashboard.apiRequest('/calls?per_page=10000' + (queryString ? '&' + queryString.substring(1) : '')).then(r => r?.items || []).catch(() => []),
-                Dashboard.apiRequest('/units?per_page=10000' + (queryString ? '&' + queryString.substring(1) : '')).then(r => r?.items || []).catch(() => [])
+                Dashboard.apiRequest('/calls?per_page=500' + (queryString ? '&' + queryString.substring(1) : '')).then(r => r?.items || []).catch(() => []),
+                Dashboard.apiRequest('/units?per_page=500' + (queryString ? '&' + queryString.substring(1) : '')).then(r => r?.items || []).catch(() => [])
             ]);
             console.log('[Analytics] Stats:', stats);
             console.log('[Analytics] Call Stats:', callStats);

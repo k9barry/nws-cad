@@ -127,7 +127,7 @@ $pageTitle = ucfirst($page);
         const baseUrl = window.location.origin;
         
         window.APP_CONFIG = {
-            apiBaseUrl: baseUrl + '/api.php',
+            apiBaseUrl: baseUrl + '/api',
             currentPage: '<?= $page ?>',
             refreshInterval: 30000 // 30 seconds
         };

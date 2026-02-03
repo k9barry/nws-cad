@@ -141,23 +141,17 @@ class CallsController
             $countStmt->execute($params);
             $total = (int)$countStmt->fetchColumn();
 
-            // Get paginated results - OPTIMIZED: removed GROUP_CONCAT
+            // Get paginated results
             $offset = ($pagination['page'] - 1) * $pagination['per_page'];
-            
-            // Determine which joins are needed based on filters
-            $needsAgencyJoin = isset($filters['status']) || isset($filters['agency_type']);
-            $needsIncidentJoin = isset($filters['search']) || isset($filters['jurisdiction']);
-            
-            $joins = "LEFT JOIN locations l ON c.id = l.call_id";
-            if ($needsAgencyJoin) {
-                $joins .= " LEFT JOIN agency_contexts ac ON c.id = ac.call_id";
-            }
-            if ($needsIncidentJoin) {
-                $joins .= " LEFT JOIN incidents i ON c.id = i.call_id";
-            }
+            $agencyTypesAgg = DbHelper::groupConcat('ac.agency_type', ',', true);
+            $callTypesAgg = DbHelper::groupConcat('ac.call_type', ',', true);
+            $jurisdictionsAgg = DbHelper::groupConcat('i.jurisdiction', ',', true);
+            $prioritiesAgg = DbHelper::groupConcat('ac.priority', ',', true);
+            $statusesAgg = DbHelper::groupConcat('ac.status', ',', true);
+            $incidentNumbersAgg = DbHelper::groupConcat('i.incident_number', ',', true);
             
             $sql = "
-                SELECT DISTINCT
+                SELECT 
                     c.id,
                     c.call_id,
                     c.call_number,
@@ -172,14 +166,25 @@ class CallsController
                     c.canceled_flag,
                     c.alarm_level,
                     c.emd_code,
-                    l.full_address,
-                    l.city,
-                    l.state,
-                    l.latitude_y,
-                    l.longitude_x
+                    MAX(l.full_address) as full_address,
+                    MAX(l.city) as city,
+                    MAX(l.state) as state,
+                    MAX(l.latitude_y) as latitude_y,
+                    MAX(l.longitude_x) as longitude_x,
+                    {$agencyTypesAgg} as agency_types,
+                    {$callTypesAgg} as call_types,
+                    {$jurisdictionsAgg} as jurisdictions,
+                    {$prioritiesAgg} as priorities,
+                    {$statusesAgg} as statuses,
+                    {$incidentNumbersAgg} as incident_numbers,
+                    COUNT(DISTINCT u.id) as unit_count
                 FROM calls c
-                {$joins}
+                LEFT JOIN locations l ON c.id = l.call_id
+                LEFT JOIN agency_contexts ac ON c.id = ac.call_id
+                LEFT JOIN incidents i ON c.id = i.call_id
+                LEFT JOIN units u ON c.id = u.call_id
                 {$whereClause}
+                GROUP BY c.id
                 ORDER BY c.{$sortField} {$sorting['order']}
                 LIMIT :limit OFFSET :offset
             ";
@@ -193,25 +198,6 @@ class CallsController
             $stmt->execute();
 
             $calls = $stmt->fetchAll();
-            
-            // Fetch related data in batch
-            if (!empty($calls)) {
-                $callIds = array_column($calls, 'id');
-                $relatedData = $this->getRelatedDataBatch($callIds);
-                
-                // Merge related data
-                foreach ($calls as &$call) {
-                    $callId = $call['id'];
-                    $call['agency_types'] = $relatedData['agency_types'][$callId] ?? [];
-                    $call['call_types'] = $relatedData['call_types'][$callId] ?? [];
-                    $call['jurisdictions'] = $relatedData['jurisdictions'][$callId] ?? [];
-                    $call['priorities'] = $relatedData['priorities'][$callId] ?? [];
-                    $call['statuses'] = $relatedData['statuses'][$callId] ?? [];
-                    $call['incident_numbers'] = $relatedData['incident_numbers'][$callId] ?? [];
-                    $call['unit_count'] = $relatedData['unit_counts'][$callId] ?? 0;
-                }
-                unset($call);
-            }
 
             // Format response
             $formattedCalls = array_map(function ($call) {
@@ -241,12 +227,12 @@ class CallsController
                             'lng' => (float)$call['longitude_x']
                         ] : null
                     ],
-                    'agency_types' => is_array($call['agency_types']) ? $call['agency_types'] : ($call['agency_types'] ? explode(',', $call['agency_types']) : []),
-                    'call_types' => is_array($call['call_types']) ? $call['call_types'] : ($call['call_types'] ? explode(',', $call['call_types']) : []),
-                    'jurisdictions' => is_array($call['jurisdictions']) ? $call['jurisdictions'] : ($call['jurisdictions'] ? explode(',', $call['jurisdictions']) : []),
-                    'priorities' => is_array($call['priorities']) ? $call['priorities'] : ($call['priorities'] ? explode(',', $call['priorities']) : []),
-                    'statuses' => is_array($call['statuses']) ? $call['statuses'] : ($call['statuses'] ? explode(',', $call['statuses']) : []),
-                    'incident_numbers' => is_array($call['incident_numbers']) ? $call['incident_numbers'] : ($call['incident_numbers'] ? explode(',', $call['incident_numbers']) : []),
+                    'agency_types' => $call['agency_types'] ? explode(',', $call['agency_types']) : [],
+                    'call_types' => $call['call_types'] ? explode(',', $call['call_types']) : [],
+                    'jurisdictions' => $call['jurisdictions'] ? explode(',', $call['jurisdictions']) : [],
+                    'priorities' => $call['priorities'] ? explode(',', $call['priorities']) : [],
+                    'statuses' => $call['statuses'] ? explode(',', $call['statuses']) : [],
+                    'incident_numbers' => $call['incident_numbers'] ? explode(',', $call['incident_numbers']) : [],
                     'unit_count' => (int)$call['unit_count']
                 ];
             }, $calls);
@@ -612,104 +598,5 @@ class CallsController
         } catch (Exception $e) {
             Response::error('Failed to retrieve dispositions: ' . $e->getMessage(), 500);
         }
-    }
-    
-    /**
-     * Fetch related data for multiple calls in batch
-     * PERFORMANCE OPTIMIZATION: Replaces slow GROUP_CONCAT with efficient batch queries
-     * 
-     * @param array $callIds Array of call IDs
-     * @return array Associative array with related data indexed by call_id
-     */
-    private function getRelatedDataBatch(array $callIds): array
-    {
-        if (empty($callIds)) {
-            return [
-                'agency_types' => [],
-                'call_types' => [],
-                'jurisdictions' => [],
-                'priorities' => [],
-                'statuses' => [],
-                'incident_numbers' => [],
-                'unit_counts' => []
-            ];
-        }
-
-        $placeholders = implode(',', array_fill(0, count($callIds), '?'));
-        
-        $result = [
-            'agency_types' => [],
-            'call_types' => [],
-            'jurisdictions' => [],
-            'priorities' => [],
-            'statuses' => [],
-            'incident_numbers' => [],
-            'unit_counts' => []
-        ];
-
-        // Initialize arrays for each call ID
-        foreach ($callIds as $callId) {
-            $result['agency_types'][$callId] = [];
-            $result['call_types'][$callId] = [];
-            $result['jurisdictions'][$callId] = [];
-            $result['priorities'][$callId] = [];
-            $result['statuses'][$callId] = [];
-            $result['incident_numbers'][$callId] = [];
-            $result['unit_counts'][$callId] = 0;
-        }
-
-        // Get agency contexts data
-        $sql = "SELECT call_id, agency_type, call_type, priority, status 
-                FROM agency_contexts 
-                WHERE call_id IN ($placeholders)";
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($callIds);
-        
-        while ($row = $stmt->fetch()) {
-            $callId = $row['call_id'];
-            if ($row['agency_type'] && !in_array($row['agency_type'], $result['agency_types'][$callId])) {
-                $result['agency_types'][$callId][] = $row['agency_type'];
-            }
-            if ($row['call_type'] && !in_array($row['call_type'], $result['call_types'][$callId])) {
-                $result['call_types'][$callId][] = $row['call_type'];
-            }
-            if ($row['priority'] && !in_array($row['priority'], $result['priorities'][$callId])) {
-                $result['priorities'][$callId][] = $row['priority'];
-            }
-            if ($row['status'] && !in_array($row['status'], $result['statuses'][$callId])) {
-                $result['statuses'][$callId][] = $row['status'];
-            }
-        }
-
-        // Get incidents data
-        $sql = "SELECT call_id, jurisdiction, incident_number 
-                FROM incidents 
-                WHERE call_id IN ($placeholders)";
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($callIds);
-        
-        while ($row = $stmt->fetch()) {
-            $callId = $row['call_id'];
-            if ($row['jurisdiction'] && !in_array($row['jurisdiction'], $result['jurisdictions'][$callId])) {
-                $result['jurisdictions'][$callId][] = $row['jurisdiction'];
-            }
-            if ($row['incident_number'] && !in_array($row['incident_number'], $result['incident_numbers'][$callId])) {
-                $result['incident_numbers'][$callId][] = $row['incident_number'];
-            }
-        }
-
-        // Get unit counts
-        $sql = "SELECT call_id, COUNT(DISTINCT id) as unit_count 
-                FROM units 
-                WHERE call_id IN ($placeholders) 
-                GROUP BY call_id";
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($callIds);
-        
-        while ($row = $stmt->fetch()) {
-            $result['unit_counts'][$row['call_id']] = (int)$row['unit_count'];
-        }
-
-        return $result;
     }
 }
