@@ -95,8 +95,7 @@
         <div class="card">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">
-                    <i class="bi bi-list-ul"></i> <span id="recent-calls-title">Recent Calls</span> 
-                    <span class="badge bg-primary" id="calls-count">0</span>
+                    <i class="bi bi-list-ul"></i> <span id="recent-calls-title">Recent Calls</span>
                 </h5>
                 <small class="text-muted">Last updated: <span id="last-updated">Never</span></small>
             </div>

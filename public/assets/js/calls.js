@@ -102,7 +102,6 @@
                         </td>
                     </tr>
                 `;
-                document.getElementById('calls-count').textContent = '0';
                 return;
             }
 
@@ -146,8 +145,6 @@
                     </tr>
                 `;
             }).join('');
-            
-            document.getElementById('calls-count').textContent = pagination.total || calls.length;
             
             // Update pagination info
             const start = ((pagination.current_page || 1) - 1) * (pagination.per_page || 30) + 1;
