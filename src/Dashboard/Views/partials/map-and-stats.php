@@ -104,19 +104,20 @@
                     <table class="table table-hover mb-0">
                         <thead class="table-light sticky-top">
                             <tr>
-                                <th style="width: 10%;">Call ID</th>
-                                <th style="width: 15%;">Received</th>
-                                <th style="width: 20%;">Call Type</th>
+                                <th style="width: 8%;">Call ID</th>
+                                <th style="width: 12%;">Received</th>
+                                <th style="width: 18%;">Call Type</th>
                                 <th style="width: 15%;">Location</th>
                                 <th style="width: 10%;">Priority</th>
                                 <th style="width: 10%;">Status</th>
-                                <th style="width: 10%;">Units</th>
-                                <th style="width: 10%;">Action</th>
+                                <th style="width: 9%;">Units</th>
+                                <th style="width: 9%;">Map</th>
+                                <th style="width: 9%;">Action</th>
                             </tr>
                         </thead>
                         <tbody id="recent-calls-body">
                             <tr>
-                                <td colspan="8" class="text-center py-4">
+                                <td colspan="9" class="text-center py-4">
                                     <div class="spinner-border text-primary" role="status">
                                         <span class="visually-hidden">Loading...</span>
                                     </div>
@@ -146,6 +147,49 @@
                         </button>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Map Zoom Modal -->
+<div class="modal fade" id="map-zoom-modal" tabindex="-1" aria-labelledby="mapZoomModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="mapZoomModalLabel">
+                    <i class="bi bi-geo-alt-fill"></i> Call Location - <span id="map-modal-call-id"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <!-- Map Container -->
+                <div id="modal-map" style="height: 600px; width: 100%;"></div>
+                
+                <!-- Call Info Card (Overlay) -->
+                <div class="card position-absolute" style="bottom: 20px; left: 20px; max-width: 350px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                    <div class="card-body p-3">
+                        <h6 class="card-title mb-2" id="map-modal-call-type">Loading...</h6>
+                        <p class="card-text small mb-1">
+                            <strong>Address:</strong> <span id="map-modal-address">-</span>
+                        </p>
+                        <p class="card-text small mb-1">
+                            <strong>Priority:</strong> <span id="map-modal-priority">-</span>
+                        </p>
+                        <p class="card-text small mb-1">
+                            <strong>Status:</strong> <span id="map-modal-status">-</span>
+                        </p>
+                        <p class="card-text small mb-0">
+                            <strong>Time:</strong> <span id="map-modal-time">-</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="viewCallDetails(window.currentModalCallId)">
+                    <i class="bi bi-eye"></i> View Full Details
+                </button>
             </div>
         </div>
     </div>

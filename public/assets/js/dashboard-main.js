@@ -255,14 +255,14 @@
                 if (calls.length === 0) {
                     tableBody.innerHTML = `
                         <tr>
-                            <td colspan="8" class="text-center py-4">
+                            <td colspan="9" class="text-center py-4">
                                 <i class="bi bi-inbox fs-1 text-muted"></i>
                                 <p class="text-muted mt-2">No calls found</p>
                             </td>
                         </tr>
                     `;
                 } else {
-                    tableBody.innerHTML = calls.map(call => {
+                    tableBody.innerHTML = calls.map((call, index) => {
                         const statusBadge = call.closed_flag 
                             ? '<span class="badge bg-success">Closed</span>' 
                             : '<span class="badge bg-warning text-dark">Open</span>';
@@ -271,8 +271,22 @@
                             ? `<span class="badge bg-${call.priority === 'High' ? 'danger' : call.priority === 'Medium' ? 'warning' : 'secondary'}">${call.priority}</span>`
                             : '<span class="badge bg-secondary">Normal</span>';
                         
+                        // Check if call has valid coordinates for zoom
+                        const lat = call.location?.coordinates?.lat;
+                        const lng = call.location?.coordinates?.lng;
+                        const hasCoordinates = lat && lng && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng));
+                        
+                        if (index === 0) {
+                            console.log('[Dashboard Main] First call coordinates:', {
+                                id: call.id,
+                                lat: lat,
+                                lng: lng,
+                                hasCoordinates: hasCoordinates
+                            });
+                        }
+                        
                         return `
-                            <tr style="cursor: pointer;" onclick="viewCallDetails(${call.id})">
+                            <tr class="call-row" data-call-id="${call.id}" style="cursor: pointer;">
                                 <td>${call.call_number || call.id}</td>
                                 <td><small>${Dashboard.formatTime(call.create_datetime)}</small></td>
                                 <td>${call.call_types?.[0] || call.nature_of_call || 'Unknown'}</td>
@@ -282,14 +296,25 @@
                                 <td>${priorityBadge}</td>
                                 <td>${statusBadge}</td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-info" 
-                                            onclick="event.stopPropagation(); showUnitsPopover(${call.id}, this)"
+                                    <button class="btn btn-sm btn-outline-info units-btn" 
+                                            data-call-id="${call.id}"
                                             ${call.unit_count ? '' : 'disabled'}>
                                         <i class="bi bi-truck"></i> ${call.unit_count || 0}
                                     </button>
                                 </td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); viewCallDetails(${call.id})">
+                                    <button class="btn btn-sm btn-outline-success zoom-call-btn" 
+                                            data-call-id="${call.id}"
+                                            data-lat="${lat || ''}"
+                                            data-lng="${lng || ''}"
+                                            ${hasCoordinates ? '' : 'disabled'}
+                                            title="${hasCoordinates ? 'View location on map' : 'No coordinates available'}">
+                                        <i class="bi bi-map"></i>
+                                    </button>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary view-call-btn"
+                                            data-call-id="${call.id}">
                                         <i class="bi bi-eye"></i>
                                     </button>
                                 </td>
@@ -300,6 +325,9 @@
                 
                 console.log('[Dashboard Main] Calls table rendered:', calls.length);
                 
+                // Setup event delegation for zoom buttons
+                setupZoomButtonHandlers();
+                
                 // Update pagination controls
                 updateCallsPagination(pagination);
                 
@@ -309,7 +337,7 @@
                 if (tableBody) {
                     tableBody.innerHTML = `
                         <tr>
-                            <td colspan="8" class="text-center text-danger py-4">
+                            <td colspan="9" class="text-center text-danger py-4">
                                 <i class="bi bi-exclamation-triangle"></i> Failed to load calls
                             </td>
                         </tr>
@@ -538,6 +566,95 @@
                 }
             } catch (error) {
                 console.error('[Dashboard Main] Charts error:', error);
+            }
+        }
+        
+        /**
+         * Setup event delegation for table clicks (rows and buttons)
+         * Uses event delegation for performance with dynamic content
+         */
+        function setupZoomButtonHandlers() {
+            const tableBody = document.getElementById('recent-calls-body');
+            if (!tableBody) return;
+            
+            // Remove existing listener if any
+            tableBody.removeEventListener('click', handleTableClick);
+            
+            // Add new listener for all clicks
+            tableBody.addEventListener('click', handleTableClick);
+            
+            console.log('[Dashboard Main] Table click handlers attached');
+        }
+        
+        /**
+         * Handle all table clicks (rows and buttons) with event delegation
+         */
+        function handleTableClick(event) {
+            // Check what was clicked - could be button itself or icon inside button
+            let target = event.target;
+            
+            // If clicked on icon, get the button parent
+            if (target.tagName === 'I') {
+                target = target.parentElement;
+            }
+            
+            // Now check if target IS a button or CONTAINS a button
+            let zoomBtn = target.classList?.contains('zoom-call-btn') ? target : target.querySelector('.zoom-call-btn');
+            let viewBtn = target.classList?.contains('view-call-btn') ? target : target.querySelector('.view-call-btn');
+            let unitsBtn = target.classList?.contains('units-btn') ? target : target.querySelector('.units-btn');
+            const row = target.closest('.call-row');
+            
+            console.log('[Dashboard Main] Click target:', target.tagName, target.className);
+            console.log('[Dashboard Main] Found buttons:', { zoomBtn: !!zoomBtn, viewBtn: !!viewBtn, unitsBtn: !!unitsBtn });
+            if (zoomBtn) {
+                console.log('[Dashboard Main] Zoom button details:', {
+                    disabled: zoomBtn.disabled,
+                    hasDisabledAttr: zoomBtn.hasAttribute('disabled'),
+                    callId: zoomBtn.dataset.callId,
+                    lat: zoomBtn.dataset.lat,
+                    lng: zoomBtn.dataset.lng
+                });
+            }
+            
+            // Priority: buttons first, then row
+            if (zoomBtn && !zoomBtn.disabled) {
+                // Zoom button clicked
+                event.stopPropagation();
+                event.preventDefault();
+                
+                const callId = parseInt(zoomBtn.dataset.callId);
+                const lat = parseFloat(zoomBtn.dataset.lat);
+                const lng = parseFloat(zoomBtn.dataset.lng);
+                
+                console.log('[Dashboard Main] Zoom button clicked:', { callId, lat, lng });
+                zoomToCallOnMap(callId, lat, lng);
+                return; // STOP HERE - don't process row click
+                
+            } else if (viewBtn) {
+                // View button clicked
+                event.stopPropagation();
+                event.preventDefault();
+                
+                const callId = parseInt(viewBtn.dataset.callId);
+                console.log('[Dashboard Main] View button clicked:', callId);
+                viewCallDetails(callId);
+                return; // STOP HERE
+                
+            } else if (unitsBtn && !unitsBtn.disabled) {
+                // Units button clicked
+                event.stopPropagation();
+                event.preventDefault();
+                
+                const callId = parseInt(unitsBtn.dataset.callId);
+                console.log('[Dashboard Main] Units button clicked:', callId);
+                showUnitsPopover(callId, unitsBtn);
+                return; // STOP HERE
+                
+            } else if (row) {
+                // Row clicked (not a button)
+                const callId = parseInt(row.dataset.callId);
+                console.log('[Dashboard Main] Row clicked:', callId);
+                viewCallDetails(callId);
             }
         }
         
@@ -1119,3 +1236,138 @@
         console.log('[Dashboard Main] ✓ Initialization complete');
     }
 })();
+
+/**
+ * Global function to open map zoom modal for a specific call
+ * Called from Recent Calls table zoom buttons
+ * 
+ * @param {number} callId - Call ID for reference
+ * @param {number} latitude - Call latitude
+ * @param {number} longitude - Call longitude
+ */
+window.zoomToCallOnMap = async function(callId, latitude, longitude) {
+    console.log('[Dashboard Main] Opening map zoom modal for call:', { callId, latitude, longitude });
+    
+    // Validate coordinates
+    const lat = parseFloat(latitude);
+    const lon = parseFloat(longitude);
+    
+    if (isNaN(lat) || isNaN(lon)) {
+        console.error('[Dashboard Main] Invalid coordinates');
+        Dashboard.showError('Invalid call coordinates');
+        return;
+    }
+    
+    // Validate MapManager is available
+    if (typeof MapManager === 'undefined') {
+        console.error('[Dashboard Main] MapManager not available');
+        Dashboard.showError('Map functionality not available');
+        return;
+    }
+    
+    try {
+        // Store call ID globally for "View Full Details" button
+        window.currentModalCallId = callId;
+        
+        // Fetch call details
+        console.log('[Dashboard Main] Fetching call details...');
+        const call = await Dashboard.apiRequest(`/calls/${callId}`);
+        console.log('[Dashboard Main] Call details received:', call);
+        
+        // Check if modal element exists
+        const modalEl = document.getElementById('map-zoom-modal');
+        if (!modalEl) {
+            console.error('[Dashboard Main] Modal element #map-zoom-modal not found!');
+            Dashboard.showError('Map modal not found on page');
+            return;
+        }
+        console.log('[Dashboard Main] Modal element found');
+        
+        // Check if Bootstrap is available
+        if (typeof bootstrap === 'undefined') {
+            console.error('[Dashboard Main] Bootstrap not loaded!');
+            Dashboard.showError('Bootstrap library not available');
+            return;
+        }
+        console.log('[Dashboard Main] Bootstrap is available');
+        
+        // Update modal title and info
+        const titleEl = document.getElementById('map-modal-call-id');
+        const typeEl = document.getElementById('map-modal-call-type');
+        const addressEl = document.getElementById('map-modal-address');
+        const priorityEl = document.getElementById('map-modal-priority');
+        const statusEl = document.getElementById('map-modal-status');
+        const timeEl = document.getElementById('map-modal-time');
+        
+        if (titleEl) titleEl.textContent = `Call #${call.call_number || callId}`;
+        if (typeEl) typeEl.textContent = call.call_types?.[0] || call.nature_of_call || 'Unknown';
+        if (addressEl) addressEl.textContent = call.location?.address || call.location?.city || 'No address';
+        if (priorityEl) priorityEl.innerHTML = Dashboard.getPriorityBadge(call.agency_contexts?.[0]?.priority || call.priority || 'Normal');
+        if (statusEl) statusEl.innerHTML = call.closed_flag 
+            ? '<span class="badge bg-success">Closed</span>' 
+            : '<span class="badge bg-warning text-dark">Open</span>';
+        if (timeEl) timeEl.textContent = Dashboard.formatDateTime(call.create_datetime);
+        
+        console.log('[Dashboard Main] Modal content updated');
+        
+        // Open the modal
+        console.log('[Dashboard Main] Creating Bootstrap modal...');
+        const modal = new bootstrap.Modal(modalEl);
+        console.log('[Dashboard Main] Calling modal.show()...');
+        modal.show();
+        console.log('[Dashboard Main] Modal.show() called');
+        
+        // Initialize map after modal is shown (ensures proper rendering)
+        modalEl.addEventListener('shown.bs.modal', function initModalMap() {
+            console.log('[Dashboard Main] Modal shown, initializing map...');
+            
+            // Initialize or get existing map
+            const mapId = 'modal-map';
+            let map = MapManager.maps[mapId];
+            
+            if (!map) {
+                // Create new map instance
+                map = MapManager.initMap(mapId, [lat, lon], 16);
+                console.log('[Dashboard Main] Created new modal map');
+            } else {
+                // Map exists, just update view
+                console.log('[Dashboard Main] Reusing existing modal map');
+                map.setView([lat, lon], 16);
+            }
+            
+            // Clear existing markers and add new one for this call
+            MapManager.clearMarkers(mapId);
+            
+            // Add marker with call info
+            const marker = MapManager.addCallMarker(mapId, {
+                ...call,
+                latitude: lat,
+                longitude: lon,
+                id: callId
+            });
+            
+            // Open popup automatically
+            if (marker) {
+                marker.openPopup();
+            }
+            
+            // Force map to refresh its tiles
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 100);
+            
+            // Remove this event listener after first use
+            modalEl.removeEventListener('shown.bs.modal', initModalMap);
+        }, { once: true });
+        
+        // Cleanup when modal is hidden
+        modalEl.addEventListener('hidden.bs.modal', function() {
+            console.log('[Dashboard Main] Modal hidden');
+            window.currentModalCallId = null;
+        }, { once: true });
+        
+    } catch (error) {
+        console.error('[Dashboard Main] Error loading call for map:', error);
+        Dashboard.showError('Failed to load call location');
+    }
+};
