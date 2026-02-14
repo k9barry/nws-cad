@@ -10,6 +10,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use NwsCad\Dashboard\Router;
+use Jenssegers\Agent\Agent;
+
+// Detect device type
+$agent = new Agent();
+$isMobile = $agent->isMobile() || $agent->isTablet();
 
 // Simple routing
 $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
@@ -26,9 +31,12 @@ $routes = [
     '/' => 'dashboard',
 ];
 
-// Get page from route
+// Get page from route and determine view based on device
 $page = $routes[$uri] ?? 'dashboard';
-$pageTitle = ucfirst($page);
+if ($isMobile) {
+    $page .= '-mobile';
+}
+$pageTitle = ucfirst(str_replace('-mobile', '', $page));
 
 ?>
 <!DOCTYPE html>
@@ -51,10 +59,15 @@ $pageTitle = ucfirst($page);
     <!-- Custom CSS -->
     <link href="/assets/css/dashboard.css?v=<?= time() ?>" rel="stylesheet">
     
+    <?php if ($isMobile): ?>
+    <!-- Mobile-specific CSS -->
+    <link href="/assets/css/mobile.css?v=<?= time() ?>" rel="stylesheet">
+    <?php endif; ?>
+    
     <!-- Print CSS -->
     <link href="/assets/css/print.css" rel="stylesheet" media="print">
 </head>
-<body>
+<body<?= $isMobile ? ' class="mobile-view"' : '' ?>>
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
         <div class="container-fluid">
@@ -157,11 +170,20 @@ $pageTitle = ucfirst($page);
         // Set Dozzle (Logs) URL dynamically using configured port
         const dozzlePort = <?= json_encode($dozzlePort) ?>;
         const dozzleUrl = getServiceUrl(dozzlePort);
-        document.getElementById('dozzle-link').href = dozzleUrl;
+        const dozzleLink = document.getElementById('dozzle-link');
+        if (dozzleLink) {
+            dozzleLink.href = dozzleUrl;
+        }
         
         console.log('APP_CONFIG initialized:', window.APP_CONFIG);
     </script>
     <script src="/assets/js/dashboard.js?v=<?= time() ?>"></script>
+    
+    <?php if ($isMobile): ?>
+    <!-- Mobile-specific scripts -->
+    <script src="/assets/js/mobile.js?v=<?= time() ?>"></script>
+    <?php else: ?>
+    <!-- Desktop-specific scripts -->
     <script src="/assets/js/filter-manager.js?v=<?= time() ?>"></script>
     <script src="/assets/js/maps.js?v=<?= time() ?>"></script>
     <script src="/assets/js/charts.js?v=<?= time() ?>"></script>
@@ -170,6 +192,7 @@ $pageTitle = ucfirst($page);
     <?php if ($page === 'dashboard'): ?>
         <script src="/assets/js/dashboard-main.js?v=<?= time() ?>"></script>
         <script src="/assets/js/analytics.js?v=<?= time() ?>"></script>
+    <?php endif; ?>
     <?php endif; ?>
 </body>
 </html>

@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Mobile Dashboard - 2026-02-14)
+- 📱 **Mobile-Friendly Dashboard** - Complete mobile-optimized interface for CAD data visualization
+  - Automatic device detection using `jenssegers/agent` package
+  - Dedicated mobile view served to mobile devices and tablets
+  - Desktop view remains unchanged and fully functional
+- 📋 **Mobile Calls List** - Primary mobile view showing recent calls
+  - Card-based layout optimized for touch interactions
+  - Quick-view call information with badges for status and priority
+  - Tap any call to view full details in modal
+  - Pull-to-refresh functionality for manual updates
+  - Auto-refresh every 30 seconds
+- 🎨 **Mobile-Specific UI Components** - Touch-friendly interface elements
+  - Fixed header with app branding and live indicator
+  - Horizontal scrollable stats cards (4 key metrics)
+  - Bottom navigation bar for quick access to main sections
+  - Full-screen modals for filters, call details, and analytics
+  - Touch-optimized buttons (minimum 44x44px tap targets)
+- 🔍 **Mobile Filters Modal** - Complete filtering system for mobile
+  - Quick select buttons for time periods (Today, Yesterday, 7/30 Days)
+  - Dropdown filters for Jurisdiction, Agency, Status, Priority
+  - Text input for Call Type search
+  - Reset and Apply actions with instant feedback
+- 📊 **Mobile Analytics Modal** - Charts and statistics on mobile
+  - Call Volume Over Time chart
+  - Call Types Distribution chart
+  - Priority Distribution chart
+  - Status Distribution chart
+- 🗺️ **Mobile Map View** - Interactive map optimized for mobile screens
+  - Full-height map display with touch controls
+  - Accessible via bottom navigation
+  - Call markers with popups showing call details
+- 🎯 **Responsive Design** - Optimized for all mobile screen sizes
+  - Support for 360px to 768px screen widths
+  - Adaptive layouts for phones and tablets
+  - Portrait and landscape orientation support
+- ⚡ **Mobile Performance Optimizations**
+  - Minimal JavaScript footprint for fast loading
+  - Lazy loading of charts and maps
+  - Optimized CSS with mobile-first approach
+  - Efficient API calls with pagination
+
 ### Added (Dashboard Consolidation - 2026-02-01)
 - 📊 **Analytics Modal** - Full analytics and charts accessible from dashboard
   - 4th stat card opens fullscreen analytics modal
