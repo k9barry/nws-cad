@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Dashboard Preview - NWS CAD</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Custom CSS -->
+    <link href="assets/css/dashboard.css" rel="stylesheet">
+    <link href="assets/css/mobile.css" rel="stylesheet">
+    
+    <style>
+        /* Preview wrapper to simulate mobile viewport */
+        body {
+            margin: 0;
+            padding: 0;
+            background: #f0f0f0;
+        }
+        .preview-wrapper {
+            max-width: 414px;
+            margin: 20px auto;
+            background: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .preview-info {
+            text-align: center;
+            padding: 10px;
+            background: #333;
+            color: white;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body class="mobile-view">
+    <div class="preview-info">
+        Mobile Dashboard Preview (414px width)
+    </div>
+    <div class="preview-wrapper">
+        <!-- Mobile Header -->
+        <div class="mobile-header">
+            <h1>
+                <i class="bi bi-broadcast"></i> 
+                NWS CAD
+            </h1>
+            <div class="mobile-header-actions">
+                <div class="mobile-live-indicator pulse">
+                    <i class="bi bi-circle-fill"></i>
+                    <span>Live</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Content -->
+        <div class="mobile-content">
+            <!-- Stats Cards - Horizontal Scroll -->
+            <div class="mobile-stats-scroll">
+                <div class="mobile-stat-card border-primary">
+                    <h6>Total Calls</h6>
+                    <h2 class="text-primary">247</h2>
+                </div>
+                
+                <div class="mobile-stat-card border-danger">
+                    <h6>Active</h6>
+                    <h2 class="text-danger">12</h2>
+                </div>
+                
+                <div class="mobile-stat-card border-success">
+                    <h6>Closed</h6>
+                    <h2 class="text-success">235</h2>
+                </div>
+                
+                <div class="mobile-stat-card border-warning">
+                    <h6>Analytics</h6>
+                    <h2 class="text-warning">
+                        <i class="bi bi-graph-up"></i>
+                    </h2>
+                </div>
+            </div>
+            
+            <!-- Calls View -->
+            <div id="mobile-calls-view">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-list-ul"></i> Recent Calls
+                    </h5>
+                    <small class="text-muted">Showing 1-10 of 247</small>
+                </div>
+                
+                <div id="mobile-calls-list">
+                    <!-- Sample Call 1 -->
+                    <div class="mobile-call-item">
+                        <div class="mobile-call-header">
+                            <span class="mobile-call-id">#12345</span>
+                            <span class="mobile-call-time">15m ago</span>
+                        </div>
+                        <div class="mobile-call-type">Traffic Stop</div>
+                        <div class="mobile-call-location">
+                            <i class="bi bi-geo-alt"></i>
+                            <span>Main St & Oak Ave, Madison</span>
+                        </div>
+                        <div class="mobile-call-footer">
+                            <span class="badge priority-2">P2</span>
+                            <span class="badge status-active">Active</span>
+                            <span class="badge bg-info">2 Units</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Sample Call 2 -->
+                    <div class="mobile-call-item">
+                        <div class="mobile-call-header">
+                            <span class="mobile-call-id">#12344</span>
+                            <span class="mobile-call-time">32m ago</span>
+                        </div>
+                        <div class="mobile-call-type">Medical Emergency</div>
+                        <div class="mobile-call-location">
+                            <i class="bi bi-geo-alt"></i>
+                            <span>123 Elm Street, Madison</span>
+                        </div>
+                        <div class="mobile-call-footer">
+                            <span class="badge priority-1">P1</span>
+                            <span class="badge status-active">Active</span>
+                            <span class="badge bg-info">3 Units</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Sample Call 3 -->
+                    <div class="mobile-call-item">
+                        <div class="mobile-call-header">
+                            <span class="mobile-call-id">#12343</span>
+                            <span class="mobile-call-time">1h ago</span>
+                        </div>
+                        <div class="mobile-call-type">Welfare Check</div>
+                        <div class="mobile-call-location">
+                            <i class="bi bi-geo-alt"></i>
+                            <span>456 Pine Road, Madison</span>
+                        </div>
+                        <div class="mobile-call-footer">
+                            <span class="badge priority-3">P3</span>
+                            <span class="badge status-closed">Closed</span>
+                            <span class="badge bg-info">1 Unit</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Sample Call 4 -->
+                    <div class="mobile-call-item">
+                        <div class="mobile-call-header">
+                            <span class="mobile-call-id">#12342</span>
+                            <span class="mobile-call-time">2h ago</span>
+                        </div>
+                        <div class="mobile-call-type">Suspicious Activity</div>
+                        <div class="mobile-call-location">
+                            <i class="bi bi-geo-alt"></i>
+                            <span>789 Maple Ave, Madison</span>
+                        </div>
+                        <div class="mobile-call-footer">
+                            <span class="badge priority-2">P2</span>
+                            <span class="badge status-closed">Closed</span>
+                            <span class="badge bg-info">2 Units</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Bottom Navigation -->
+        <div class="mobile-bottom-nav">
+            <button class="mobile-nav-item active">
+                <i class="bi bi-list-ul"></i>
+                <span>Calls</span>
+            </button>
+            
+            <button class="mobile-nav-item">
+                <i class="bi bi-geo-alt"></i>
+                <span>Map</span>
+            </button>
+            
+            <button class="mobile-nav-item">
+                <i class="bi bi-funnel"></i>
+                <span>Filters</span>
+            </button>
+            
+            <button class="mobile-nav-item">
+                <i class="bi bi-graph-up"></i>
+                <span>Charts</span>
+            </button>
+            
+            <button class="mobile-nav-item">
+                <i class="bi bi-arrow-clockwise"></i>
+                <span>Refresh</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
