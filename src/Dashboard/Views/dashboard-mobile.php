@@ -103,9 +103,9 @@
 
 <?php
 // Include mobile modals
-$mobilepartialsPath = __DIR__ . '/partials-mobile/';
+$mobile_partials_path = __DIR__ . '/partials-mobile/';
 
-include $mobilepartialsPath . 'filters-modal.php';
-include $mobilepartialsPath . 'call-detail-modal.php';
-include $mobilepartialsPath . 'analytics-modal.php';
+include $mobile_partials_path . 'filters-modal.php';
+include $mobile_partials_path . 'call-detail-modal.php';
+include $mobile_partials_path . 'analytics-modal.php';
 ?>

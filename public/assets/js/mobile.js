@@ -72,10 +72,13 @@ const MobileDashboard = {
         console.log('[Mobile] Nav action:', action);
         
         // Update active state
+        const currentTarget = event?.currentTarget;
         document.querySelectorAll('.mobile-nav-item').forEach(item => {
             item.classList.remove('active');
         });
-        event.currentTarget?.classList.add('active');
+        if (currentTarget) {
+            currentTarget.classList.add('active');
+        }
         
         switch(action) {
             case 'calls':
