@@ -6,8 +6,9 @@
     "require": {
         "php": ">=8.3",
         "ext-pdo": "*",
-        "ext-xml": "*",
         "ext-simplexml": "*",
+        "ext-xml": "*",
+        "jenssegers/agent": "^2.6",
         "monolog/monolog": "^3.5"
     },
     "require-dev": {
