@@ -14,6 +14,7 @@ A Docker-based PHP system for monitoring, parsing, and storing CAD (Computer-Aid
 - 📊 **XML parsing and storage** - Automatically parses and stores CAD data with BOM handling
 - 🌐 **REST API** - Complete REST API for accessing CAD data
 - 🎨 **Web Dashboard** - Visual interface with maps and charts
+- 📱 **Mobile-Friendly** - Responsive mobile interface with touch-optimized controls
 - 🗄️ **DBeaver Integration** - Web-based database manager for both databases
 - 📝 **Comprehensive logging** - Detailed logs for debugging and monitoring
 - 🔒 **Transaction support** - Ensures data integrity
@@ -45,6 +46,12 @@ Interactive web interface for visualizing CAD data:
 - Real-time call monitoring
 - Interactive maps with Leaflet
 - Analytics charts and graphs
+- Mobile-optimized responsive design
+  - Automatic device detection
+  - Touch-friendly interface
+  - Bottom navigation for quick access
+  - Pull-to-refresh functionality
+  - Full-screen modals for filters and details
 - Direct access to DBeaver database manager
 
 ### 5. DBeaver (CloudBeaver)
@@ -115,6 +122,16 @@ docker-compose logs -f api
 Open your browser and navigate to:
 - **Dashboard**: http://localhost:80
 - **DBeaver (Database Manager)**: http://localhost:8978
+
+**Mobile Access:**
+- The dashboard automatically detects mobile devices and serves a mobile-optimized interface
+- Access from any mobile device or tablet for a touch-friendly experience
+- Features include:
+  - Bottom navigation bar for quick access
+  - Horizontal scrollable stats cards
+  - Full-screen modals for filters and call details
+  - Pull-to-refresh for manual updates
+  - Touch-optimized map view
 
 For DBeaver:
 1. First login uses default credentials: `admin` / check `.env` for `DBEAVER_ADMIN_PASSWORD`
