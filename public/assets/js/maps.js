@@ -168,12 +168,12 @@ const MapManager = {
         
         return `
             <div class="map-popup">
-                <h6><i class="bi bi-telephone"></i> Call #${call.call_number || call.id || call.call_id}</h6>
+                <h6><i class="bi bi-telephone"></i> Call #${Dashboard.escapeHtml(call.call_number || call.id || call.call_id)}</h6>
                 <div class="mb-2">
-                    <strong>Type:</strong> ${callType}<br>
+                    <strong>Type:</strong> ${Dashboard.escapeHtml(callType)}<br>
                     <strong>Priority:</strong> ${Dashboard.getPriorityBadge(priority)}<br>
                     <strong>Status:</strong> ${Dashboard.getStatusBadge(status)}<br>
-                    <strong>Location:</strong> ${call.address || call.location?.address || 'N/A'}<br>
+                    <strong>Location:</strong> ${Dashboard.escapeHtml(call.address || call.location?.address || 'N/A')}<br>
                     <strong>Time:</strong> ${Dashboard.formatTime(time)}
                 </div>
                 <button class="btn btn-sm btn-primary" onclick="viewCallDetails(${call.id || call.call_id})">
@@ -189,12 +189,12 @@ const MapManager = {
     createUnitPopup(unit) {
         return `
             <div class="map-popup">
-                <h6><i class="bi bi-truck"></i> ${unit.unit_id || unit.badge_number}</h6>
+                <h6><i class="bi bi-truck"></i> ${Dashboard.escapeHtml(unit.unit_id || unit.badge_number)}</h6>
                 <div class="mb-2">
-                    <strong>Type:</strong> ${unit.unit_type || 'N/A'}<br>
+                    <strong>Type:</strong> ${Dashboard.escapeHtml(unit.unit_type || 'N/A')}<br>
                     <strong>Status:</strong> ${Dashboard.getStatusBadge(unit.status)}<br>
-                    <strong>Agency:</strong> ${unit.agency || 'N/A'}<br>
-                    <strong>Current Call:</strong> ${unit.current_call || 'None'}
+                    <strong>Agency:</strong> ${Dashboard.escapeHtml(unit.agency || 'N/A')}<br>
+                    <strong>Current Call:</strong> ${Dashboard.escapeHtml(unit.current_call || 'None')}
                 </div>
                 <button class="btn btn-sm btn-primary" onclick="viewUnitDetails(${unit.id})">
                     View Details

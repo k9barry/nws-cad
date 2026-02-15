@@ -1,7 +1,12 @@
 /**
  * NWS CAD Dashboard - Core JavaScript
  * Common utilities and API functions
+ * 
+ * @module Dashboard
+ * @version 2.0.0
  */
+
+'use strict';
 
 // Global Dashboard object
 const Dashboard = {
@@ -11,7 +16,25 @@ const Dashboard = {
     refreshTimers: {},
     
     /**
+     * Escape HTML to prevent XSS attacks
+     * 
+     * @param {*} text - Text to escape (converts to string)
+     * @returns {string} HTML-escaped string
+     */
+    escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    },
+    
+    /**
      * Make API request
+     * 
+     * @param {string} endpoint - API endpoint path
+     * @param {Object} options - Fetch options
+     * @returns {Promise<*>} API response data
+     * @throws {Error} On network or API error
      */
     async apiRequest(endpoint, options = {}) {
         const url = `${this.config.apiBaseUrl}${endpoint}`;
@@ -51,6 +74,9 @@ const Dashboard = {
     
     /**
      * Build query string from object
+     * 
+     * @param {Object} params - Key-value pairs for query string
+     * @returns {string} Query string with leading ?
      */
     buildQueryString(params) {
         const filtered = Object.entries(params)
@@ -62,15 +88,24 @@ const Dashboard = {
     
     /**
      * Show toast notification
+     * 
+     * @param {string} message - Message to display (will be escaped)
+     * @param {string} type - Bootstrap alert type (info, success, warning, danger)
      */
     showToast(message, type = 'info') {
         const toast = document.createElement('div');
-        toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        toast.className = `alert alert-${this.escapeHtml(type)} alert-dismissible fade show position-fixed`;
         toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-        toast.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
+        
+        // Create text node for message (safe) and button separately
+        const textNode = document.createTextNode(message);
+        toast.appendChild(textNode);
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'btn-close';
+        closeBtn.setAttribute('data-bs-dismiss', 'alert');
+        toast.appendChild(closeBtn);
         
         document.body.appendChild(toast);
         
@@ -414,40 +449,60 @@ const Dashboard = {
     
     /**
      * Get priority badge HTML
+     * 
+     * @param {string|number} priority - Priority value (e.g., "2" or "2 - Police Medium")
+     * @returns {string} HTML badge element (safe - user data is escaped)
      */
     getPriorityBadge(priority) {
         if (!priority) return '<span class="badge bg-secondary">Unknown</span>';
         
-        // Extract number from priority string (e.g., "2 - Police Medium" -> "2")
-        const priorityNum = String(priority).match(/^(\d+)/)?.[1];
+        const priorityStr = String(priority);
+        const escapedPriority = this.escapeHtml(priorityStr);
         
-        const badges = {
-            '1': '<span class="badge bg-danger">Priority 1</span>',
-            '2': '<span class="badge bg-warning">Priority 2</span>',
-            '3': '<span class="badge bg-info">Priority 3</span>',
-            '4': '<span class="badge bg-secondary">Priority 4</span>',
-            '5': '<span class="badge bg-secondary">Priority 5</span>'
+        // Extract number from priority string (e.g., "2 - Police Medium" -> "2")
+        const priorityNum = priorityStr.match(/^(\d+)/)?.[1];
+        
+        // Determine badge color based on priority number
+        const colorMap = {
+            '1': 'danger',
+            '2': 'warning', 
+            '3': 'info',
+            '4': 'secondary',
+            '5': 'secondary'
         };
         
-        // If we have the full priority string, show it; otherwise show generic
-        if (priorityNum && badges[priorityNum]) {
-            return `<span class="badge bg-${priorityNum === '1' ? 'danger' : priorityNum === '2' ? 'warning' : priorityNum === '3' ? 'info' : 'secondary'}">${priority}</span>`;
-        }
+        const badgeColor = colorMap[priorityNum] || 'secondary';
         
-        return badges[priorityNum] || badges[priority] || '<span class="badge bg-secondary">' + priority + '</span>';
+        return `<span class="badge bg-${badgeColor}">${escapedPriority}</span>`;
     },
     
     /**
      * Get status badge HTML
+     * 
+     * @param {string} status - Status value
+     * @returns {string} HTML badge element (safe - user data is escaped)
      */
     getStatusBadge(status) {
-        const badges = {
-            'open': '<span class="badge bg-warning">Open</span>',
-            'active': '<span class="badge bg-primary">Active</span>',
-            'closed': '<span class="badge bg-success">Closed</span>',
-            'cancelled': '<span class="badge bg-secondary">Cancelled</span>'
+        if (!status) return '<span class="badge bg-secondary">Unknown</span>';
+        
+        const statusStr = String(status).toLowerCase();
+        const escapedStatus = this.escapeHtml(status);
+        
+        const colorMap = {
+            'open': 'warning',
+            'active': 'primary',
+            'closed': 'success',
+            'cancelled': 'secondary',
+            'canceled': 'secondary',
+            'dispatched': 'info',
+            'enroute': 'warning',
+            'on scene': 'primary',
+            'clear': 'success'
         };
-        return badges[status] || '<span class="badge bg-secondary">' + status + '</span>';
+        
+        const badgeColor = colorMap[statusStr] || 'secondary';
+        
+        return `<span class="badge bg-${badgeColor}">${escapedStatus}</span>`;
     },
     
     /**

@@ -175,11 +175,11 @@
                 container.innerHTML = units.map(unit => `
                     <div class="recent-unit-item p-3 mb-2 border rounded" style="cursor: pointer;" onclick="viewUnitDetails(${unit.id})">
                         <div class="d-flex justify-content-between align-items-start mb-1">
-                            <div class="fw-bold">${unit.unit_number || 'Unknown'}</div>
+                            <div class="fw-bold">${Dashboard.escapeHtml(unit.unit_number || 'Unknown')}</div>
                             <small class="text-muted">${Dashboard.formatTime(unit.assigned_datetime)}</small>
                         </div>
                         <div class="text-muted small">
-                            <i class="bi bi-person-badge"></i> ${unit.agency_type || 'N/A'}
+                            <i class="bi bi-person-badge"></i> ${Dashboard.escapeHtml(unit.agency_type || 'N/A')}
                         </div>
                         <div class="mt-2">
                             <span class="badge ${
@@ -188,9 +188,9 @@
                                 unit.unit_status?.toLowerCase() === 'on scene' || unit.unit_status?.toLowerCase() === 'onscene' ? 'bg-danger' :
                                 'bg-secondary'
                             }">
-                                ${unit.unit_status || 'Unknown'}
+                                ${Dashboard.escapeHtml(unit.unit_status || 'Unknown')}
                             </span>
-                            ${unit.call_number ? `<span class="badge bg-secondary">#${unit.call_number}</span>` : ''}
+                            ${unit.call_number ? `<span class="badge bg-secondary">#${Dashboard.escapeHtml(unit.call_number)}</span>` : ''}
                         </div>
                     </div>
                 `).join('');
@@ -306,11 +306,11 @@
             
             return `
                 <tr>
-                    <td><strong>${escapeHtml(unit.unit_number || 'N/A')}</strong></td>
-                    <td>${escapeHtml(unit.unit_type || 'N/A')}</td>
-                    <td>${escapeHtml(unit.jurisdiction || 'N/A')}</td>
+                    <td><strong>${Dashboard.escapeHtml(unit.unit_number || 'N/A')}</strong></td>
+                    <td>${Dashboard.escapeHtml(unit.unit_type || 'N/A')}</td>
+                    <td>${Dashboard.escapeHtml(unit.jurisdiction || 'N/A')}</td>
                     <td><span class="badge bg-${statusClass}">${status}</span></td>
-                    <td>${incidentNumber}</td>
+                    <td>${Dashboard.escapeHtml(incidentNumber)}</td>
                     <td>${unit.personnel_count || 0}</td>
                     <td><small class="text-muted">${unit.timestamps?.assigned ? Dashboard.formatTime(unit.timestamps.assigned) : 'N/A'}</small></td>
                     <td>
@@ -353,11 +353,11 @@
                     latitude: parseFloat(lat),
                     longitude: parseFloat(lng),
                     popupContent: `
-                        <strong>${escapeHtml(unit.unit_number)}</strong><br>
-                        Type: ${escapeHtml(unit.unit_type || 'N/A')}<br>
+                        <strong>${Dashboard.escapeHtml(unit.unit_number)}</strong><br>
+                        Type: ${Dashboard.escapeHtml(unit.unit_type || 'N/A')}<br>
                         Status: <span class="badge bg-${statusColor}">${status}</span><br>
-                        Incident: ${incidentNum || 'N/A'}<br>
-                        Location: ${escapeHtml(unit.full_address || unit.city || 'N/A')}
+                        Incident: ${Dashboard.escapeHtml(incidentNum || 'N/A')}<br>
+                        Location: ${Dashboard.escapeHtml(unit.full_address || unit.city || 'N/A')}
                     `
                 });
                 markerCount++;
@@ -378,11 +378,7 @@
         }
     }
     
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+
     
     // Export units to CSV
     document.getElementById('export-units-csv')?.addEventListener('click', async function() {
@@ -444,9 +440,9 @@
                     <div class="col-md-6">
                         <h6>Unit Information</h6>
                         <table class="table table-sm">
-                            <tr><th>Unit Number:</th><td><strong>${escapeHtml(unit.unit_number || 'N/A')}</strong></td></tr>
-                            <tr><th>Unit Type:</th><td>${escapeHtml(unit.unit_type || 'N/A')}</td></tr>
-                            <tr><th>Jurisdiction:</th><td>${escapeHtml(unit.jurisdiction || 'N/A')}</td></tr>
+                            <tr><th>Unit Number:</th><td><strong>${Dashboard.escapeHtml(unit.unit_number || 'N/A')}</strong></td></tr>
+                            <tr><th>Unit Type:</th><td>${Dashboard.escapeHtml(unit.unit_type || 'N/A')}</td></tr>
+                            <tr><th>Jurisdiction:</th><td>${Dashboard.escapeHtml(unit.jurisdiction || 'N/A')}</td></tr>
                             <tr><th>Primary Unit:</th><td>${unit.is_primary ? 'Yes' : 'No'}</td></tr>
                         </table>
                     </div>
@@ -454,10 +450,10 @@
                         <h6>Call Assignment</h6>
                         ${unit.call_id && unit.call ? `
                             <table class="table table-sm">
-                                <tr><th>Incident Number:</th><td><a href="/calls#call-${unit.call_id}" class="fw-bold">${escapeHtml(unit.call.incident_number || unit.call.call_number || 'N/A')}</a></td></tr>
-                                <tr><th>Nature:</th><td>${escapeHtml(unit.call.nature_of_call || 'N/A')}</td></tr>
-                                <tr><th>Location:</th><td>${escapeHtml(unit.call.location?.address || 'N/A')}</td></tr>
-                                <tr><th>Caller:</th><td>${escapeHtml(unit.call.caller_name || 'N/A')}</td></tr>
+                                <tr><th>Incident Number:</th><td><a href="/calls#call-${unit.call_id}" class="fw-bold">${Dashboard.escapeHtml(unit.call.incident_number || unit.call.call_number || 'N/A')}</a></td></tr>
+                                <tr><th>Nature:</th><td>${Dashboard.escapeHtml(unit.call.nature_of_call || 'N/A')}</td></tr>
+                                <tr><th>Location:</th><td>${Dashboard.escapeHtml(unit.call.location?.address || 'N/A')}</td></tr>
+                                <tr><th>Caller:</th><td>${Dashboard.escapeHtml(unit.call.caller_name || 'N/A')}</td></tr>
                             </table>
                         ` : '<p class="text-muted">No active call assignment</p>'}
                     </div>

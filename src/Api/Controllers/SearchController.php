@@ -325,11 +325,29 @@ class SearchController
 
             // Coordinate-based search (radius search)
             if (isset($filters['lat']) && isset($filters['lng'])) {
+                $lat = (float)$filters['lat'];
+                $lng = (float)$filters['lng'];
+                
+                // Validate coordinate ranges
+                if ($lat < -90 || $lat > 90) {
+                    Response::error('Latitude must be between -90 and 90', 400);
+                    return;
+                }
+                if ($lng < -180 || $lng > 180) {
+                    Response::error('Longitude must be between -180 and 180', 400);
+                    return;
+                }
+                
                 $radius = isset($filters['radius']) ? (float)$filters['radius'] : 1.0; // default 1km
+                if ($radius <= 0 || $radius > 100) {
+                    Response::error('Radius must be between 0 and 100 km', 400);
+                    return;
+                }
+                
                 $distanceFormula = DbHelper::haversineDistance('l.latitude_y', 'l.longitude_x');
                 $where[] = "{$distanceFormula} <= :radius";
-                $params[':lat'] = (float)$filters['lat'];
-                $params[':lng'] = (float)$filters['lng'];
+                $params[':lat'] = $lat;
+                $params[':lng'] = $lng;
                 $params[':radius'] = $radius;
             }
 

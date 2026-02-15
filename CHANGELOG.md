@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (2026-02-15)
+- 🔒 **Critical XSS Fixes** - Comprehensive cross-site scripting prevention across all JavaScript
+  - Added `Dashboard.escapeHtml()` utility function for consistent HTML escaping
+  - Fixed 52 unescaped user data fields in `dashboard-main.js` (call details, narratives, persons)
+  - Fixed 51 unescaped fields in `calls.js` (table cells, badges, modal content)
+  - Fixed 19 unescaped fields in `units.js` (unit details, popups)
+  - Fixed 7 unescaped fields in `maps.js` (map popups)
+  - Fixed XSS in `dashboard.js` badge functions (`getPriorityBadge`, `getStatusBadge`)
+  - Fixed XSS in `showToast()` notification function
+- 🔒 **SQL Injection Prevention** - Enhanced database query safety
+  - `DbHelper.php`: Added `validateIdentifier()` for SQL column/table name validation
+  - `DbHelper.php`: Added `escapeSeparator()` to prevent injection via separator strings
+  - `StatsController.php`: Added LIKE wildcard escaping to prevent pattern injection
+  - All methods now validate identifiers before SQL interpolation
+- 🔒 **CORS Security Fix** - Fixed bypass vulnerability in `SecurityHeaders.php`
+  - Now properly validates Origin header (empty/null no longer bypasses checks)
+  - Added `Vary: Origin` header per CORS specification
+  - Improved origin validation against allowed list
+- 🔒 **Logs Controller Hardening** - Comprehensive security for log viewing
+  - Disabled by default in production environments
+  - Added log level whitelist validation (DEBUG through EMERGENCY only)
+  - Added filename validation with path traversal prevention
+  - Added realpath verification to restrict access to configured log directory
+- 🔒 **Input Validation** - Improved request handling
+  - `Request.php`: JSON parsing now uses `JSON_THROW_ON_ERROR` with try/catch
+  - `SearchController.php`: Added coordinate range validation (lat ±90, lng ±180)
+  - `SearchController.php`: Added radius range validation (0-100 km)
+
+### Changed (2026-02-15)
+- Removed dead/legacy code from `calls.js` (21 lines of unused rendering code)
+- Removed duplicate `escapeHtml()` function from `units.js` (now uses global)
+- Improved PHPDoc documentation across security-critical files
+- Enhanced error handling in API request functions
+
+### Documentation (2026-02-15)
+- 📚 **Complete Documentation Rewrite** - All documentation updated to reflect current codebase
+  - Rewrote `README.md` with cleaner structure and tables
+  - Rewrote `DOCUMENTATION.md` as quick reference index
+  - Rewrote `docs/README.md` with component summary
+  - Rewrote `docs/API.md` with endpoint tables and examples
+  - Rewrote `docs/DASHBOARD.md` with desktop and mobile guides
+  - Rewrote `docs/TESTING.md` with test suite details
+  - Rewrote `docs/TROUBLESHOOTING.md` with quick diagnostics
+- 🗑️ **Removed Legacy Documentation** - Cleaned up outdated fix notes
+  - Removed `ANALYTICS-FILTER-FIX.md`
+  - Removed `ANALYTICS-FIXES-FEB3-2026.md`
+  - Removed `ANALYTICS-ISSUES-EXPLAINED.md`
+  - Removed `FINAL-SUCCESS-SUMMARY.md`
+  - Removed `FRONTEND-FIX-COMPLETE.md`
+  - Removed `PERFORMANCE-OPTIMIZATIONS.md`
+  - Removed `PERFORMANCE-QUICK-START.md`
+  - Removed `PERFORMANCE-ROLLOUT-PLAN.md`
+  - Removed `ROUTING-FIX-2026-02-03.md`
+
 ### Added (Mobile Dashboard - 2026-02-14)
 - 📱 **Mobile-Friendly Dashboard** - Complete mobile-optimized interface for CAD data visualization
   - Automatic device detection using `jenssegers/agent` package

@@ -1,40 +1,15 @@
-# NWS CAD API Documentation
+# REST API Reference
 
 ## Base URL
+
 ```
 http://localhost:8080/api
 ```
 
-## Quick Start
-
-Test the API:
-```bash
-# Get API info
-curl http://localhost:8080/api/
-
-# List calls
-curl http://localhost:8080/api/calls
-
-# Get call details
-curl http://localhost:8080/api/calls/1
-
-# Search calls
-curl "http://localhost:8080/api/search/calls?call_number=260"
-
-# Get statistics
-curl http://localhost:8080/api/stats
-
-# Or get specific statistics
-curl http://localhost:8080/api/stats/calls
-```
-
-## Complete Documentation
-
-See `/src/Api/Controllers/README.md` for complete API documentation with all 19 endpoints.
-
 ## Response Format
 
-All responses follow this format:
+All responses use this structure:
+
 ```json
 {
   "success": true,
@@ -42,7 +17,7 @@ All responses follow this format:
 }
 ```
 
-Errors:
+**Error Response:**
 ```json
 {
   "success": false,
@@ -50,58 +25,153 @@ Errors:
 }
 ```
 
-## Pagination
-
-All list endpoints support pagination:
-- `?page=1` - Page number (default: 1)
-- `?per_page=30` - Items per page (default: 30, max: 100)
-
-Example:
-```bash
-curl "http://localhost:8080/api/calls?page=2&per_page=50"
-```
-
-## Filtering
-
-Calls can be filtered by:
-- `call_number` - Call number
-- `status` - closed_flag (1 or 0)
-- `date_from` - Start date (YYYY-MM-DD)
-- `date_to` - End date (YYYY-MM-DD)
-
-Example:
-```bash
-curl "http://localhost:8080/api/calls?status=1&date_from=2022-12-01"
-```
-
-## Sorting
-
-Use `sort` and `order` parameters:
-```bash
-curl "http://localhost:8080/api/calls?sort=create_datetime&order=desc"
-```
-
-## Main Endpoints
+## Endpoints
 
 ### Calls
-- `GET /api/calls` - List all calls
-- `GET /api/calls/{id}` - Get call details
-- `GET /api/calls/{id}/units` - Get call units
-- `GET /api/calls/{id}/narratives` - Get call narratives
-- `GET /api/calls/{id}/location` - Get call location
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/calls` | List calls (paginated) |
+| GET | `/calls/{id}` | Get call details |
+| GET | `/calls/{id}/units` | Get assigned units |
+| GET | `/calls/{id}/narratives` | Get narrative timeline |
+| GET | `/calls/{id}/location` | Get location details |
 
 ### Units
-- `GET /api/units` - List all units
-- `GET /api/units/{id}` - Get unit details
-- `GET /api/units/{id}/logs` - Get unit status history
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/units` | List all units |
+| GET | `/units/{id}` | Get unit details |
+| GET | `/units/{id}/logs` | Get status history |
 
 ### Search
-- `GET /api/search/calls` - Advanced call search
-- `GET /api/search/location` - Location-based search
-- `GET /api/search/units` - Unit search
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/search/calls` | Advanced call search |
+| GET | `/search/location` | Geographic radius search |
 
 ### Statistics
-- `GET /api/stats` - Aggregate statistics (calls, units, response times combined)
-- `GET /api/stats/calls` - Call statistics
-- `GET /api/stats/units` - Unit statistics
-- `GET /api/stats/response-times` - Response time analytics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/stats` | Aggregated statistics |
+| GET | `/stats/calls` | Call statistics |
+| GET | `/stats/units` | Unit statistics |
+| GET | `/stats/response-times` | Response time analytics |
+
+## Query Parameters
+
+### Pagination
+
+```bash
+?page=1&per_page=30
+```
+
+- `page` - Page number (default: 1)
+- `per_page` - Items per page (default: 30, max: 100)
+
+### Filtering
+
+```bash
+# Date range
+?date_from=2026-01-01&date_to=2026-12-31
+
+# Status filter
+?closed_flag=false    # Active calls only
+?closed_flag=true     # Closed calls only
+
+# Other filters
+?jurisdiction=MADISON
+?agency_type=Police
+?priority=1
+```
+
+### Sorting
+
+```bash
+?sort=create_datetime&order=desc
+```
+
+- `sort` - Field to sort by
+- `order` - `asc` or `desc`
+
+## Examples
+
+### List Active Calls
+
+```bash
+curl "http://localhost:8080/api/calls?closed_flag=false&per_page=10"
+```
+
+### Get Call Details
+
+```bash
+curl "http://localhost:8080/api/calls/123"
+```
+
+### Search by Location
+
+```bash
+curl "http://localhost:8080/api/search/location?lat=40.1184&lng=-85.69&radius=5"
+```
+
+### Get Statistics
+
+```bash
+curl "http://localhost:8080/api/stats?date_from=2026-01-01"
+```
+
+## Response Examples
+
+### Call List Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": 123,
+        "call_id": "260_2026020112345678",
+        "call_number": "260",
+        "create_datetime": "2026-02-01T12:34:56Z",
+        "closed_flag": false,
+        "location": {
+          "full_address": "123 Main St, Anderson, IN"
+        }
+      }
+    ],
+    "pagination": {
+      "total": 150,
+      "per_page": 30,
+      "current_page": 1,
+      "total_pages": 5
+    }
+  }
+}
+```
+
+### Statistics Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "total_calls": 1250,
+    "active_calls": 45,
+    "closed_calls": 1205,
+    "average_response_time_minutes": 8.5,
+    "calls_by_type": {
+      "Traffic Stop": 320,
+      "Domestic": 180,
+      "Medical": 150
+    }
+  }
+}
+```
+
+---
+
+**Version:** 1.1.0 | **Last Updated:** 2026-02-15

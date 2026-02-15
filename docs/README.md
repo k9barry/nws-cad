@@ -1,99 +1,45 @@
-# NWS CAD Documentation
+# Documentation Index
 
-Complete documentation for the NWS CAD (New World Systems Computer-Aided Dispatch) system.
+## Core Documentation
 
-## 📚 Documentation Index
+| Document | Description |
+|----------|-------------|
+| [API.md](API.md) | REST API reference (19 endpoints) |
+| [DASHBOARD.md](DASHBOARD.md) | Dashboard user guide (desktop + mobile) |
+| [TESTING.md](TESTING.md) | Testing infrastructure guide |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Common issues and solutions |
+| [BACKUP_GUIDE.md](BACKUP_GUIDE.md) | Database backup procedures |
 
-### Getting Started
-- **[Main README](../README.md)** - Project overview, quick start, and features
-- **[CHANGELOG](../CHANGELOG.md)** - Version history and release notes
+## Quick Links
 
-### Core Documentation
+- **Main README:** [../README.md](../README.md)
+- **Changelog:** [../CHANGELOG.md](../CHANGELOG.md)
+- **License:** [../LICENSE](../LICENSE)
 
-#### API Documentation
-- **[API Overview](API.md)** - Quick reference for API endpoints
-- **[API Controllers Reference](../src/Api/Controllers/README.md)** - Complete API documentation with all 19 endpoints
+## Architecture Overview
 
-#### Database
-- **[Database Schema](../database/SCHEMA.md)** - Complete 13-table schema documentation
-- **[Database Quick Reference](../database/QUICK_REFERENCE.md)** - Quick lookup for tables and columns
-- **[Database README](../database/README.md)** - Database setup and usage
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│ FileWatcher │────▶│  Database   │◀────│   REST API  │
+│ (XML Parse) │     │(MySQL/PgSQL)│     │(19 endpoints│
+└─────────────┘     └─────────────┘     └─────────────┘
+                           ▲
+                    ┌──────┴──────┐
+                    │  Dashboard  │
+                    │(Desktop+Mobile)│
+                    └─────────────┘
+```
 
-#### Dashboard
-- **[Dashboard Guide](DASHBOARD.md)** - Web dashboard features and usage
-- **[Dashboard Setup](../public/README.md)** - Dashboard installation and configuration
+## Component Summary
 
-#### Testing
-- **[Testing Guide](TESTING.md)** - Comprehensive testing documentation
-- **[Test Suite README](../tests/README.md)** - Running and writing tests
+| Component | Files | Description |
+|-----------|-------|-------------|
+| API | 5 controllers | Calls, Units, Search, Stats, Logs |
+| Dashboard | 2 views + 6 partials | Desktop and mobile interfaces |
+| JavaScript | 9 modules | Dashboard, maps, charts, filters |
+| Security | 3 classes | Input validation, rate limiting, headers |
+| Tests | 4 suites, 142+ tests | Unit, integration, performance, security |
 
-#### Operations
-- **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Common issues and solutions
+---
 
-### Additional Resources
-- **[Sample Files](../samples/README.md)** - Example XML files for testing
-- **[Copilot Instructions](../.github/copilot-instructions.md)** - Development guidelines
-
-## 🎯 Quick Navigation
-
-### By Role
-
-**For Developers:**
-1. Start with [Main README](../README.md)
-2. Review [Database Schema](../database/SCHEMA.md)
-3. Check [API Controllers Reference](../src/Api/Controllers/README.md)
-4. Read [Testing Guide](TESTING.md)
-
-**For Operators:**
-1. Start with [Main README](../README.md) - Quick Start section
-2. Review [Dashboard Guide](DASHBOARD.md)
-3. Keep [Troubleshooting Guide](TROUBLESHOOTING.md) handy
-
-**For API Users:**
-1. Review [API Overview](API.md)
-2. Check [API Controllers Reference](../src/Api/Controllers/README.md) for detailed endpoint docs
-
-### By Task
-
-**Setting Up the System:**
-- [Main README - Quick Start](../README.md#quick-start)
-- [Database README](../database/README.md)
-
-**Using the API:**
-- [API Overview](API.md)
-- [API Controllers Reference](../src/Api/Controllers/README.md)
-
-**Using the Dashboard:**
-- [Dashboard Guide](DASHBOARD.md)
-- [Dashboard Setup](../public/README.md)
-
-**Running Tests:**
-- [Testing Guide](TESTING.md)
-- [Test Suite README](../tests/README.md)
-
-**Troubleshooting:**
-- [Troubleshooting Guide](TROUBLESHOOTING.md)
-- [CHANGELOG](../CHANGELOG.md) for known issues
-
-## 📖 Documentation Standards
-
-All documentation in this project follows these standards:
-- **Markdown format** for easy reading and version control
-- **Clear headings** for navigation
-- **Code examples** where applicable
-- **Up-to-date** with current version (v1.1.0)
-
-## 🔄 Version Information
-
-- **Current Version:** 1.1.0
-- **Last Updated:** 2026-01-30
-- **Documentation Status:** ✅ Current
-
-## 📝 Contributing to Documentation
-
-When updating documentation:
-1. Keep it concise and focused
-2. Include practical examples
-3. Update version numbers and dates
-4. Cross-reference related docs
-5. Test all code examples
+**Version:** 1.1.0 | **Last Updated:** 2026-02-15

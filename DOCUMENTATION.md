@@ -1,147 +1,67 @@
-# NWS CAD Documentation Index
+# NWS CAD Documentation
 
-Quick reference guide to all documentation in the NWS CAD project.
+Quick reference to all project documentation.
 
-## 📖 Start Here
+## Getting Started
 
-New to NWS CAD? Start with these documents:
+| Document | Description |
+|----------|-------------|
+| [README.md](README.md) | Project overview and quick start |
+| [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
 
-1. **[README.md](README.md)** - Project overview, features, and quick start guide
-2. **[docs/README.md](docs/README.md)** - Master documentation index
-3. **[CHANGELOG.md](CHANGELOG.md)** - Version history and release notes
+## User Guides
 
-## 📚 Documentation by Category
+| Document | Description |
+|----------|-------------|
+| [docs/API.md](docs/API.md) | REST API quick reference |
+| [docs/DASHBOARD.md](docs/DASHBOARD.md) | Dashboard features and usage |
+| [docs/BACKUP_GUIDE.md](docs/BACKUP_GUIDE.md) | Database backup procedures |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
 
-### Getting Started
-- **[README.md](README.md)** - Quick start, installation, and basic usage
-- **[CHANGELOG.md](CHANGELOG.md)** - What's new in each version
+## Developer Guides
 
-### API Documentation
-- **[docs/API.md](docs/API.md)** - Quick API reference
-- **[src/Api/Controllers/README.md](src/Api/Controllers/README.md)** - Complete API endpoint documentation (19 endpoints)
+| Document | Description |
+|----------|-------------|
+| [docs/TESTING.md](docs/TESTING.md) | Testing infrastructure (142+ tests) |
+| [.github/copilot-instructions.md](.github/copilot-instructions.md) | Development standards |
 
-### Database
-- **[database/README.md](database/README.md)** - Database setup and overview
-- **[database/SCHEMA.md](database/SCHEMA.md)** - Complete 13-table schema documentation
-- **[database/QUICK_REFERENCE.md](database/QUICK_REFERENCE.md)** - Quick lookup tables and queries
+## API Documentation
 
-### Dashboard
-- **[docs/DASHBOARD.md](docs/DASHBOARD.md)** - Web dashboard features and usage guide
-- **[public/README.md](public/README.md)** - Dashboard setup and configuration
+- **Base URL:** `http://localhost:8080/api`
+- **Format:** JSON responses with `{success, data}` structure
+- **Features:** Pagination, filtering, sorting, geographic search
 
-### Testing
-- **[docs/TESTING.md](docs/TESTING.md)** - Comprehensive testing guide
-- **[tests/README.md](tests/README.md)** - Running tests and test structure
+### Endpoint Summary
 
-### Operations & Troubleshooting
-- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+| Category | Endpoints |
+|----------|-----------|
+| Calls | `/calls`, `/calls/{id}`, `/calls/{id}/units`, `/calls/{id}/narratives`, `/calls/{id}/location` |
+| Units | `/units`, `/units/{id}`, `/units/{id}/logs` |
+| Search | `/search/calls`, `/search/location` |
+| Stats | `/stats`, `/stats/calls`, `/stats/units`, `/stats/response-times` |
 
-### Sample Data
-- **[samples/README.md](samples/README.md)** - Using the 89 sample XML files
+## Database
 
-### Development
-- **[.github/copilot-instructions.md](.github/copilot-instructions.md)** - Development guidelines and standards
+- **Supported:** MySQL 8.0, PostgreSQL 16
+- **Schema:** 13 normalized tables
+- **Tables:** calls, agency_contexts, locations, incidents, units, unit_personnel, unit_logs, unit_dispositions, narratives, call_dispositions, persons, vehicles, processed_files
 
-## 🎯 Documentation by Task
+## Quick Commands
 
-### I want to...
+```bash
+# Start services
+docker-compose up -d
 
-#### Install and Run NWS CAD
-1. Read [README.md](README.md) - Quick Start section
-2. Follow [database/README.md](database/README.md) for database setup
-3. Reference [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) if issues arise
+# View logs
+docker-compose logs -f app
 
-#### Use the API
-1. Check [docs/API.md](docs/API.md) for quick examples
-2. Read [src/Api/Controllers/README.md](src/Api/Controllers/README.md) for all endpoints
-3. Review [database/SCHEMA.md](database/SCHEMA.md) to understand data structure
+# Run tests
+composer test
 
-#### Use the Dashboard
-1. Start with [public/README.md](public/README.md) for setup
-2. Read [docs/DASHBOARD.md](docs/DASHBOARD.md) for features and usage
-3. Reference [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for issues
-
-#### Develop New Features
-1. Review [.github/copilot-instructions.md](.github/copilot-instructions.md) for coding standards
-2. Read [docs/TESTING.md](docs/TESTING.md) for testing requirements
-3. Update [CHANGELOG.md](CHANGELOG.md) for your changes
-4. Follow [database/SCHEMA.md](database/SCHEMA.md) for database changes
-
-#### Run Tests
-1. Read [docs/TESTING.md](docs/TESTING.md) for comprehensive guide
-2. Check [tests/README.md](tests/README.md) for quick commands
-3. Ensure 80% code coverage minimum
-
-#### Work with Sample Data
-1. See [samples/README.md](samples/README.md) for using the 89 sample files
-2. Reference [database/SCHEMA.md](database/SCHEMA.md) to understand the data
-
-#### Troubleshoot Issues
-1. Check [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) first
-2. Review [CHANGELOG.md](CHANGELOG.md) for known issues
-3. Check specific component docs for detailed information
-
-## 📋 Complete File List
-
-### Root Level
-- `README.md` - Main project documentation
-- `CHANGELOG.md` - Version history
-- `DOCUMENTATION.md` - This file
-- `LICENSE` - Project license
-
-### docs/
-- `README.md` - Documentation index
-- `API.md` - API quick reference
-- `DASHBOARD.md` - Dashboard guide
-- `TESTING.md` - Testing guide
-- `TROUBLESHOOTING.md` - Troubleshooting guide
-
-### database/
-- `README.md` - Database overview and setup
-- `SCHEMA.md` - Complete schema documentation
-- `QUICK_REFERENCE.md` - Quick reference guide
-
-### Component Directories
-- `public/README.md` - Dashboard setup
-- `samples/README.md` - Sample files guide
-- `src/Api/Controllers/README.md` - API controllers documentation
-- `tests/README.md` - Test suite guide
-
-### Developer Documentation
-- `.github/copilot-instructions.md` - Development guidelines
-
-## 🔄 Version Information
-
-- **Current Version:** 1.1.0
-- **Last Documentation Update:** 2026-01-30
-
-## ✅ Documentation Standards
-
-All documentation follows these principles:
-- **Clear and concise** - Easy to read and understand
-- **Up-to-date** - Reflects current version (v1.1.0)
-- **Well-organized** - Logical structure with clear navigation
-- **Practical** - Includes working examples
-- **Cross-referenced** - Links to related documentation
-
-## 🤝 Contributing to Documentation
-
-When updating documentation:
-1. Keep it focused and relevant
-2. Include practical examples
-3. Update version numbers
-4. Add cross-references to related docs
-5. Test all commands and code examples
-6. Update this index if adding new docs
-
-## 📞 Need Help?
-
-Can't find what you're looking for?
-1. Start with [docs/README.md](docs/README.md) - master documentation index
-2. Check [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
-3. Review [CHANGELOG.md](CHANGELOG.md) for recent changes
-4. Open an issue on GitHub
+# Access database (MySQL)
+docker-compose exec mysql mysql -u nws_user -p nws_cad
+```
 
 ---
 
-**Documentation maintained with ❤️ by the NWS CAD team**
+**Version:** 1.1.0 | **Last Updated:** 2026-02-15

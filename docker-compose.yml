@@ -120,6 +120,8 @@ services:
     image: amir20/dozzle:latest
     container_name: nws-cad-dozzle
     restart: unless-stopped
+    profiles:
+      - donotstart
     ports:
       - "127.0.0.1:${DOZZLE_PORT:-9999}:8080"
     volumes:

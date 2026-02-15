@@ -278,11 +278,20 @@ class StatsController
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         $times = $stmt->fetch();
+        
+        // Handle case where no results are returned
+        if (!$times) {
+            return [
+                'average_minutes' => 0.0,
+                'min_minutes' => 0.0,
+                'max_minutes' => 0.0
+            ];
+        }
 
         return [
-            'average_minutes' => round((float)$times['avg_minutes'], 2),
-            'min_minutes' => round((float)$times['min_minutes'], 2),
-            'max_minutes' => round((float)$times['max_minutes'], 2)
+            'average_minutes' => round((float)($times['avg_minutes'] ?? 0), 2),
+            'min_minutes' => round((float)($times['min_minutes'] ?? 0), 2),
+            'max_minutes' => round((float)($times['max_minutes'] ?? 0), 2)
         ];
     }
 
@@ -762,7 +771,9 @@ class StatsController
             if (isset($filters['priority'])) {
                 $joins['agency_contexts'] = true;
                 $where[] = "ac.priority LIKE :priority";
-                $params[':priority'] = '%' . $filters['priority'] . '%';
+                // Escape LIKE wildcards in user input to prevent pattern injection
+                $escapedPriority = str_replace(['%', '_'], ['\\%', '\\_'], $filters['priority']);
+                $params[':priority'] = '%' . $escapedPriority . '%';
             }
 
             // Unit type filter

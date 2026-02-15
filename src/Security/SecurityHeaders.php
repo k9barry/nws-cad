@@ -170,11 +170,15 @@ class SecurityHeaders
     /**
      * Set CORS headers for API endpoints
      *
+     * SECURITY NOTE: When using array-based allowed origins, the method validates
+     * that the request origin exactly matches one of the allowed values. Empty or
+     * 'null' origins are rejected.
+     *
      * @param string|array<string> $allowedOrigins Allowed origins ('*' or array of origins)
      * @param array<string> $allowedMethods Allowed HTTP methods
      * @param array<string> $allowedHeaders Allowed headers
-     * @param bool $allowCredentials Allow credentials
-     * @param int $maxAge Max age for preflight cache
+     * @param bool $allowCredentials Allow credentials (cannot be used with '*' origin)
+     * @param int $maxAge Max age for preflight cache in seconds
      * @return void
      */
     public static function setCorsHeaders(
@@ -188,13 +192,31 @@ class SecurityHeaders
             return;
         }
 
+        // Validate maxAge is positive
+        $maxAge = max(0, $maxAge);
+
         // Determine origin
         if (is_array($allowedOrigins)) {
             $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-            if (in_array($origin, $allowedOrigins)) {
+            
+            // Security: Reject empty, null-string, or 'null' origins
+            // 'null' is sent by sandboxed iframes, file:// URLs, etc.
+            if (empty($origin) || $origin === 'null') {
+                // Don't set any CORS header - request will be blocked
+                return;
+            }
+            
+            // Only allow exact matches from whitelist
+            if (in_array($origin, $allowedOrigins, true)) {
                 header("Access-Control-Allow-Origin: $origin");
+                // Vary header required when origin depends on request
+                header('Vary: Origin');
+            } else {
+                // Origin not in whitelist - don't set CORS headers
+                return;
             }
         } else {
+            // Wildcard or single origin
             header("Access-Control-Allow-Origin: $allowedOrigins");
         }
 
@@ -203,7 +225,13 @@ class SecurityHeaders
         header("Access-Control-Max-Age: $maxAge");
 
         if ($allowCredentials) {
-            header('Access-Control-Allow-Credentials: true');
+            // Note: Access-Control-Allow-Credentials can't be used with * origin
+            if (!is_array($allowedOrigins) && $allowedOrigins === '*') {
+                // Log warning - this is a configuration error
+                error_log('SecurityHeaders: allowCredentials cannot be used with wildcard origin');
+            } else {
+                header('Access-Control-Allow-Credentials: true');
+            }
         }
     }
 }

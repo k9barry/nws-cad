@@ -1,80 +1,158 @@
 # Copilot Instructions for NWS CAD Project
 
-## Project Overview
-NWS CAD (New World Systems Computer-Aided Dispatch) is a comprehensive system for monitoring, parsing, storing, and visualizing CAD XML data with multi-database support (MySQL/PostgreSQL).
+## Build, Test, and Lint Commands
 
-## Core Features
-1. **File Watcher Service** - Monitors and processes XML files
-2. **REST API** - 19 endpoints for data access
-3. **Web Dashboard** - Visual interface with maps and charts
-4. **Comprehensive Testing** - Unit, integration, performance, security
-5. **CI/CD Pipeline** - Automated testing and deployment
-6. **Logging & Monitoring** - Complete observability
+```bash
+# Run all tests
+composer test
 
-## Key Instructions
+# Run specific test suite
+composer test:unit
+composer test:integration
+composer test:security
+composer test:performance
 
-### Always Remember
-- Use PHP 8.3 with strict types
-- All database queries use prepared statements
-- Follow PSR-4 autoloading (namespace: `NwsCad\*`)
-- Include PHPDoc blocks for all classes/methods
-- Update CHANGELOG.md for all changes
-- Write tests for all new features
-- Use semantic versioning (MAJOR.MINOR.PATCH)
+# Run single test file
+./vendor/bin/phpunit tests/Unit/ConfigTest.php
 
-### Database Schema (13 Tables)
-calls, agency_contexts, locations, incidents, units, unit_personnel, unit_logs, narratives, persons, vehicles, call_dispositions, unit_dispositions, processed_files
+# Run single test method
+./vendor/bin/phpunit --filter testMethodName tests/Unit/ConfigTest.php
 
-### Security Requirements
-- XXE protection in XML parsing
-- SQL injection prevention (prepared statements)
-- XSS prevention (escape outputs)
-- CSRF tokens for forms
-- Input validation and sanitization
+# Generate coverage report (80% minimum required)
+composer test:coverage
 
-### Testing Requirements
-- Minimum 80% code coverage
-- Unit tests for all classes
-- Integration tests for API endpoints
-- Performance tests for database queries
-- Security tests for vulnerabilities
+# Start file watcher
+composer watch
 
-### CI/CD Workflow
-- Run tests on all PRs
-- Update CHANGELOG.md on merge to main
-- Auto-version using semantic versioning
-- Deploy to staging after tests pass
-
-## File Structure
-```
-/src/ - Application code
-  /Api/ - REST API
-  /Dashboard/ - Web dashboard
-  /Models/ - Data models
-/tests/ - All tests
-/public/ - Web entry points
-/database/ - Schema files
-/docs/ - Documentation
-/.github/ - CI workflows
+# Start services with Docker
+docker-compose up -d
 ```
 
-## Common Patterns
+## Architecture
 
-### API Response Format
-```json
+### Request Flow
+
+```
+HTTP Request
+     │
+     ├── /api/* ──▶ public/api.php ──▶ Router ──▶ Controller ──▶ Response::success()
+     │
+     └── /* ──▶ public/index.php ──▶ Mobile detection ──▶ View (dashboard.php or dashboard-mobile.php)
+```
+
+### Core Classes
+
+| Class | Purpose |
+|-------|---------|
+| `Database` | Singleton PDO wrapper, supports MySQL/PostgreSQL via `DB_TYPE` env var |
+| `Config` | Singleton config manager, reads from env vars |
+| `Router` | Pattern-based routing with `{id}` parameter extraction |
+| `Response` | Static methods: `success($data)`, `error($message, $code)` |
+| `Request` | Static helpers: `pagination()`, `sorting()`, `filters()`, `json()` |
+| `DbHelper` | Database-agnostic SQL (GROUP_CONCAT/STRING_AGG, COALESCE, date functions) |
+
+### Controller Pattern
+
+Controllers are instantiated per-request. All public methods return void and output via `Response::`:
+
+```php
+class ExampleController
 {
-  "success": true,
-  "data": {...}
+    private PDO $db;
+    
+    public function __construct()
+    {
+        $this->db = Database::getConnection();
+    }
+    
+    public function index(): void
+    {
+        $data = $this->db->query("...")->fetchAll();
+        Response::success($data);
+    }
 }
 ```
 
-### Pagination
-`?page=1&per_page=30`
+### JavaScript Architecture
 
-### Filtering
-`?field=value&date_from=2022-12-01`
+Global `Dashboard` object in `dashboard.js` provides shared utilities:
+- `Dashboard.apiRequest(endpoint)` - Fetch wrapper with error handling
+- `Dashboard.escapeHtml(text)` - XSS prevention (use for ALL user data in HTML)
+- `Dashboard.formatTime(datetime)` - Consistent time formatting
+- `Dashboard.buildQueryString(params)` - URL parameter builder
 
-### Sorting  
-`?sort=field&order=asc`
+Page-specific modules (`dashboard-main.js`, `mobile.js`, etc.) use Dashboard utilities.
 
-For complete details, see `/home/runner/work/nws-cad/nws-cad/.github/copilot-instructions.md`
+## Key Conventions
+
+### PHP
+
+- All files start with `declare(strict_types=1);`
+- Namespace: `NwsCad\*` (PSR-4 autoloading from `src/`)
+- Database queries always use prepared statements
+- Controllers use `Response::success()` or `Response::error()` - never echo
+- DbHelper validates SQL identifiers via `IDENTIFIER_PATTERN` regex before interpolation
+
+### JavaScript
+
+- Always escape user data: `Dashboard.escapeHtml(userInput)`
+- API responses have structure: `{ success: true, data: { items: [], pagination: {} } }`
+- Mobile detection via `jenssegers/agent` - serves `dashboard-mobile.php` automatically
+
+### API Response Format
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [...],
+    "pagination": {
+      "total": 150,
+      "per_page": 30,
+      "current_page": 1,
+      "total_pages": 5
+    }
+  }
+}
+```
+
+### Database Abstraction
+
+Use `DbHelper` for database-agnostic SQL:
+
+```php
+// Instead of MySQL-specific GROUP_CONCAT:
+DbHelper::groupConcat('column_name', ', ', true)  // Works on both MySQL and PostgreSQL
+
+// Date formatting:
+DbHelper::dateFormat('create_datetime', '%Y-%m-%d')
+```
+
+### Security Patterns
+
+- XML parsing: XXE protection via `LIBXML_NOENT` disabled (default)
+- SQL: Prepared statements only, identifier validation in DbHelper
+- XSS: `Dashboard.escapeHtml()` in JS, `htmlspecialchars()` in PHP views
+- CORS: Origin whitelist in `SecurityHeaders.php`
+- Logs controller: Disabled by default in production
+
+### Test Database
+
+Tests use separate `nws_cad_test` database. Environment configured in `phpunit.xml`.
+
+## Database Schema
+
+13 tables with `calls` as the primary entity:
+
+```
+calls (1) ──▶ agency_contexts (N)
+         ──▶ locations (1)
+         ──▶ incidents (N)
+         ──▶ units (N) ──▶ unit_personnel (N)
+                      ──▶ unit_logs (N)
+         ──▶ narratives (N)
+         ──▶ persons (N)
+         ──▶ vehicles (N)
+```
+
+API uses internal `id` field for endpoints (`/api/calls/{id}`), not `call_id`.

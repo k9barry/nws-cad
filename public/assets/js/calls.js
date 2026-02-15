@@ -45,28 +45,7 @@
         await loadCalls(1);
     }
     
-    /**
-     * Load filter options - REMOVED (handled by FilterManager)
-     */
-    async function loadFilterOptions() {
-        // Filter options now loaded by FilterManager
-        console.log('[Calls] Filter options managed by FilterManager');
-    }
-    
-    /**
-     * Initialize date filters - REMOVED (handled by FilterManager)
-     */
-    function initializeDateFilters() {
-        // Date filters now managed by FilterManager
-        console.log('[Calls] Date filters managed by FilterManager');
-                    agencySelect.appendChild(option);
-                });
-            }
-            
-        } catch (error) {
-            console.error('Error loading filter options:', error);
-        }
-    }
+
     
     /**
      * Load calls list
@@ -108,19 +87,19 @@
             tbody.innerHTML = calls.map(call => {
                 // Get priority display
                 const priority = call.priorities?.[0] || '';
-                const priorityBadge = priority ? `<span class="badge bg-warning">${priority}</span>` : '<span class="badge bg-secondary">N/A</span>';
+                const priorityBadge = priority ? `<span class="badge bg-warning">${Dashboard.escapeHtml(priority)}</span>` : '<span class="badge bg-secondary">N/A</span>';
                 
                 // Get status display
                 const status = call.statuses?.[0] || (call.closed_flag ? 'Closed' : 'Open');
                 let statusBadge = '';
                 if (status.toLowerCase().includes('progress') || status.toLowerCase() === 'open') {
-                    statusBadge = `<span class="badge bg-warning">${status}</span>`;
+                    statusBadge = `<span class="badge bg-warning">${Dashboard.escapeHtml(status)}</span>`;
                 } else if (status.toLowerCase() === 'closed' || call.closed_flag) {
-                    statusBadge = `<span class="badge bg-success">${status}</span>`;
+                    statusBadge = `<span class="badge bg-success">${Dashboard.escapeHtml(status)}</span>`;
                 } else if (call.canceled_flag) {
                     statusBadge = '<span class="badge bg-danger">Canceled</span>';
                 } else {
-                    statusBadge = `<span class="badge bg-info">${status}</span>`;
+                    statusBadge = `<span class="badge bg-info">${Dashboard.escapeHtml(status)}</span>`;
                 }
                 
                 // Get incident number (use first one if multiple, or call_number as fallback)
@@ -128,12 +107,12 @@
                 
                 return `
                     <tr>
-                        <td>${incidentNumber}</td>
+                        <td>${Dashboard.escapeHtml(incidentNumber)}</td>
                         <td>${Dashboard.formatDateTime(call.create_datetime)}</td>
-                        <td>${call.call_types?.[0] || 'N/A'}</td>
-                        <td>${call.location?.address || 'N/A'}</td>
-                        <td>${call.jurisdictions?.[0] || 'N/A'}</td>
-                        <td>${call.agency_types?.[0] || 'N/A'}</td>
+                        <td>${Dashboard.escapeHtml(call.call_types?.[0] || 'N/A')}</td>
+                        <td>${Dashboard.escapeHtml(call.location?.address || 'N/A')}</td>
+                        <td>${Dashboard.escapeHtml(call.jurisdictions?.[0] || 'N/A')}</td>
+                        <td>${Dashboard.escapeHtml(call.agency_types?.[0] || 'N/A')}</td>
                         <td>${priorityBadge}</td>
                         <td>${statusBadge}</td>
                         <td>${call.unit_count || 0}</td>
@@ -260,17 +239,17 @@
                         <h5>Call Information</h5>
                         <table class="table table-sm">
                             <tr><th>Call ID:</th><td>${call.id}</td></tr>
-                            <tr><th>Call Number:</th><td>${call.call_number || 'N/A'}</td></tr>
-                            <tr><th>Call Source:</th><td>${call.call_source || 'N/A'}</td></tr>
-                            <tr><th>Nature of Call:</th><td>${call.nature_of_call || 'N/A'}</td></tr>
+                            <tr><th>Call Number:</th><td>${Dashboard.escapeHtml(call.call_number || 'N/A')}</td></tr>
+                            <tr><th>Call Source:</th><td>${Dashboard.escapeHtml(call.call_source || 'N/A')}</td></tr>
+                            <tr><th>Nature of Call:</th><td>${Dashboard.escapeHtml(call.nature_of_call || 'N/A')}</td></tr>
                             <tr><th>Priority:</th><td>${Dashboard.getPriorityBadge(latestPriority)}</td></tr>
                             <tr><th>Status:</th><td>${Dashboard.getStatusBadge(latestStatus)}</td></tr>
                             <tr><th>Received:</th><td>${Dashboard.formatDateTime(call.received_time)}</td></tr>
                             <tr><th>Created:</th><td>${Dashboard.formatDateTime(call.create_datetime)}</td></tr>
                             <tr><th>Closed:</th><td>${call.close_datetime ? Dashboard.formatDateTime(call.close_datetime) : 'N/A'}</td></tr>
-                            <tr><th>Created By:</th><td>${call.created_by || 'N/A'}</td></tr>
-                            <tr><th>Alarm Level:</th><td>${call.alarm_level || 'N/A'}</td></tr>
-                            <tr><th>EMD Code:</th><td>${call.emd_code || 'N/A'}</td></tr>
+                            <tr><th>Created By:</th><td>${Dashboard.escapeHtml(call.created_by || 'N/A')}</td></tr>
+                            <tr><th>Alarm Level:</th><td>${Dashboard.escapeHtml(call.alarm_level || 'N/A')}</td></tr>
+                            <tr><th>EMD Code:</th><td>${Dashboard.escapeHtml(call.emd_code || 'N/A')}</td></tr>
                             <tr><th>Closed:</th><td>${call.closed_flag ? '<span class="badge bg-secondary">Yes</span>' : '<span class="badge bg-success">No</span>'}</td></tr>
                             <tr><th>Canceled:</th><td>${call.canceled_flag ? '<span class="badge bg-warning">Yes</span>' : '<span class="badge bg-success">No</span>'}</td></tr>
                         </table>
@@ -278,28 +257,28 @@
                         ${call.caller && (call.caller.name || call.caller.phone) ? `
                             <h5 class="mt-3">Caller Information</h5>
                             <table class="table table-sm">
-                                ${call.caller.name ? `<tr><th>Name:</th><td>${call.caller.name}</td></tr>` : ''}
-                                ${call.caller.phone ? `<tr><th>Phone:</th><td>${call.caller.phone}</td></tr>` : ''}
+                                ${call.caller.name ? `<tr><th>Name:</th><td>${Dashboard.escapeHtml(call.caller.name)}</td></tr>` : ''}
+                                ${call.caller.phone ? `<tr><th>Phone:</th><td>${Dashboard.escapeHtml(call.caller.phone)}</td></tr>` : ''}
                             </table>
                         ` : ''}
                     </div>
                     <div class="col-md-6">
                         <h5>Location</h5>
                         <table class="table table-sm">
-                            <tr><th>Full Address:</th><td>${call.location?.full_address || 'N/A'}</td></tr>
-                            ${call.location?.house_number ? `<tr><th>House Number:</th><td>${call.location.house_number}</td></tr>` : ''}
-                            ${call.location?.prefix_directional ? `<tr><th>Direction:</th><td>${call.location.prefix_directional}</td></tr>` : ''}
-                            ${call.location?.street_name ? `<tr><th>Street Name:</th><td>${call.location.street_name}</td></tr>` : ''}
-                            ${call.location?.street_type ? `<tr><th>Street Type:</th><td>${call.location.street_type}</td></tr>` : ''}
-                            <tr><th>City:</th><td>${call.location?.city || 'N/A'}</td></tr>
-                            ${call.location?.state ? `<tr><th>State:</th><td>${call.location.state}</td></tr>` : ''}
-                            ${call.location?.zip ? `<tr><th>ZIP:</th><td>${call.location.zip}</td></tr>` : ''}
-                            ${call.location?.common_name ? `<tr><th>Common Name:</th><td>${call.location.common_name}</td></tr>` : ''}
-                            ${call.location?.nearest_cross_streets ? `<tr><th>Cross Streets:</th><td>${call.location.nearest_cross_streets}</td></tr>` : ''}
+                            <tr><th>Full Address:</th><td>${Dashboard.escapeHtml(call.location?.full_address || 'N/A')}</td></tr>
+                            ${call.location?.house_number ? `<tr><th>House Number:</th><td>${Dashboard.escapeHtml(call.location.house_number)}</td></tr>` : ''}
+                            ${call.location?.prefix_directional ? `<tr><th>Direction:</th><td>${Dashboard.escapeHtml(call.location.prefix_directional)}</td></tr>` : ''}
+                            ${call.location?.street_name ? `<tr><th>Street Name:</th><td>${Dashboard.escapeHtml(call.location.street_name)}</td></tr>` : ''}
+                            ${call.location?.street_type ? `<tr><th>Street Type:</th><td>${Dashboard.escapeHtml(call.location.street_type)}</td></tr>` : ''}
+                            <tr><th>City:</th><td>${Dashboard.escapeHtml(call.location?.city || 'N/A')}</td></tr>
+                            ${call.location?.state ? `<tr><th>State:</th><td>${Dashboard.escapeHtml(call.location.state)}</td></tr>` : ''}
+                            ${call.location?.zip ? `<tr><th>ZIP:</th><td>${Dashboard.escapeHtml(call.location.zip)}</td></tr>` : ''}
+                            ${call.location?.common_name ? `<tr><th>Common Name:</th><td>${Dashboard.escapeHtml(call.location.common_name)}</td></tr>` : ''}
+                            ${call.location?.nearest_cross_streets ? `<tr><th>Cross Streets:</th><td>${Dashboard.escapeHtml(call.location.nearest_cross_streets)}</td></tr>` : ''}
                             <tr><th>Coordinates:</th><td>${call.location?.coordinates ? `${call.location.coordinates.lat}, ${call.location.coordinates.lng}` : 'N/A'}</td></tr>
-                            ${call.location?.police_beat ? `<tr><th>Police Beat:</th><td>${call.location.police_beat}</td></tr>` : ''}
-                            ${call.location?.ems_district ? `<tr><th>EMS District:</th><td>${call.location.ems_district}</td></tr>` : ''}
-                            ${call.location?.fire_quadrant ? `<tr><th>Fire Quadrant:</th><td>${call.location.fire_quadrant}</td></tr>` : ''}
+                            ${call.location?.police_beat ? `<tr><th>Police Beat:</th><td>${Dashboard.escapeHtml(call.location.police_beat)}</td></tr>` : ''}
+                            ${call.location?.ems_district ? `<tr><th>EMS District:</th><td>${Dashboard.escapeHtml(call.location.ems_district)}</td></tr>` : ''}
+                            ${call.location?.fire_quadrant ? `<tr><th>Fire Quadrant:</th><td>${Dashboard.escapeHtml(call.location.fire_quadrant)}</td></tr>` : ''}
                         </table>
                     </div>
                 </div>
@@ -333,11 +312,11 @@
                                     <tbody>
                                         ${uniqueContexts.map(ac => `
                                             <tr>
-                                                <td>${ac.agency_type || 'N/A'}</td>
-                                                <td>${ac.call_type || 'N/A'}</td>
-                                                <td>${ac.priority || 'N/A'}</td>
+                                                <td>${Dashboard.escapeHtml(ac.agency_type || 'N/A')}</td>
+                                                <td>${Dashboard.escapeHtml(ac.call_type || 'N/A')}</td>
+                                                <td>${Dashboard.escapeHtml(ac.priority || 'N/A')}</td>
                                                 <td>${Dashboard.getStatusBadge(ac.status)}</td>
-                                                <td>${ac.dispatcher || 'N/A'}</td>
+                                                <td>${Dashboard.escapeHtml(ac.dispatcher || 'N/A')}</td>
                                                 <td>${Dashboard.formatDateTime(ac.created_datetime)}</td>
                                             </tr>
                                         `).join('')}
@@ -373,10 +352,10 @@
                                     <tbody>
                                         ${uniqueIncidents.map(inc => `
                                             <tr>
-                                                <td>${inc.agency_type || 'N/A'}</td>
-                                                <td>${inc.incident_number || 'N/A'}</td>
-                                                <td>${inc.incident_type || 'N/A'}</td>
-                                                <td>${inc.jurisdiction || 'N/A'}</td>
+                                                <td>${Dashboard.escapeHtml(inc.agency_type || 'N/A')}</td>
+                                                <td>${Dashboard.escapeHtml(inc.incident_number || 'N/A')}</td>
+                                                <td>${Dashboard.escapeHtml(inc.incident_type || 'N/A')}</td>
+                                                <td>${Dashboard.escapeHtml(inc.jurisdiction || 'N/A')}</td>
                                                 <td>${Dashboard.formatDateTime(inc.create_datetime)}</td>
                                             </tr>
                                         `).join('')}
@@ -412,9 +391,9 @@
                                     <tbody>
                                         ${uniqueIncidents.map(inc => `
                                             <tr>
-                                                <td>${inc.agency_type || 'N/A'}</td>
-                                                <td>${inc.jurisdiction || 'N/A'}</td>
-                                                <td>${inc.incident_number || 'N/A'}</td>
+                                                <td>${Dashboard.escapeHtml(inc.agency_type || 'N/A')}</td>
+                                                <td>${Dashboard.escapeHtml(inc.jurisdiction || 'N/A')}</td>
+                                                <td>${Dashboard.escapeHtml(inc.incident_number || 'N/A')}</td>
                                             </tr>
                                         `).join('')}
                                     </tbody>
@@ -441,8 +420,8 @@
                                                           u.timestamps?.assigned ? 'Assigned' : 'Unknown';
                                             return `
                                             <tr>
-                                                <td>${u.unit_number || u.unit_id || 'N/A'}</td>
-                                                <td>${u.unit_type || 'N/A'}</td>
+                                                <td>${Dashboard.escapeHtml(u.unit_number || u.unit_id || 'N/A')}</td>
+                                                <td>${Dashboard.escapeHtml(u.unit_type || 'N/A')}</td>
                                                 <td>${Dashboard.getStatusBadge(status)}</td>
                                                 <td>${Dashboard.formatDateTime(u.timestamps?.assigned || u.assigned_datetime || u.assigned_time)}</td>
                                                 <td>${u.timestamps?.enroute ? Dashboard.formatDateTime(u.timestamps.enroute) : '-'}</td>
@@ -499,12 +478,12 @@
                                                 .filter(Boolean).join(' ');
                                             return `
                                             <tr>
-                                                <td>${fullName || 'N/A'}</td>
-                                                <td><span class="badge bg-info">${p.role || 'N/A'}</span></td>
-                                                <td>${p.contact_phone || '-'}</td>
+                                                <td>${Dashboard.escapeHtml(fullName || 'N/A')}</td>
+                                                <td><span class="badge bg-info">${Dashboard.escapeHtml(p.role || 'N/A')}</span></td>
+                                                <td>${Dashboard.escapeHtml(p.contact_phone || '-')}</td>
                                                 <td>${p.date_of_birth ? Dashboard.formatDateTime(p.date_of_birth) : '-'}</td>
-                                                <td>${p.sex || '-'}</td>
-                                                <td>${p.race || '-'}</td>
+                                                <td>${Dashboard.escapeHtml(p.sex || '-')}</td>
+                                                <td>${Dashboard.escapeHtml(p.race || '-')}</td>
                                                 <td>${p.primary_caller_flag ? '<span class="badge bg-primary">Yes</span>' : ''}</td>
                                             </tr>
                                             `;
@@ -526,10 +505,10 @@
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between">
                                             <small class="text-muted">${Dashboard.formatDateTime(n.create_datetime)}</small>
-                                            ${n.create_user ? `<small class="text-muted">By: ${n.create_user}</small>` : ''}
-                                            ${n.narrative_type ? `<span class="badge bg-info ms-2">${n.narrative_type}</span>` : ''}
+                                            ${n.create_user ? `<small class="text-muted">By: ${Dashboard.escapeHtml(n.create_user)}</small>` : ''}
+                                            ${n.narrative_type ? `<span class="badge bg-info ms-2">${Dashboard.escapeHtml(n.narrative_type)}</span>` : ''}
                                         </div>
-                                        <p class="mb-0 mt-2">${n.text}</p>
+                                        <p class="mb-0 mt-2">${Dashboard.escapeHtml(n.text)}</p>
                                     </div>
                                 </div>
                             `).join('') 
