@@ -209,6 +209,7 @@ class ApiEndpointTest extends TestCase
         $stmt = self::$db->prepare("SELECT id FROM calls WHERE call_id = ?");
         $stmt->execute([1]);
         $call = $stmt->fetch();
+        $this->assertNotFalse($call, 'Seeded call with call_id=1 must exist');
         $callPk = (int)$call['id'];
         
         // Insert test data using the actual primary key
