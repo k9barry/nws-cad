@@ -42,6 +42,8 @@ class SqlInjectionTest extends TestCase
         if (!isset(self::$db)) {
             $this->markTestSkipped('Database not available');
         }
+
+        cleanTestDatabase();
     }
 
     public function testPreparedStatementsPreventSqlInjectionInSelect(): void
