@@ -163,7 +163,7 @@ class XssTest extends TestCase
         
         // Angle brackets are escaped so HTML tags cannot be parsed
         $this->assertStringNotContainsString('<img', $json);
-        $this->assertStringNotContainsString('<', $safeData['value']);
+        $this->assertStringNotContainsString('<', $json);
     }
 
     public function testPreventStoredXss(): void
