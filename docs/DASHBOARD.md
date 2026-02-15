@@ -8,7 +8,6 @@ The NWS CAD Dashboard provides real-time monitoring and visualization of CAD dat
 
 - **Desktop Dashboard:** http://localhost:80
 - **Mobile Dashboard:** Auto-detected on mobile devices
-- **Database Manager:** http://localhost:8978 (DBeaver/CloudBeaver)
 
 ## Desktop Dashboard
 
