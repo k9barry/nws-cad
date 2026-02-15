@@ -142,7 +142,6 @@ if [[ "$skip_db" =~ ^[Yy]$ ]]; then
 else
     safe_remove "data/mysql" ".gitkeep"
     safe_remove "data/postgres" ".gitkeep"
-    safe_remove "data/dbeaver" ".gitkeep"
     echo -e "${RED}✓ Database data deleted${NC}"
 fi
 echo ""
@@ -174,7 +173,7 @@ echo ""
 
 # Step 11: Recreate .gitkeep files if needed
 echo -e "${YELLOW}Step 11: Ensuring .gitkeep files exist...${NC}"
-for dir in logs watch tmp data/mysql data/postgres data/dbeaver; do
+for dir in logs watch tmp data/mysql data/postgres; do
     if [ ! -d "$dir" ]; then
         mkdir -p "$dir"
     fi

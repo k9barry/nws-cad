@@ -41,6 +41,8 @@ class DatabaseQueryTest extends TestCase
         if (!isset(self::$db)) {
             $this->markTestSkipped('Database not available');
         }
+
+        cleanTestDatabase();
     }
 
     public function testSelectSingleCallPerformance(): void

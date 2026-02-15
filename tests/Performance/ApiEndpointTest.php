@@ -92,12 +92,12 @@ class ApiEndpointTest extends TestCase
     {
         $start = microtime(true);
         
-        // Simulate /api/calls/{id} endpoint
+        // Simulate /api/calls/{id} endpoint - query by call_id (known seeded value)
         $stmt = self::$db->prepare("
             SELECT c.*, 
                    (SELECT COUNT(*) FROM units WHERE call_id = c.id) as unit_count
             FROM calls c
-            WHERE c.id = ?
+            WHERE c.call_id = ?
         ");
         $stmt->execute([1]);
         $result = $stmt->fetch();
@@ -205,14 +205,21 @@ class ApiEndpointTest extends TestCase
 
     public function testUnitsForCallPerformance(): void
     {
-        // Insert test data
+        // Get the actual auto-increment id for the seeded call with call_id=1
+        $stmt = self::$db->prepare("SELECT id FROM calls WHERE call_id = ?");
+        $stmt->execute([1]);
+        $call = $stmt->fetch();
+        $this->assertNotFalse($call, 'Seeded call with call_id=1 must exist');
+        $callPk = (int)$call['id'];
+        
+        // Insert test data using the actual primary key
         $stmt = self::$db->prepare("
             INSERT INTO units (call_id, unit_number, unit_type)
             VALUES (?, ?, ?)
         ");
         
         for ($i = 1; $i <= 5; $i++) {
-            $stmt->execute([1, "UNIT-$i", 'Engine']);
+            $stmt->execute([$callPk, "UNIT-$i", 'Engine']);
         }
         
         $start = microtime(true);
@@ -225,7 +232,7 @@ class ApiEndpointTest extends TestCase
             WHERE u.call_id = ?
             ORDER BY u.unit_number
         ");
-        $stmt->execute([1]);
+        $stmt->execute([$callPk]);
         $results = $stmt->fetchAll();
         
         $duration = (microtime(true) - $start) * 1000;

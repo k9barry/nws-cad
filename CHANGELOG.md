@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Consolidated v1.1.0 database migration scripts into init.sql files (migrations already reflected in init schemas)
+- Removed redundant `database/mysql/migration_v1.1.0.sql` and `database/postgres/migration_v1.1.0.sql`
+- Removed orphaned `data/dbeaver` directory references (no DBeaver service in docker-compose.yml)
+
 ### Security (2026-02-15)
 - 🔒 **Critical XSS Fixes** - Comprehensive cross-site scripting prevention across all JavaScript
   - Added `Dashboard.escapeHtml()` utility function for consistent HTML escaping

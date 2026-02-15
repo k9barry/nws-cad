@@ -36,11 +36,11 @@ class XssTest extends TestCase
         foreach ($inputs as $maliciousInput) {
             $escaped = htmlspecialchars($maliciousInput, ENT_QUOTES, 'UTF-8');
             
-            $this->assertStringNotContainsString('<img', $escaped);
-            $this->assertStringNotContainsString('<div', $escaped);
-            $this->assertStringNotContainsString('onerror=', $escaped);
-            $this->assertStringNotContainsString('onload=', $escaped);
-            $this->assertStringNotContainsString('onfocus=', $escaped);
+            // Angle brackets are escaped, so tags cannot be parsed as HTML
+            $this->assertStringNotContainsString('<', $escaped);
+            $this->assertStringNotContainsString('>', $escaped);
+            // Quotes are escaped, so attribute values cannot break out
+            $this->assertStringNotContainsString('"', $escaped);
         }
     }
 
@@ -67,7 +67,8 @@ class XssTest extends TestCase
         $json = json_encode($data, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
         
         $this->assertStringNotContainsString('<script>', $json);
-        $this->assertStringNotContainsString('onclick=', $json);
+        // Quotes are escaped, so event handler attributes cannot execute
+        $this->assertStringNotContainsString('onclick="', $json);
         $this->assertStringContainsString('\u003C', $json); // Escaped <
     }
 
@@ -86,7 +87,8 @@ class XssTest extends TestCase
         $escaped = htmlspecialchars($maliciousData, ENT_QUOTES, 'UTF-8');
         
         // When used in HTML attributes like: <div data-value="...">
-        $this->assertStringNotContainsString('onclick=', $escaped);
+        // Quotes are escaped so the attribute value cannot break out
+        $this->assertStringNotContainsString('"', $escaped);
         $this->assertStringContainsString('&quot;', $escaped);
     }
 
@@ -124,8 +126,9 @@ class XssTest extends TestCase
         $input = "'; alert('XSS'); //";
         $escaped = json_encode($input, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
         
+        // Single quotes are escaped so JS string cannot break out
         $this->assertStringNotContainsString("';", $escaped);
-        $this->assertStringNotContainsString("alert(", $escaped);
+        $this->assertStringNotContainsString("'XSS'", $escaped);
     }
 
     public function testCssSanitization(): void
@@ -158,8 +161,9 @@ class XssTest extends TestCase
         ];
         $json = json_encode($safeData);
         
+        // Angle brackets are escaped so HTML tags cannot be parsed
         $this->assertStringNotContainsString('<img', $json);
-        $this->assertStringNotContainsString('onerror=', $json);
+        $this->assertStringNotContainsString('<', $json);
     }
 
     public function testPreventStoredXss(): void
@@ -194,7 +198,8 @@ class XssTest extends TestCase
         $input = '<>&"\'';
         $escaped = htmlentities($input, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         
-        $this->assertEquals('&lt;&gt;&amp;&quot;&#039;', $escaped);
+        // ENT_HTML5 uses &apos; for single quotes
+        $this->assertEquals('&lt;&gt;&amp;&quot;&apos;', $escaped);
     }
 
     public function testStripTagsRemovesHtml(): void
