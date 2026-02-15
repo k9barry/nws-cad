@@ -39,13 +39,11 @@ if [ ! -f .env ]; then
     MYSQL_PASS=$(openssl rand -base64 16 2>/dev/null || cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
     POSTGRES_PASS=$(openssl rand -base64 16 2>/dev/null || cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
     MYSQL_ROOT_PASS=$(openssl rand -base64 16 2>/dev/null || cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
-    DBEAVER_PASS=$(openssl rand -base64 16 2>/dev/null || cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 16 | head -n 1)
     
     # Replace passwords in .env
     sed -i.bak "s/MYSQL_ROOT_PASSWORD=.*/MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASS}/" .env
     sed -i.bak "s/MYSQL_PASSWORD=.*/MYSQL_PASSWORD=${MYSQL_PASS}/" .env
     sed -i.bak "s/POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${POSTGRES_PASS}/" .env
-    sed -i.bak "s/DBEAVER_ADMIN_PASSWORD=.*/DBEAVER_ADMIN_PASSWORD=${DBEAVER_PASS}/" .env
     rm -f .env.bak
     
     echo -e "${GREEN}✓ .env file created with random passwords${NC}"
@@ -73,7 +71,7 @@ fi
 # Create necessary directories
 echo ""
 echo -e "${YELLOW}Creating directories...${NC}"
-mkdir -p watch/processed watch/failed logs data/mysql data/postgres data/dbeaver tmp
+mkdir -p watch/processed watch/failed logs data/mysql data/postgres tmp
 echo -e "${GREEN}✓ Directories created${NC}"
 
 # Build and start containers
@@ -114,25 +112,20 @@ echo ""
 echo "1. Access the Dashboard:"
 echo "   http://localhost:80"
 echo ""
-echo "2. Access DBeaver (Database Manager):"
-echo "   http://localhost:8978"
-echo "   Username: admin"
-echo "   Password: Check .env file for DBEAVER_ADMIN_PASSWORD"
-echo ""
-echo "3. View logs:"
+echo "2. View logs:"
 if docker compose version &> /dev/null; then
     echo "   docker compose logs -f app"
 else
     echo "   docker-compose logs -f app"
 fi
 echo ""
-echo "4. Add XML files to watch folder:"
+echo "3. Add XML files to watch folder:"
 echo "   cp samples/*.xml watch/"
 echo ""
-echo "5. Check processed files:"
+echo "4. Check processed files:"
 echo "   ls -la watch/processed/"
 echo ""
-echo "6. Stop services:"
+echo "5. Stop services:"
 if docker compose version &> /dev/null; then
     echo "   docker compose down"
 else
