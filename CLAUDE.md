@@ -23,6 +23,10 @@ composer watch       # = php src/watcher.php
 docker-compose up -d
 docker-compose logs -f app
 docker-compose exec mysql mysql -u nws_user -p nws_cad
+
+# Notifications
+php bin/notifications.php list
+php bin/notifications.php enable ntfy --base-url=https://ntfy.example
 ```
 
 Tests use a separate `nws_cad_test` database; environment is configured in `phpunit.xml`.
@@ -48,6 +52,9 @@ The file watcher (`src/watcher.php` / `FileWatcher.php`) runs as a separate long
 | `Api\Response` | Static `success($data)` / `error($message, $code)` — controllers must never `echo`. |
 | `Api\Request` | Static helpers: `pagination()`, `sorting()`, `filters()`, `json()`. |
 | `Api\DbHelper` | Database-agnostic SQL (`GROUP_CONCAT`/`STRING_AGG`, `COALESCE`, date functions). Validates SQL identifiers against `IDENTIFIER_PATTERN` before interpolation. |
+| `Notifications\NotificationDispatcher` | Subscriber of `CallProcessedEvent`. Applies delta-time gate + intent rules; fans out to enabled channels. |
+| `Notifications\Channels\NtfyChannel` / `PushoverChannel` | Send implementations with cURL + bounded retry. |
+| `Logging\RedactingProcessor` | Globally registered Monolog processor scrubbing values from `SecretRegistry`. |
 
 ### Controller pattern
 
@@ -95,6 +102,10 @@ processed_files (file processing history)
 - `Dashboard.apiRequest(endpoint)` — fetch wrapper with consistent error handling
 - `Dashboard.escapeHtml(text)` — XSS prevention; **must wrap any user-derived value rendered into HTML**
 - `Dashboard.formatTime(datetime)`, `Dashboard.buildQueryString(params)`
+
+## Notifications
+
+After `AegisXmlParser::processFile()` commits, it dispatches a `CallProcessedEvent` (`Created` / `Updated` / `Closed`) through an in-process `EventDispatcher`. `NotificationDispatcher` (registered in `src/watcher.php`) applies a delta-time gate (default 900s via `NOTIFICATION_DELTA_SECONDS`), intent rules, and fans out to channels listed in `notification_channels`. Per-attempt results go to `notification_send_log`. Secrets come from env vars via `Config::secret()`; `RedactingProcessor` scrubs them from all log output. See [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) for the full reference.
 
 ## Conventions
 

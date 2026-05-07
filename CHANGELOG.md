@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-05-07
+
+### Added
+- Notifications module (`NwsCad\Notifications\*`) replacing the standalone `nws-endpoints` repo.
+- `notification_channels` and `notification_send_log` tables.
+- Read-only `/notifications` dashboard view + `GET /api/notifications/channels`, `GET /api/notifications/log`.
+- `bin/notifications.php` CLI for enabling/disabling channels.
+- `Config::secret()` and `SecretRegistry`/`RedactingProcessor` for env-var-only secrets and globally-scrubbed logs.
+- `NOTIFICATION_DELTA_SECONDS` env var (default 900).
+
+### Changed
+- `AegisXmlParser` dispatches `CallProcessedEvent` after commit.
+
+### Security
+- Topic sanitizer + URL encoding for ntfy paths.
+- Explicit `IncidentDto::fromRow()` mapping (no `extract()`).
+- cURL-based ntfy sender with explicit error checking (replaces `@file_get_contents`).
+
+### Deprecated
+- `k9barry/nws-endpoints` repository — superseded by this module. See `docs/NOTIFICATIONS.md`.
+
 ## [Unreleased]
 
 ### Changed
