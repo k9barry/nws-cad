@@ -485,6 +485,41 @@ CREATE TRIGGER update_persons_updated_at
     BEFORE UPDATE ON persons
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_vehicles_updated_at 
+CREATE TRIGGER update_vehicles_updated_at
     BEFORE UPDATE ON vehicles
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================================
+-- NOTIFICATION CHANNELS (added v1.2.0 — nws-endpoints consolidation)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS notification_channels (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(64) NOT NULL UNIQUE,
+    type VARCHAR(32) NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    base_url VARCHAR(512) NOT NULL,
+    config_json TEXT NOT NULL,
+    last_error_at TIMESTAMP NULL,
+    last_error_message TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_notification_channels_type ON notification_channels(type);
+
+CREATE TABLE IF NOT EXISTS notification_send_log (
+    id BIGSERIAL PRIMARY KEY,
+    channel_id BIGINT NOT NULL REFERENCES notification_channels(id) ON DELETE CASCADE,
+    call_id BIGINT NULL REFERENCES calls(id) ON DELETE SET NULL,
+    intent VARCHAR(16) NULL,
+    topic VARCHAR(256) NULL,
+    ok BOOLEAN NOT NULL,
+    http_status INTEGER NULL,
+    duration_ms INTEGER NOT NULL,
+    error TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_send_log_channel_created
+    ON notification_send_log(channel_id, created_at DESC);

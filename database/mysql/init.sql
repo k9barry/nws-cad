@@ -432,6 +432,43 @@ CREATE TABLE IF NOT EXISTS processed_files (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
+-- NOTIFICATION CHANNELS (added v1.2.0 — nws-endpoints consolidation)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS notification_channels (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(64) NOT NULL,
+    type VARCHAR(32) NOT NULL COMMENT 'ntfy | pushover',
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    base_url VARCHAR(512) NOT NULL,
+    config_json TEXT NOT NULL,
+    last_error_at TIMESTAMP NULL,
+    last_error_message TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uk_notification_channels_name (name),
+    INDEX idx_notification_channels_type (type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS notification_send_log (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    channel_id BIGINT UNSIGNED NOT NULL,
+    call_id BIGINT UNSIGNED NULL,
+    intent VARCHAR(16) NULL COMMENT 'Created|Updated|Closed',
+    topic VARCHAR(256) NULL,
+    ok BOOLEAN NOT NULL,
+    http_status INT NULL,
+    duration_ms INT NOT NULL,
+    error TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (channel_id) REFERENCES notification_channels(id) ON DELETE CASCADE,
+    FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE SET NULL,
+    INDEX idx_send_log_channel_created (channel_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
 -- Create database if not exists
 -- ============================================================================
 CREATE DATABASE IF NOT EXISTS nws_cad CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
