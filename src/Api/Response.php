@@ -18,7 +18,9 @@ class Response
         http_response_code($statusCode);
         header('Content-Type: application/json');
         echo json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        exit;
+        if (($_ENV['APP_ENV'] ?? getenv('APP_ENV')) !== 'testing') {
+            exit;
+        }
     }
 
     /**
