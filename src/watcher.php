@@ -32,7 +32,7 @@ try {
     $logger->debug("Debug logging is enabled - detailed step-by-step information will be shown");
     $logger->debug("Using Aegis CAD XML Parser for New World Systems format");
     
-    $deltaSeconds = (int) ($_ENV['NOTIFICATION_DELTA_SECONDS'] ?? getenv('NOTIFICATION_DELTA_SECONDS') ?: 900);
+    $deltaSeconds = (int) Config::getInstance()->get('notifications.delta_seconds', 900);
 
     $incidentLoader = function (int $dbCallId): IncidentDto {
         $db = Database::getConnection();

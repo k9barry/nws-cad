@@ -72,6 +72,9 @@ class Config
                 'logs' => __DIR__ . '/../logs',
                 'tmp' => __DIR__ . '/../tmp',
             ],
+            'notifications' => [
+                'delta_seconds' => (int) $this->env('NOTIFICATION_DELTA_SECONDS', '900'),
+            ],
         ];
     }
 

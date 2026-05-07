@@ -6,8 +6,8 @@ namespace NwsCad\Tests\Unit\Notifications;
 
 use DateTimeImmutable;
 use Mockery;
-use NwsCad\Notifications\Channels\NtfyChannel;
-use NwsCad\Notifications\ChannelRepository;
+use NwsCad\Notifications\ChannelRepositoryInterface;
+use NwsCad\Notifications\NotificationChannel;
 use NwsCad\Notifications\Events\CallProcessedEvent;
 use NwsCad\Notifications\Events\Intent;
 use NwsCad\Notifications\IncidentDto;
@@ -27,7 +27,7 @@ class NotificationDispatcherTest extends TestCase
 
     public function testDeltaTimeGateSkipsOldEvents(): void
     {
-        $repo = Mockery::mock(ChannelRepository::class);
+        $repo = Mockery::mock(ChannelRepositoryInterface::class);
         $repo->shouldNotReceive('listEnabled');
         $loader = function (int $id): IncidentDto {
             $this->fail('loader should not be called');
@@ -55,7 +55,7 @@ class NotificationDispatcherTest extends TestCase
 
     public function testClosedIntentDoesNotCallChannels(): void
     {
-        $repo = Mockery::mock(ChannelRepository::class);
+        $repo = Mockery::mock(ChannelRepositoryInterface::class);
         $repo->shouldNotReceive('listEnabled');
 
         $dispatcher = new NotificationDispatcher(
@@ -75,14 +75,14 @@ class NotificationDispatcherTest extends TestCase
 
     public function testCreatedIntentSendsToAllTopics(): void
     {
-        $repo = Mockery::mock(ChannelRepository::class);
+        $repo = Mockery::mock(ChannelRepositoryInterface::class);
         $repo->shouldReceive('listEnabled')->andReturn([
             ['id' => 1, 'name' => 'n', 'type' => 'ntfy', 'enabled' => true,
              'base_url' => 'u', 'config_json' => '{}'],
         ]);
         $repo->shouldReceive('recordSend')->atLeast()->once();
 
-        $channel = Mockery::mock(NtfyChannel::class);
+        $channel = Mockery::mock(NotificationChannel::class);
         $channel->shouldReceive('send')
             ->once()
             ->withArgs(function ($dto, $ctx) {
@@ -111,14 +111,14 @@ class NotificationDispatcherTest extends TestCase
 
     public function testUpdatedIntentResendsAllWhenCallTypeChanged(): void
     {
-        $repo = Mockery::mock(ChannelRepository::class);
+        $repo = Mockery::mock(ChannelRepositoryInterface::class);
         $repo->shouldReceive('listEnabled')->andReturn([
             ['id' => 1, 'name' => 'n', 'type' => 'ntfy', 'enabled' => true,
              'base_url' => 'u', 'config_json' => '{}'],
         ]);
         $repo->shouldReceive('recordSend')->atLeast()->once();
 
-        $channel = Mockery::mock(NtfyChannel::class);
+        $channel = Mockery::mock(NotificationChannel::class);
         $channel->shouldReceive('send')->once()->withArgs(function ($dto, $ctx) {
             return $ctx->resendAll === true;
         })->andReturn([SendResult::ok(200, 5, 'T')]);

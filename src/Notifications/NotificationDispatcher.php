@@ -20,7 +20,7 @@ final class NotificationDispatcher
     private const RESEND_ALL_TRIGGERS = ['call_type', 'full_address', 'alarm_level'];
 
     public function __construct(
-        private readonly ChannelRepository $channelRepo,
+        private readonly ChannelRepositoryInterface $channelRepo,
         callable $incidentLoader,
         callable $channelFactory,
         private readonly int $deltaSeconds,

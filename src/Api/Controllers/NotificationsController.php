@@ -58,9 +58,11 @@ final class NotificationsController
                         http_status, duration_ms, error, created_at
                  FROM notification_send_log
                  WHERE channel_id = ?
-                 ORDER BY id DESC LIMIT {$limit}"
+                 ORDER BY id DESC LIMIT ?"
             );
-            $stmt->execute([$channelId]);
+            $stmt->bindValue(1, $channelId, PDO::PARAM_INT);
+            $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+            $stmt->execute();
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
             Response::success(['items' => $rows, 'channel_id' => $channelId, 'limit' => $limit]);

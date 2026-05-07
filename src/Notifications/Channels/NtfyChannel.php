@@ -11,7 +11,7 @@ use NwsCad\Notifications\NotificationContext;
 use NwsCad\Notifications\SendResult;
 use NwsCad\Notifications\TopicSanitizer;
 
-class NtfyChannel implements NotificationChannel
+final class NtfyChannel implements NotificationChannel
 {
     /** @var int[] Backoff between retries, in milliseconds. */
     private const BACKOFF_MS = [1000, 3000, 9000];
