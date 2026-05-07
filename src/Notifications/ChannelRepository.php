@@ -7,7 +7,7 @@ namespace NwsCad\Notifications;
 use NwsCad\Database;
 use PDO;
 
-final class ChannelRepository
+class ChannelRepository
 {
     private PDO $db;
 
