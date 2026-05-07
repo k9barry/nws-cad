@@ -10,6 +10,11 @@ class MissingSecretException extends RuntimeException
 {
     private string $key;
 
+    private function __construct(string $message)
+    {
+        parent::__construct($message);
+    }
+
     public static function forKey(string $key): self
     {
         $e = new self(sprintf('Required secret "%s" is not set in the environment.', $key));
