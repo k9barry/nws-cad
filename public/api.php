@@ -14,6 +14,7 @@ use NwsCad\Api\Controllers\UnitsController;
 use NwsCad\Api\Controllers\SearchController;
 use NwsCad\Api\Controllers\StatsController;
 use NwsCad\Api\Controllers\LogsController;
+use NwsCad\Api\Controllers\NotificationsController;
 
 // Enable CORS
 header('Access-Control-Allow-Origin: *');
@@ -48,6 +49,7 @@ $router->get('/', function() {
             'units' => '/api/units',
             'search' => '/api/search',
             'stats' => '/api/stats',
+            'notifications' => '/api/notifications/channels',
             'docs' => '/api/docs'
         ]
     ]);
@@ -86,6 +88,10 @@ $router->get('/stats', [StatsController::class, 'index']);
 $router->get('/stats/calls', [StatsController::class, 'calls']);
 $router->get('/stats/units', [StatsController::class, 'units']);
 $router->get('/stats/response-times', [StatsController::class, 'responseTimes']);
+
+// Notifications Controller Routes (read-only)
+$router->get('/notifications/channels', [NotificationsController::class, 'channels']);
+$router->get('/notifications/log',      [NotificationsController::class, 'log']);
 
 // Logs Controller Routes
 $router->get('/logs', [LogsController::class, 'index']);
