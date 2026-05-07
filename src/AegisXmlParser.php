@@ -96,13 +96,14 @@ class AegisXmlParser
 
             $this->logger->info("File processed successfully: {$filename} (Call ID: {$callId})");
 
-            [$intent, $changedFields] = IntentResolver::resolve($existingSnapshot, $incomingSnapshot);
+            [$intent, $changedFields, $addedTopics] = IntentResolver::resolve($existingSnapshot, $incomingSnapshot);
             if ($intent !== null) {
                 EventDispatcher::dispatch(new CallProcessedEvent(
                     dbCallId: $callId,
                     intent: $intent,
                     changedFields: $changedFields,
                     createDateTime: new DateTimeImmutable($incomingSnapshot['create_datetime'] ?: 'now'),
+                    addedTopics: $addedTopics,
                 ));
             }
 
@@ -1083,25 +1084,32 @@ class AegisXmlParser
         }
         $dbCallId = (int) $row['id'];
 
+        $scalar = function (string $sql) use ($dbCallId): string {
+            $st = $this->db->prepare($sql);
+            $st->execute([$dbCallId]);
+            $v = $st->fetchColumn();
+            return $v === false || $v === null ? '' : (string) $v;
+        };
+        $scalarInt = function (string $sql) use ($dbCallId): int {
+            $st = $this->db->prepare($sql);
+            $st->execute([$dbCallId]);
+            $v = $st->fetchColumn();
+            return $v === false || $v === null ? 0 : (int) $v;
+        };
+        $list = function (string $sql) use ($dbCallId): string {
+            $st = $this->db->prepare($sql);
+            $st->execute([$dbCallId]);
+            $rows = $st->fetchAll(\PDO::FETCH_COLUMN);
+            return implode('|', $rows ?: []);
+        };
+
         return [
-            'call_type' => (string) ($this->db->query(
-                "SELECT call_type FROM agency_contexts WHERE call_id={$dbCallId} ORDER BY id LIMIT 1"
-            )->fetchColumn() ?? ''),
-            'full_address' => (string) ($this->db->query(
-                "SELECT full_address FROM locations WHERE call_id={$dbCallId} ORDER BY id LIMIT 1"
-            )->fetchColumn() ?? ''),
-            'alarm_level' => (int) ($this->db->query(
-                "SELECT alarm_level FROM calls WHERE id={$dbCallId}"
-            )->fetchColumn() ?? 0),
-            'units' => $this->concatColumn(
-                "SELECT unit_number FROM units WHERE call_id={$dbCallId} ORDER BY unit_number"
-            ),
-            'jurisdictions' => $this->concatColumn(
-                "SELECT DISTINCT jurisdiction FROM incidents WHERE call_id={$dbCallId} AND jurisdiction IS NOT NULL ORDER BY jurisdiction"
-            ),
-            'agencies' => $this->concatColumn(
-                "SELECT DISTINCT agency_type FROM agency_contexts WHERE call_id={$dbCallId} AND agency_type IS NOT NULL ORDER BY agency_type"
-            ),
+            'call_type'     => $scalar("SELECT call_type FROM agency_contexts WHERE call_id = ? ORDER BY id LIMIT 1"),
+            'full_address'  => $scalar("SELECT full_address FROM locations WHERE call_id = ? ORDER BY id LIMIT 1"),
+            'alarm_level'   => $scalarInt("SELECT alarm_level FROM calls WHERE id = ?"),
+            'units'         => $list("SELECT unit_number FROM units WHERE call_id = ? ORDER BY unit_number"),
+            'jurisdictions' => $list("SELECT DISTINCT jurisdiction FROM incidents WHERE call_id = ? AND jurisdiction IS NOT NULL ORDER BY jurisdiction"),
+            'agencies'      => $list("SELECT DISTINCT agency_type FROM agency_contexts WHERE call_id = ? AND agency_type IS NOT NULL ORDER BY agency_type"),
         ];
     }
 
@@ -1137,9 +1145,4 @@ class AegisXmlParser
         ];
     }
 
-    private function concatColumn(string $sql): string
-    {
-        $rows = $this->db->query($sql)->fetchAll(\PDO::FETCH_COLUMN);
-        return implode('|', $rows ?: []);
-    }
 }

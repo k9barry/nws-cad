@@ -13,6 +13,9 @@ class HttpPost
     public function post(string $url, array $fields, int $timeoutSec): array
     {
         $ch = curl_init();
+        if ($ch === false) {
+            return ['status' => 0, 'body' => 'curl_init failed'];
+        }
         curl_setopt_array($ch, [
             CURLOPT_URL => $url,
             CURLOPT_POST => true,

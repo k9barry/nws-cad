@@ -39,7 +39,7 @@ class NotificationDispatcherTest extends TestCase
             incidentLoader: $loader,
             channelFactory: $factory,
             deltaSeconds: 900,
-            now: new DateTimeImmutable('2026-05-07 12:30:00'),
+            clock: fn () => new DateTimeImmutable('2026-05-07 12:30:00'),
         );
 
         $event = new CallProcessedEvent(
@@ -63,7 +63,7 @@ class NotificationDispatcherTest extends TestCase
             incidentLoader: fn () => $this->dto(),
             channelFactory: fn () => $this->fail(),
             deltaSeconds: 900,
-            now: new DateTimeImmutable('2026-05-07 12:00:30'),
+            clock: fn () => new DateTimeImmutable('2026-05-07 12:00:30'),
         );
 
         $dispatcher->handle(new CallProcessedEvent(
@@ -73,7 +73,7 @@ class NotificationDispatcherTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testCreatedIntentSendsToAllTopics(): void
+    public function testCreatedIntentSendsToAllDerivedTopics(): void
     {
         $repo = Mockery::mock(ChannelRepositoryInterface::class);
         $repo->shouldReceive('listEnabled')->andReturn([
@@ -87,7 +87,7 @@ class NotificationDispatcherTest extends TestCase
             ->once()
             ->withArgs(function ($dto, $ctx) {
                 return $ctx->intent === Intent::Created
-                    && $ctx->resendAll === false
+                    && $ctx->resendAll === true
                     && in_array('Fire', $ctx->topicsToNotify, true)
                     && in_array('MCFD', $ctx->topicsToNotify, true)
                     && in_array('ENGINE1', $ctx->topicsToNotify, true);
@@ -99,7 +99,7 @@ class NotificationDispatcherTest extends TestCase
             incidentLoader: fn () => $this->dto(),
             channelFactory: fn () => $channel,
             deltaSeconds: 900,
-            now: new DateTimeImmutable('2026-05-07 12:00:30'),
+            clock: fn () => new DateTimeImmutable('2026-05-07 12:00:30'),
         );
 
         $dispatcher->handle(new CallProcessedEvent(
@@ -120,7 +120,10 @@ class NotificationDispatcherTest extends TestCase
 
         $channel = Mockery::mock(NotificationChannel::class);
         $channel->shouldReceive('send')->once()->withArgs(function ($dto, $ctx) {
-            return $ctx->resendAll === true;
+            return $ctx->resendAll === true
+                && in_array('Fire', $ctx->topicsToNotify, true)
+                && in_array('MCFD', $ctx->topicsToNotify, true)
+                && in_array('ENGINE1', $ctx->topicsToNotify, true);
         })->andReturn([SendResult::ok(200, 5, 'T')]);
 
         $dispatcher = new NotificationDispatcher(
@@ -128,14 +131,67 @@ class NotificationDispatcherTest extends TestCase
             incidentLoader: fn () => $this->dto(),
             channelFactory: fn () => $channel,
             deltaSeconds: 900,
-            now: new DateTimeImmutable('2026-05-07 12:00:30'),
+            clock: fn () => new DateTimeImmutable('2026-05-07 12:00:30'),
         );
 
         $dispatcher->handle(new CallProcessedEvent(
             dbCallId: 1, intent: Intent::Updated, changedFields: ['call_type'],
             createDateTime: new DateTimeImmutable('2026-05-07 12:00:00'),
+            addedTopics: [],
         ));
         $this->addToAssertionCount(1);  // Mockery withArgs validates ctx
+    }
+
+    public function testUpdatedIntentWithOnlyNewUnitsSendsOnlyToAddedTopics(): void
+    {
+        $repo = Mockery::mock(ChannelRepositoryInterface::class);
+        $repo->shouldReceive('listEnabled')->andReturn([
+            ['id' => 1, 'name' => 'n', 'type' => 'ntfy', 'enabled' => true,
+             'base_url' => 'u', 'config_json' => '{}'],
+        ]);
+        $repo->shouldReceive('recordSend')->atLeast()->once();
+
+        $channel = Mockery::mock(NotificationChannel::class);
+        $channel->shouldReceive('send')->once()->withArgs(function ($dto, $ctx) {
+            return $ctx->resendAll === false
+                && $ctx->topicsToNotify === ['TRUCK1'];
+        })->andReturn([SendResult::ok(200, 5, 'TRUCK1')]);
+
+        $dispatcher = new NotificationDispatcher(
+            channelRepo: $repo,
+            incidentLoader: fn () => $this->dto(),
+            channelFactory: fn () => $channel,
+            deltaSeconds: 900,
+            clock: fn () => new DateTimeImmutable('2026-05-07 12:00:30'),
+        );
+
+        $dispatcher->handle(new CallProcessedEvent(
+            dbCallId: 1, intent: Intent::Updated, changedFields: ['assigned_units'],
+            createDateTime: new DateTimeImmutable('2026-05-07 12:00:00'),
+            addedTopics: ['TRUCK1'],
+        ));
+        $this->addToAssertionCount(1);  // Mockery withArgs validates ctx
+    }
+
+    public function testUpdatedIntentWithNoAddedTopicsAndNoResendTriggerSendsNothing(): void
+    {
+        $repo = Mockery::mock(ChannelRepositoryInterface::class);
+        $repo->shouldNotReceive('listEnabled');
+
+        $dispatcher = new NotificationDispatcher(
+            channelRepo: $repo,
+            incidentLoader: fn () => $this->dto(),
+            channelFactory: fn () => $this->fail('factory should not be called'),
+            deltaSeconds: 900,
+            clock: fn () => new DateTimeImmutable('2026-05-07 12:00:30'),
+        );
+
+        $dispatcher->handle(new CallProcessedEvent(
+            dbCallId: 1, intent: Intent::Updated, changedFields: ['assigned_units'],
+            createDateTime: new DateTimeImmutable('2026-05-07 12:00:00'),
+            addedTopics: [],
+        ));
+        $this->assertTrue(true);  // assertion is the mock expectations above
     }
 
     private function dto(): IncidentDto

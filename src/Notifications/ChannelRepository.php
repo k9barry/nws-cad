@@ -61,12 +61,15 @@ final class ChannelRepository implements ChannelRepositoryInterface
     private function pruneSendLog(int $channelId, int $keep): void
     {
         // Find the cutoff id for the channel (keep the most recent $keep rows).
+        // LIMIT/OFFSET must be bound as integers under EMULATE_PREPARES=false.
         $stmt = $this->db->prepare(
             "SELECT id FROM notification_send_log
              WHERE channel_id = ?
              ORDER BY id DESC LIMIT 1 OFFSET ?"
         );
-        $stmt->execute([$channelId, $keep]);
+        $stmt->bindValue(1, $channelId, PDO::PARAM_INT);
+        $stmt->bindValue(2, $keep, PDO::PARAM_INT);
+        $stmt->execute();
         $cutoff = $stmt->fetchColumn();
         if ($cutoff === false) {
             return;
@@ -74,6 +77,8 @@ final class ChannelRepository implements ChannelRepositoryInterface
         $del = $this->db->prepare(
             "DELETE FROM notification_send_log WHERE channel_id = ? AND id <= ?"
         );
-        $del->execute([$channelId, (int) $cutoff]);
+        $del->bindValue(1, $channelId, PDO::PARAM_INT);
+        $del->bindValue(2, (int) $cutoff, PDO::PARAM_INT);
+        $del->execute();
     }
 }

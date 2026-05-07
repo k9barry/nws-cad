@@ -9,7 +9,9 @@ use NwsCad\Notifications\Events\Intent;
 final class NotificationContext
 {
     /**
-     * @param string[] $topicsToNotify  Already-sanitized ntfy topic segments (no '|' separators).
+     * @param string[] $topicsToNotify  Raw topic segments derived from the DTO. Each
+     *   channel is responsible for sanitizing/encoding them (ntfy uses
+     *   {@see TopicSanitizer} + rawurlencode); pushover ignores them.
      * @param array<string,mixed> $channelConfig
      */
     public function __construct(

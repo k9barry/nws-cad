@@ -16,6 +16,8 @@ final class NotificationDispatcher
     private $incidentLoader;
     /** @var callable(array<string,mixed>):NotificationChannel */
     private $channelFactory;
+    /** @var callable():DateTimeImmutable */
+    private $clock;
 
     private const RESEND_ALL_TRIGGERS = ['call_type', 'full_address', 'alarm_level'];
 
@@ -24,10 +26,11 @@ final class NotificationDispatcher
         callable $incidentLoader,
         callable $channelFactory,
         private readonly int $deltaSeconds,
-        private readonly DateTimeImmutable $now = new DateTimeImmutable(),
+        ?callable $clock = null,
     ) {
         $this->incidentLoader = $incidentLoader;
         $this->channelFactory = $channelFactory;
+        $this->clock = $clock ?? static fn (): DateTimeImmutable => new DateTimeImmutable();
     }
 
     public function handle(CallProcessedEvent $event): void
@@ -39,7 +42,8 @@ final class NotificationDispatcher
             return;
         }
 
-        $age = $this->now->getTimestamp() - $event->createDateTime->getTimestamp();
+        $now = ($this->clock)();
+        $age = $now->getTimestamp() - $event->createDateTime->getTimestamp();
         if ($age > $this->deltaSeconds) {
             $logger->info('Notification dispatch: delta-time gate dropped event', [
                 'dbCallId' => $event->dbCallId, 'age_seconds' => $age, 'limit' => $this->deltaSeconds,
@@ -56,10 +60,28 @@ final class NotificationDispatcher
             return;
         }
 
-        $resendAll = $event->intent === Intent::Updated
-            && count(array_intersect(self::RESEND_ALL_TRIGGERS, $event->changedFields)) > 0;
+        $resendAll = $event->intent === Intent::Created
+            || ($event->intent === Intent::Updated
+                && count(array_intersect(self::RESEND_ALL_TRIGGERS, $event->changedFields)) > 0);
 
-        $topics = $this->buildTopics($dto);
+        // Created and resend-all-on-Updated → all derived topics.
+        // Updated with only new units/jurisdictions added → only those new topics.
+        if ($resendAll) {
+            $topics = $this->buildTopics($dto);
+        } else {
+            // event->intent === Intent::Updated, no resend-all trigger
+            $topics = array_values(array_unique(array_filter(
+                $event->addedTopics,
+                static fn (?string $v): bool => $v !== null && $v !== '',
+            )));
+        }
+
+        if ($topics === []) {
+            $logger->info('Notification dispatch: no topics to notify', [
+                'dbCallId' => $event->dbCallId, 'intent' => $event->intent->value,
+            ]);
+            return;
+        }
 
         $context = new NotificationContext(
             intent: $event->intent,

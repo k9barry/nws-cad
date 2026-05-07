@@ -40,8 +40,15 @@ declare(strict_types=1);
     const container = document.getElementById('notifications-channels-container');
     const tpl = document.getElementById('channel-card-template');
 
-    const channelsResp = await fetch(`${apiBase}/notifications/channels`).then(r => r.json());
+    // Use Dashboard.apiRequest if available; fall back to plain fetch only when
+    // dashboard.js hasn't loaded yet (e.g. opened directly without the bundle).
+    const apiCall = (path) => (window.Dashboard && Dashboard.apiRequest)
+        ? Dashboard.apiRequest(path.replace(/^\/api/, ''))
+        : fetch(`${apiBase}${path.startsWith('/api') ? path.slice(4) : path}`).then(r => r.json());
+
+    const channelsResp = await apiCall('/notifications/channels');
     if (! channelsResp.success || channelsResp.data.items.length === 0) {
+        // Static, hardcoded HTML — no untrusted data interpolated.
         container.innerHTML = '<div class="col-12"><div class="alert alert-info">No channels configured. Run <code>php bin/notifications.php enable ntfy</code> to add one.</div></div>';
         return;
     }
@@ -63,14 +70,24 @@ declare(strict_types=1);
             node.querySelector('.channel-error-message').textContent = ch.last_error_message || '';
         }
 
-        const logResp = await fetch(`${apiBase}/notifications/log?channel=${ch.id}&limit=10`).then(r => r.json());
+        const logResp = await apiCall(`/notifications/log?channel=${encodeURIComponent(ch.id)}&limit=10`);
         const logUl = node.querySelector('.channel-log');
         if (logResp.success && logResp.data.items.length) {
             for (const row of logResp.data.items) {
+                // Build DOM nodes via textContent — values come from CAD data
+                // (intent, topic, etc.) which must NOT be inserted as HTML.
                 const li = document.createElement('li');
                 li.className = 'list-group-item d-flex justify-content-between';
-                li.innerHTML = `<span>${row.ok ? '✓' : '✗'} ${row.created_at} ${row.intent ?? ''} ${row.topic ?? ''}</span>` +
-                               `<span class="text-muted">${row.http_status ?? ''} (${row.duration_ms}ms)</span>`;
+
+                const left = document.createElement('span');
+                left.textContent = `${row.ok ? '✓' : '✗'} ${row.created_at ?? ''} ${row.intent ?? ''} ${row.topic ?? ''}`;
+                li.appendChild(left);
+
+                const right = document.createElement('span');
+                right.className = 'text-muted';
+                right.textContent = `${row.http_status ?? ''} (${row.duration_ms ?? 0}ms)`;
+                li.appendChild(right);
+
                 logUl.appendChild(li);
             }
         } else {

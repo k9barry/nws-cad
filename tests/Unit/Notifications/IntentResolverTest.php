@@ -10,57 +10,74 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\Notifications\IntentResolver
+ * @covers \NwsCad\Notifications\Events\Intent
  */
 class IntentResolverTest extends TestCase
 {
     public function testNoExistingRowProducesCreated(): void
     {
-        [$intent, $changed] = IntentResolver::resolve(
+        [$intent, $changed, $added] = IntentResolver::resolve(
             existing: null,
             incoming: $this->incoming(['closed_flag' => false]),
         );
         $this->assertSame(Intent::Created, $intent);
         $this->assertSame([], $changed);
+        $this->assertSame([], $added);
     }
 
     public function testClosedFlagTrueProducesClosed(): void
     {
-        [$intent, $changed] = IntentResolver::resolve(
+        [$intent, $changed, $added] = IntentResolver::resolve(
             existing: $this->existing(),
             incoming: $this->incoming(['closed_flag' => true]),
         );
         $this->assertSame(Intent::Closed, $intent);
         $this->assertSame([], $changed);
+        $this->assertSame([], $added);
     }
 
     public function testCallTypeChangeProducesUpdatedWithField(): void
     {
-        [$intent, $changed] = IntentResolver::resolve(
+        [$intent, $changed, $added] = IntentResolver::resolve(
             existing: $this->existing(['call_type' => 'Medical']),
             incoming: $this->incoming(['call_type' => 'Structure Fire']),
         );
         $this->assertSame(Intent::Updated, $intent);
         $this->assertSame(['call_type'], $changed);
+        // No new agencies/jurisdictions/units, so addedTopics is empty.
+        $this->assertSame([], $added);
     }
 
-    public function testNewUnitProducesUpdatedWithUnitsField(): void
+    public function testNewUnitProducesUpdatedWithUnitsFieldAndAddedTopic(): void
     {
-        [$intent, $changed] = IntentResolver::resolve(
+        [$intent, $changed, $added] = IntentResolver::resolve(
             existing: $this->existing(['units' => 'ENGINE1']),
             incoming: $this->incoming(['units' => 'ENGINE1|TRUCK1']),
         );
         $this->assertSame(Intent::Updated, $intent);
         $this->assertContains('assigned_units', $changed);
+        $this->assertSame(['TRUCK1'], $added);
+    }
+
+    public function testNewJurisdictionAndAgencyAreReportedInAddedTopics(): void
+    {
+        [, , $added] = IntentResolver::resolve(
+            existing: $this->existing(['jurisdictions' => 'MCFD', 'agencies' => 'Fire']),
+            incoming: $this->incoming(['jurisdictions' => 'MCFD|MCSO', 'agencies' => 'Fire|Police']),
+        );
+        sort($added);
+        $this->assertSame(['MCSO', 'Police'], $added);
     }
 
     public function testNoMaterialChangeReturnsNull(): void
     {
-        [$intent, $changed] = IntentResolver::resolve(
+        [$intent, $changed, $added] = IntentResolver::resolve(
             existing: $this->existing(),
             incoming: $this->incoming(),
         );
         $this->assertNull($intent);
         $this->assertSame([], $changed);
+        $this->assertSame([], $added);
     }
 
     /** @return array<string,mixed> */

@@ -13,6 +13,9 @@ class HttpPut
     public function put(string $url, array $headers, string $body, int $timeoutSec): array
     {
         $ch = curl_init();
+        if ($ch === false) {
+            return ['status' => 0, 'body' => 'curl_init failed'];
+        }
         $headerLines = [];
         foreach ($headers as $k => $v) {
             $headerLines[] = "{$k}: {$v}";

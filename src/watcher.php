@@ -36,18 +36,18 @@ try {
 
     $incidentLoader = function (int $dbCallId): IncidentDto {
         $db = Database::getConnection();
+        $jurisdictionAgg = \NwsCad\Api\DbHelper::groupConcat('jurisdiction', '|');
+        $unitsAgg        = \NwsCad\Api\DbHelper::groupConcat('unit_number', '|');
+        $narrativeAgg    = \NwsCad\Api\DbHelper::groupConcat('text', ' ');
         $stmt = $db->prepare(
             "SELECT
                 c.id, c.call_id, c.call_number, c.alarm_level, c.create_datetime,
                 c.nature_of_call,
                 ac.call_type, ac.agency_type,
                 l.full_address, l.nearest_cross_streets, l.latitude_y AS latitude, l.longitude_x AS longitude,
-                (SELECT GROUP_CONCAT(jurisdiction SEPARATOR '|')
-                   FROM incidents WHERE call_id = c.id) AS jurisdiction,
-                (SELECT GROUP_CONCAT(unit_number SEPARATOR '|')
-                   FROM units WHERE call_id = c.id) AS units,
-                (SELECT GROUP_CONCAT(text SEPARATOR ' ')
-                   FROM narratives WHERE call_id = c.id) AS narrative
+                (SELECT {$jurisdictionAgg} FROM incidents WHERE call_id = c.id) AS jurisdiction,
+                (SELECT {$unitsAgg}        FROM units     WHERE call_id = c.id) AS units,
+                (SELECT {$narrativeAgg}    FROM narratives WHERE call_id = c.id) AS narrative
              FROM calls c
              LEFT JOIN agency_contexts ac ON ac.call_id = c.id
              LEFT JOIN locations l ON l.call_id = c.id
