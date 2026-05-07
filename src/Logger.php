@@ -8,6 +8,7 @@ use Monolog\Logger as MonologLogger;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\RotatingFileHandler;
 use Monolog\Formatter\LineFormatter;
+use NwsCad\Logging\RedactingProcessor;
 
 /**
  * Logger Singleton
@@ -29,6 +30,7 @@ class Logger
     {
         $config = Config::getInstance();
         $logger = new MonologLogger('nws-cad');
+        $logger->pushProcessor(new RedactingProcessor());
 
         // Get log level from config with validation
         $logLevelStr = strtoupper($config->get('app.log_level', 'INFO'));
