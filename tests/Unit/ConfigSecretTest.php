@@ -11,6 +11,8 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\Config
+ * @uses \NwsCad\Logging\SecretRegistry
+ * @uses \NwsCad\Exceptions\MissingSecretException
  */
 class ConfigSecretTest extends TestCase
 {

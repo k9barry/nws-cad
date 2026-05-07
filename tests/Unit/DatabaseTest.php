@@ -11,6 +11,10 @@ use PDO;
 
 /**
  * @covers \NwsCad\Database
+ * @uses \NwsCad\Config
+ * @uses \NwsCad\Logger
+ * @uses \NwsCad\Logging\RedactingProcessor
+ * @uses \NwsCad\Logging\SecretRegistry
  */
 class DatabaseTest extends TestCase
 {

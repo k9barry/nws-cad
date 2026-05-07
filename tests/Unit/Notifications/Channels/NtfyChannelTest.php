@@ -13,6 +13,14 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\Notifications\Channels\NtfyChannel
+ * @uses \NwsCad\Config
+ * @uses \NwsCad\Logger
+ * @uses \NwsCad\Logging\RedactingProcessor
+ * @uses \NwsCad\Logging\SecretRegistry
+ * @uses \NwsCad\Notifications\IncidentDto
+ * @uses \NwsCad\Notifications\NotificationContext
+ * @uses \NwsCad\Notifications\SendResult
+ * @uses \NwsCad\Notifications\TopicSanitizer
  */
 class NtfyChannelTest extends TestCase
 {

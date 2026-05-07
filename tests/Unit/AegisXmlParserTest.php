@@ -11,6 +11,16 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\AegisXmlParser
+ * @uses \NwsCad\Config
+ * @uses \NwsCad\Database
+ * @uses \NwsCad\FilenameParser
+ * @uses \NwsCad\Logger
+ * @uses \NwsCad\Logging\RedactingProcessor
+ * @uses \NwsCad\Logging\SecretRegistry
+ * @uses \NwsCad\Notifications\EventDispatcher
+ * @uses \NwsCad\Notifications\Events\CallProcessedEvent
+ * @uses \NwsCad\Notifications\Events\Intent
+ * @uses \NwsCad\Notifications\IntentResolver
  */
 class AegisXmlParserTest extends TestCase
 {

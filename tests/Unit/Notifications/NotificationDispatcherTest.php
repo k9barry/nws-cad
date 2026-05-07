@@ -17,6 +17,15 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\Notifications\NotificationDispatcher
+ * @uses \NwsCad\Config
+ * @uses \NwsCad\Logger
+ * @uses \NwsCad\Logging\RedactingProcessor
+ * @uses \NwsCad\Logging\SecretRegistry
+ * @uses \NwsCad\Notifications\Events\CallProcessedEvent
+ * @uses \NwsCad\Notifications\Events\Intent
+ * @uses \NwsCad\Notifications\IncidentDto
+ * @uses \NwsCad\Notifications\NotificationContext
+ * @uses \NwsCad\Notifications\SendResult
  */
 class NotificationDispatcherTest extends TestCase
 {

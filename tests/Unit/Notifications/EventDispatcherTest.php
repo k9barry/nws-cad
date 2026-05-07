@@ -13,6 +13,12 @@ use RuntimeException;
 
 /**
  * @covers \NwsCad\Notifications\EventDispatcher
+ * @uses \NwsCad\Config
+ * @uses \NwsCad\Logger
+ * @uses \NwsCad\Logging\RedactingProcessor
+ * @uses \NwsCad\Logging\SecretRegistry
+ * @uses \NwsCad\Notifications\Events\CallProcessedEvent
+ * @uses \NwsCad\Notifications\Events\Intent
  */
 class EventDispatcherTest extends TestCase
 {

@@ -12,6 +12,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\Logging\RedactingProcessor
+ * @uses \NwsCad\Logging\SecretRegistry
  */
 class RedactingProcessorTest extends TestCase
 {

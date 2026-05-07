@@ -14,6 +14,13 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\Notifications\Channels\PushoverChannel
+ * @uses \NwsCad\Config
+ * @uses \NwsCad\Logger
+ * @uses \NwsCad\Logging\RedactingProcessor
+ * @uses \NwsCad\Logging\SecretRegistry
+ * @uses \NwsCad\Notifications\IncidentDto
+ * @uses \NwsCad\Notifications\NotificationContext
+ * @uses \NwsCad\Notifications\SendResult
  */
 class PushoverChannelTest extends TestCase
 {

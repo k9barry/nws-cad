@@ -12,6 +12,8 @@ use PHPUnit\Framework\TestCase;
 /**
  * @covers \NwsCad\Logger
  * @covers \NwsCad\Logging\RedactingProcessor
+ * @uses \NwsCad\Logging\SecretRegistry
+ * @uses \NwsCad\Config
  */
 class LoggerRedactionWiringTest extends TestCase
 {
