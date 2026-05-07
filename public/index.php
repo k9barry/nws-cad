@@ -29,6 +29,7 @@ $dozzlePort = getenv('DOZZLE_PORT') ?: '8081';
 // Define routes (dashboard-only)
 $routes = [
     '/' => 'dashboard',
+    '/notifications' => 'notifications',
 ];
 
 // Get page from route and determine view based on device
@@ -82,6 +83,11 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
                     <li class="nav-item">
                         <a class="nav-link <?= $page === 'dashboard' ? 'active' : '' ?>" href="/">
                             <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $page === 'notifications' || $page === 'notifications-mobile' ? 'active' : '' ?>" href="/notifications">
+                            <i class="bi bi-bell"></i> Notifications
                         </a>
                     </li>
                     <li class="nav-item">
