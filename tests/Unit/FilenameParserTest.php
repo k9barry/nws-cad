@@ -2,13 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Tests\Unit;
+namespace NwsCad\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use NwsCad\FilenameParser;
 
 /**
  * Tests for FilenameParser
+ *
+ * @covers \NwsCad\FilenameParser
  */
 class FilenameParserTest extends TestCase
 {
