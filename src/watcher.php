@@ -12,12 +12,10 @@ use NwsCad\FileWatcher;
 use NwsCad\Logger;
 use NwsCad\Config;
 use NwsCad\Database;
+use NwsCad\Notifications\ChannelFactory;
 use NwsCad\Notifications\ChannelRepository;
-use NwsCad\Notifications\Channels\NtfyChannel;
-use NwsCad\Notifications\Channels\PushoverChannel;
 use NwsCad\Notifications\EventDispatcher;
 use NwsCad\Notifications\IncidentDto;
-use NwsCad\Notifications\NotificationChannel;
 use NwsCad\Notifications\NotificationDispatcher;
 use NwsCad\Notifications\Events\CallProcessedEvent;
 
@@ -59,7 +57,7 @@ try {
         return IncidentDto::fromRow($row);
     };
 
-    $channelFactoryInstance = new \NwsCad\Notifications\ChannelFactory($config);
+    $channelFactoryInstance = new ChannelFactory($config);
     $channelFactory = [$channelFactoryInstance, 'create'];
 
     $notificationDispatcher = new NotificationDispatcher(
