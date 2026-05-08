@@ -38,20 +38,20 @@ const MobileDashboard = {
     async init() {
         console.log('[Mobile] Initializing mobile dashboard');
 
-        // Pre-populate URL with last-7-days preset if no URL state and no saved state
+        // Pre-populate URL with sensible defaults (last 7 days + open) when
+        // there's no existing URL state and no saved state.
         if (!window.location.search && !localStorage.getItem('filter-panel:last-state')) {
             const url = new URL(window.location);
             url.searchParams.set('preset', 'last_7_days');
+            url.searchParams.set('status', 'open');
             window.history.replaceState({}, '', url);
         }
 
-        // Initialize FilterPanel (compact mode)
+        // Initialize FilterPanel (compact mode). The panel lives inside an
+        // offcanvas drawer that's toggled by the filter stat-card; no explicit
+        // is-collapsed mechanic is needed any more.
         const panelRoot = document.getElementById('filter-panel');
         if (panelRoot && typeof FilterPanel !== 'undefined') {
-            // Start collapsed when there are no active filters in URL
-            if (!window.location.search || window.location.search === '?preset=last_7_days') {
-                panelRoot.classList.add('is-collapsed');
-            }
 
             this.panel = new FilterPanel({
                 root: panelRoot,
@@ -65,12 +65,6 @@ const MobileDashboard = {
             await this.panel.mount();
             this.currentQs = this.panel.getState().toQueryString();
         }
-
-        // Wire filter-panel-toggle (stat card) to collapse/expand the panel
-        document.getElementById('filter-panel-toggle')?.addEventListener('click', function () {
-            const p = document.getElementById('filter-panel');
-            if (p) p.classList.toggle('is-collapsed');
-        });
 
         // Initialize components
         this.initBottomNav();
@@ -138,8 +132,11 @@ const MobileDashboard = {
                 this.showMap();
                 break;
             case 'filters': {
-                const p = document.getElementById('filter-panel');
-                if (p) p.classList.toggle('is-collapsed');
+                // Bootstrap offcanvas API; data-bs-toggle on the stat-card also works.
+                const drawerEl = document.getElementById('filter-drawer');
+                if (drawerEl && window.bootstrap) {
+                    bootstrap.Offcanvas.getOrCreateInstance(drawerEl).toggle();
+                }
                 break;
             }
             case 'analytics':

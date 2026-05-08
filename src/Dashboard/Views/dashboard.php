@@ -11,8 +11,13 @@
                 <div>
                     <i class="bi bi-funnel me-2"></i>
                     <span class="text-muted">Active Filters: </span>
-                    <span id="filter-summary" class="fw-bold">Today</span>
+                    <span id="filter-summary" class="fw-bold">Today, Open</span>
                 </div>
+                <button type="button" class="btn btn-outline-primary btn-sm"
+                        data-bs-toggle="offcanvas" data-bs-target="#filter-drawer"
+                        aria-controls="filter-drawer">
+                    <i class="bi bi-sliders"></i> Filters
+                </button>
             </div>
         </div>
     </div>
@@ -21,16 +26,30 @@
 <?php
 // Include modular components
 $partialsPath = __DIR__ . '/partials/';
+?>
 
-// 1. Filter Panel (must come first — appears in-flow above the data it filters)
-$filterFields = 'date,call_type,incident_type,nature_of_call,agency,ori,fdid,beat,area,city,location,call_id,unit,status,q';
-$filterCompact = 'false';
-include $partialsPath . 'filter-panel.php';
+<!-- Filter Drawer (offcanvas) -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="filter-drawer" aria-labelledby="filter-drawer-label">
+    <div class="offcanvas-header border-bottom">
+        <h5 class="offcanvas-title" id="filter-drawer-label">
+            <i class="bi bi-sliders"></i> Filters
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <?php
+        $filterFields = 'date,call_type,incident_type,nature_of_call,agency,ori,fdid,beat,area,city,location,call_id,unit,status,q';
+        $filterCompact = 'true'; // narrow drawer: stack fields vertically
+        include $partialsPath . 'filter-panel.php';
+        ?>
+    </div>
+</div>
 
-// 2. Map and Statistics Cards with Recent Calls Table
+<?php
+// Map and Statistics Cards with Recent Calls Table
 include $partialsPath . 'map-and-stats.php';
 
-// 3. Modals
+// Modals
 include $partialsPath . 'call-detail-modal.php';
 include $partialsPath . 'analytics-modal.php';
 ?>

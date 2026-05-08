@@ -1188,10 +1188,13 @@
             window.location.href = `/${page}`;
         };
         
-        // Pre-populate URL with today preset if no URL state and no saved state
+        // Pre-populate URL with sensible defaults (today + open) when there's
+        // no existing URL state and no saved state. This is the dispatcher's
+        // most common view — start there instead of an empty filter set.
         if (!window.location.search && !localStorage.getItem('filter-panel:last-state')) {
             const url = new URL(window.location);
             url.searchParams.set('preset', 'today');
+            url.searchParams.set('status', 'open');
             window.history.replaceState({}, '', url);
         }
 
