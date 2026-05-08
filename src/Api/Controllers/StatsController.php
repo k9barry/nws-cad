@@ -8,6 +8,12 @@ use NwsCad\Database;
 use NwsCad\Api\Request;
 use NwsCad\Api\Response;
 use NwsCad\Api\DbHelper;
+use NwsCad\Api\Filtering\FilterCriteria;
+use NwsCad\Api\Filtering\FilterContext;
+use NwsCad\Api\Filtering\FilterRegistry;
+use NwsCad\Api\Filtering\FilterSqlBuilder;
+use NwsCad\Api\Filtering\InvalidFilterException;
+use NwsCad\Api\Filtering\SqlFragment;
 use PDO;
 use Exception;
 
@@ -41,21 +47,30 @@ class StatsController
     public function index(): void
     {
         try {
-            $filters = Request::filters([
-                'date_from',
-                'date_to',
-                'agency_type',
-                'jurisdiction'
-            ]);
+            $criteria = FilterCriteria::fromQuery(
+                $_GET,
+                FilterRegistry::for('stats')
+            );
+        } catch (InvalidFilterException $e) {
+            Response::error($e->getMessage(), 400);
+            return;
+        }
+
+        try {
+            $builder = new FilterSqlBuilder();
+            $sql     = $builder->build(
+                $criteria,
+                new FilterContext('calls', ['calls'])
+            );
 
             // Get calls stats
-            $callsStats = $this->getCallsStats($filters);
-            
-            // Get units stats
-            $unitsStats = $this->getUnitsStats($filters);
-            
-            // Get response times stats
-            $responseStats = $this->getResponseStats($filters);
+            $callsStats = $this->getCallsStats($sql);
+
+            // Get units stats (date range applied via criteria)
+            $unitsStats = $this->getUnitsStats($criteria);
+
+            // Get response times stats (date range applied via criteria)
+            $responseStats = $this->getResponseStats($criteria);
 
             // Combine all stats - merge units stats at top level for dashboard compatibility
             $aggregateStats = array_merge(
@@ -73,74 +88,40 @@ class StatsController
     /**
      * Get call statistics (internal method)
      */
-    private function getCallsStats(array $filters): array
+    private function getCallsStats(SqlFragment $sql): array
     {
-        $params = [];
-        
-        // Build date filters (used in all queries)
-        $dateWhere = [];
-        if (isset($filters['date_from'])) {
-            $dateWhere[] = "c.create_datetime >= :date_from";
-            $params[':date_from'] = $filters['date_from'];
-        }
-        if (isset($filters['date_to'])) {
-            $dateWhere[] = "c.create_datetime <= :date_to";
-            $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
-        }
-
-        // Build agency type filter
-        $agencyJoin = '';
-        $agencyWhere = '';
-        if (isset($filters['agency_type'])) {
-            $agencyJoin = "INNER JOIN agency_contexts ac ON c.id = ac.call_id";
-            $agencyWhere = "ac.agency_type = :agency_type";
-            $params[':agency_type'] = $filters['agency_type'];
-        }
-
-        // Build jurisdiction filter
-        $jurisdictionJoin = '';
-        $jurisdictionWhere = '';
-        if (isset($filters['jurisdiction'])) {
-            $jurisdictionJoin = "INNER JOIN incidents i ON c.id = i.call_id";
-            $jurisdictionWhere = "i.jurisdiction = :jurisdiction";
-            $params[':jurisdiction'] = $filters['jurisdiction'];
-        }
-
-        // Full join clause for queries needing both
-        $fullJoin = $agencyJoin . ' ' . $jurisdictionJoin;
-        
-        // Build full WHERE clause (date + agency + jurisdiction)
-        $allWhere = array_merge($dateWhere, array_filter([$agencyWhere, $jurisdictionWhere]));
-        $fullWhereClause = !empty($allWhere) ? 'WHERE ' . implode(' AND ', $allWhere) : '';
+        $whereClause = $sql->whereClause;
+        $joinsSql    = $sql->joins ? implode(' ', $sql->joins) . ' ' : '';
+        $params      = $sql->params;
 
         // Total calls
-        $sql = "
-            SELECT COUNT(DISTINCT c.id) as total
-            FROM calls c
-            {$fullJoin}
-            {$fullWhereClause}
+        $querySql = "
+            SELECT COUNT(DISTINCT calls.id) as total
+            FROM calls
+            {$joinsSql}
+            {$whereClause}
         ";
-        $stmt = $this->db->prepare($sql);
+        $stmt = $this->db->prepare($querySql);
         $stmt->execute($params);
         $totalCalls = (int)$stmt->fetchColumn();
 
         // Calls by status
-        $sql = "
-            SELECT 
-                CASE 
-                    WHEN MAX(c.canceled_flag) = 1 THEN 'canceled'
-                    WHEN MAX(c.closed_flag) = 1 THEN 'closed'
+        $querySql = "
+            SELECT
+                CASE
+                    WHEN MAX(calls.canceled_flag) = 1 THEN 'canceled'
+                    WHEN MAX(calls.closed_flag) = 1 THEN 'closed'
                     ELSE 'open'
                 END as status,
-                COUNT(DISTINCT c.id) as count
-            FROM calls c
-            {$fullJoin}
-            {$fullWhereClause}
-            GROUP BY c.id
+                COUNT(DISTINCT calls.id) as count
+            FROM calls
+            {$joinsSql}
+            {$whereClause}
+            GROUP BY calls.id
         ";
-        $stmt = $this->db->prepare($sql);
+        $stmt = $this->db->prepare($querySql);
         $stmt->execute($params);
-        
+
         // Count by status
         $statusCounts = ['open' => 0, 'closed' => 0, 'canceled' => 0];
         foreach ($stmt->fetchAll() as $row) {
@@ -148,53 +129,61 @@ class StatsController
         }
         $byStatus = $statusCounts;
 
-        // Top call types from agency_contexts
-        // WHERE clause: date filters + agency filter + jurisdiction filter
-        $callTypeWhere = array_merge($dateWhere, array_filter([$agencyWhere, $jurisdictionWhere]));
-        $callTypeWhereClause = !empty($callTypeWhere) ? 'WHERE ' . implode(' AND ', $callTypeWhere) : '';
-        
-        $sql = "
-            SELECT 
-                ac.call_type,
-                COUNT(DISTINCT c.id) as count
-            FROM calls c
-            INNER JOIN agency_contexts ac ON c.id = ac.call_id
-            {$jurisdictionJoin}
+        // Top call types from agency_contexts.
+        // agency_contexts is already LEFT JOINed by FilterSqlBuilder when call_type/agency
+        // filters are active; add it here if not already present.
+        $callTypeJoinsSql = $joinsSql;
+        if (stripos($callTypeJoinsSql, 'agency_contexts') === false) {
+            $callTypeJoinsSql .= 'LEFT JOIN agency_contexts ON agency_contexts.call_id = calls.id ';
+        }
+        $callTypeWhereClause = $whereClause !== ''
+            ? $whereClause . ' AND agency_contexts.call_type IS NOT NULL'
+            : 'WHERE agency_contexts.call_type IS NOT NULL';
+
+        $querySql = "
+            SELECT
+                agency_contexts.call_type,
+                COUNT(DISTINCT calls.id) as count
+            FROM calls
+            {$callTypeJoinsSql}
             {$callTypeWhereClause}
-            AND ac.call_type IS NOT NULL
-            GROUP BY ac.call_type
+            GROUP BY agency_contexts.call_type
             ORDER BY count DESC
             LIMIT 10
         ";
-        $stmt = $this->db->prepare($sql);
+        $stmt = $this->db->prepare($querySql);
         $stmt->execute($params);
-        $topCallTypes = array_map(function($row) {
+        $topCallTypes = array_map(function ($row) {
             return [
                 'call_type' => $row['call_type'],
                 'count' => (int)$row['count']
             ];
         }, $stmt->fetchAll());
 
-        // Calls by jurisdiction from incidents table
-        // WHERE clause: date filters + agency filter (jurisdiction filter applies to the grouping result, not the WHERE)
-        $jurisdictionQueryWhere = array_merge($dateWhere, array_filter([$agencyWhere, $jurisdictionWhere]));
-        $jurisdictionQueryWhereClause = !empty($jurisdictionQueryWhere) ? 'WHERE ' . implode(' AND ', $jurisdictionQueryWhere) : '';
-        
-        $sql = "
-            SELECT 
-                i.jurisdiction,
-                COUNT(DISTINCT c.id) as count
-            FROM calls c
-            {$agencyJoin}
-            INNER JOIN incidents i ON c.id = i.call_id
-            {$jurisdictionQueryWhereClause}
-            AND i.jurisdiction IS NOT NULL
-            GROUP BY i.jurisdiction
+        // Calls by jurisdiction from incidents table.
+        // incidents is already LEFT JOINed by FilterSqlBuilder when incidentType filter is active;
+        // add it here if not already present.
+        $jurisdJoinsSql = $joinsSql;
+        if (stripos($jurisdJoinsSql, 'incidents') === false) {
+            $jurisdJoinsSql .= 'LEFT JOIN incidents ON incidents.call_id = calls.id ';
+        }
+        $jurisdWhereClause = $whereClause !== ''
+            ? $whereClause . ' AND incidents.jurisdiction IS NOT NULL'
+            : 'WHERE incidents.jurisdiction IS NOT NULL';
+
+        $querySql = "
+            SELECT
+                incidents.jurisdiction,
+                COUNT(DISTINCT calls.id) as count
+            FROM calls
+            {$jurisdJoinsSql}
+            {$jurisdWhereClause}
+            GROUP BY incidents.jurisdiction
             ORDER BY count DESC
         ";
-        $stmt = $this->db->prepare($sql);
+        $stmt = $this->db->prepare($querySql);
         $stmt->execute($params);
-        $callsByJurisdiction = array_map(function($row) {
+        $callsByJurisdiction = array_map(function ($row) {
             return [
                 'jurisdiction' => $row['jurisdiction'],
                 'count' => (int)$row['count']
@@ -212,19 +201,16 @@ class StatsController
     /**
      * Get units statistics (internal method)
      */
-    private function getUnitsStats(array $filters): array
+    private function getUnitsStats(FilterCriteria $criteria): array
     {
         $where = [];
         $params = [];
 
-        if (isset($filters['date_from'])) {
+        if ($criteria->dateRange !== null) {
             $where[] = "u.assigned_datetime >= :date_from";
-            $params[':date_from'] = $filters['date_from'];
-        }
-
-        if (isset($filters['date_to'])) {
             $where[] = "u.assigned_datetime <= :date_to";
-            $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+            $params[':date_from'] = $criteria->dateRange->from->format('Y-m-d H:i:s');
+            $params[':date_to']   = $criteria->dateRange->to->format('Y-m-d H:i:s');
         }
 
         $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -243,32 +229,27 @@ class StatsController
     /**
      * Get response time statistics (internal method)
      */
-    private function getResponseStats(array $filters): array
+    private function getResponseStats(FilterCriteria $criteria): array
     {
         $where = [];
         $params = [];
 
-        if (isset($filters['date_from'])) {
+        if ($criteria->dateRange !== null) {
             $where[] = "u.assigned_datetime >= :date_from";
-            $params[':date_from'] = $filters['date_from'];
-        }
-
-        if (isset($filters['date_to'])) {
             $where[] = "u.assigned_datetime <= :date_to";
-            $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+            $params[':date_from'] = $criteria->dateRange->from->format('Y-m-d H:i:s');
+            $params[':date_to']   = $criteria->dateRange->to->format('Y-m-d H:i:s');
         }
-
-        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
 
         // Average response time
         $responseWhere = $where;
         $responseWhere[] = 'u.dispatch_datetime IS NOT NULL';
         $responseWhere[] = 'u.arrive_datetime IS NOT NULL';
         $responseWhereClause = 'WHERE ' . implode(' AND ', $responseWhere);
-        
+
         $responseMinutes = DbHelper::timestampDiff('MINUTE', 'u.dispatch_datetime', 'u.arrive_datetime');
         $sql = "
-            SELECT 
+            SELECT
                 AVG({$responseMinutes}) as avg_minutes,
                 MIN({$responseMinutes}) as min_minutes,
                 MAX({$responseMinutes}) as max_minutes
@@ -278,7 +259,7 @@ class StatsController
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         $times = $stmt->fetch();
-        
+
         // Handle case where no results are returned
         if (!$times) {
             return [

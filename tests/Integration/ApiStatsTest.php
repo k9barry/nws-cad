@@ -13,6 +13,12 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Api\DbHelper
  * @uses \NwsCad\Api\Request
  * @uses \NwsCad\Api\Response
+ * @uses \NwsCad\Api\Filtering\FilterCriteria
+ * @uses \NwsCad\Api\Filtering\FilterContext
+ * @uses \NwsCad\Api\Filtering\FilterRegistry
+ * @uses \NwsCad\Api\Filtering\FilterSqlBuilder
+ * @uses \NwsCad\Api\Filtering\SqlFragment
+ * @uses \NwsCad\Api\Filtering\DateRange
  * @uses \NwsCad\Config
  * @uses \NwsCad\Database
  * @uses \NwsCad\Logger
@@ -329,24 +335,24 @@ class ApiStatsTest extends TestCase
         $stmt->execute([1, 'CALL-001', '2024-01-01 10:00:00']);
         $stmt->execute([2, 'CALL-002', '2024-01-10 11:00:00']);
         
-        // Set filters
-        $_GET['date_from'] = '2024-01-09';
-        $_GET['date_to'] = '2024-01-11';
-        
+        // Set filters using the new consolidated filter param names
+        $_GET['from'] = '2024-01-09';
+        $_GET['to'] = '2024-01-11';
+
         $controller = new \NwsCad\Api\Controllers\StatsController();
-        
+
         ob_start();
         $controller->index();
         $output = ob_get_clean();
-        
+
         $data = json_decode($output, true);
-        
+
         $this->assertTrue($data['success']);
         $this->assertEquals(1, $data['data']['total_calls']); // Only one call in date range
-        
+
         // Clean up
-        unset($_GET['date_from']);
-        unset($_GET['date_to']);
+        unset($_GET['from']);
+        unset($_GET['to']);
     }
 
     /**
