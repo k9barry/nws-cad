@@ -493,6 +493,108 @@ XML;
         }
     }
 
+    public function testInsertsFdidFromXmlAttributeWhenPresent(): void
+    {
+        if (!getenv('MYSQL_HOST')) {
+            $this->markTestSkipped('Database not configured for testing');
+        }
+
+        cleanTestDatabase();
+
+        $xml = $this->buildXmlWithAgencyContextHavingFdid('48013');
+        $tmpPath = sys_get_temp_dir() . '/fdid_xml_' . uniqid() . '.xml';
+        file_put_contents($tmpPath, $xml);
+
+        try {
+            $parser = new AegisXmlParser();
+            $this->assertTrue($parser->processFile($tmpPath));
+
+            $db = Database::getConnection();
+            $row = $db->query("SELECT fdid FROM agency_contexts ORDER BY id DESC LIMIT 1")->fetch();
+            $this->assertSame('48013', $row['fdid']);
+        } finally {
+            @unlink($tmpPath);
+        }
+    }
+
+    public function testFallsBackToRefAgenciesLookupWhenXmlLacksFdid(): void
+    {
+        if (!getenv('MYSQL_HOST')) {
+            $this->markTestSkipped('Database not configured for testing');
+        }
+
+        cleanTestDatabase();
+
+        $db = Database::getConnection();
+        $db->exec("INSERT INTO ref_agencies (code,label,kind,fdid,active,sort_order) VALUES ('FOO_FD','Foo Fire','fire','48099',1,100)");
+
+        $xml = $this->buildXmlWithAgencyType('Foo Fire');
+        $tmpPath = sys_get_temp_dir() . '/fdid_fallback_' . uniqid() . '.xml';
+        file_put_contents($tmpPath, $xml);
+
+        try {
+            $parser = new AegisXmlParser();
+            $this->assertTrue($parser->processFile($tmpPath));
+
+            $row = $db->query("SELECT fdid FROM agency_contexts ORDER BY id DESC LIMIT 1")->fetch();
+            $this->assertSame('48099', $row['fdid']);
+        } finally {
+            @unlink($tmpPath);
+            $db->exec("DELETE FROM ref_agencies WHERE code = 'FOO_FD'");
+        }
+    }
+
+    private function buildXmlWithAgencyContextHavingFdid(string $fdid): string
+    {
+        return <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<CallExport xmlns="http://www.newworldsystems.com/Aegis/CAD/Peripheral/CallExport/2011/02">
+    <CallId>77701</CallId>
+    <CallNumber>2024-77701</CallNumber>
+    <CreateDateTime>2024-03-01T08:00:00</CreateDateTime>
+    <ClosedFlag>false</ClosedFlag>
+    <CanceledFlag>false</CanceledFlag>
+    <AlarmLevel>1</AlarmLevel>
+    <AgencyContexts>
+        <AgencyContext>
+            <AgencyType>Fire</AgencyType>
+            <CallType>Structure Fire</CallType>
+            <Priority>High</Priority>
+            <Status>Active</Status>
+            <FDID>{$fdid}</FDID>
+            <ClosedFlag>false</ClosedFlag>
+            <CanceledFlag>false</CanceledFlag>
+        </AgencyContext>
+    </AgencyContexts>
+</CallExport>
+XML;
+    }
+
+    private function buildXmlWithAgencyType(string $agencyType): string
+    {
+        return <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<CallExport xmlns="http://www.newworldsystems.com/Aegis/CAD/Peripheral/CallExport/2011/02">
+    <CallId>77702</CallId>
+    <CallNumber>2024-77702</CallNumber>
+    <CreateDateTime>2024-03-01T09:00:00</CreateDateTime>
+    <ClosedFlag>false</ClosedFlag>
+    <CanceledFlag>false</CanceledFlag>
+    <AlarmLevel>1</AlarmLevel>
+    <AgencyContexts>
+        <AgencyContext>
+            <AgencyType>{$agencyType}</AgencyType>
+            <CallType>Structure Fire</CallType>
+            <Priority>High</Priority>
+            <Status>Active</Status>
+            <ClosedFlag>false</ClosedFlag>
+            <CanceledFlag>false</CanceledFlag>
+        </AgencyContext>
+    </AgencyContexts>
+</CallExport>
+XML;
+    }
+
     public function testReprocessingSameCallIdDoesNotDuplicateLocationRow(): void
     {
         if (!getenv('MYSQL_HOST')) {

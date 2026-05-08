@@ -333,14 +333,15 @@ class AegisXmlParser
         $dbType = Database::getDbType();
         if ($dbType === 'mysql') {
             $sql = "INSERT INTO agency_contexts (
-                call_id, agency_type, call_type, priority, status, dispatcher,
+                call_id, agency_type, fdid, call_type, priority, status, dispatcher,
                 created_datetime, closed_datetime, closed_flag, canceled_flag,
                 radio_channel, emd_case_number, emd_code
             ) VALUES (
-                :call_id, :agency_type, :call_type, :priority, :status, :dispatcher,
+                :call_id, :agency_type, :fdid, :call_type, :priority, :status, :dispatcher,
                 :created_datetime, :closed_datetime, :closed_flag, :canceled_flag,
                 :radio_channel, :emd_case_number, :emd_code
             ) AS new_ac ON DUPLICATE KEY UPDATE
+                fdid = new_ac.fdid,
                 call_type = new_ac.call_type,
                 priority = new_ac.priority,
                 status = new_ac.status,
@@ -355,14 +356,15 @@ class AegisXmlParser
                 updated_at = CURRENT_TIMESTAMP";
         } else {
             $sql = "INSERT INTO agency_contexts (
-                call_id, agency_type, call_type, priority, status, dispatcher,
+                call_id, agency_type, fdid, call_type, priority, status, dispatcher,
                 created_datetime, closed_datetime, closed_flag, canceled_flag,
                 radio_channel, emd_case_number, emd_code
             ) VALUES (
-                :call_id, :agency_type, :call_type, :priority, :status, :dispatcher,
+                :call_id, :agency_type, :fdid, :call_type, :priority, :status, :dispatcher,
                 :created_datetime, :closed_datetime, :closed_flag, :canceled_flag,
                 :radio_channel, :emd_case_number, :emd_code
             ) ON CONFLICT (call_id, agency_type) DO UPDATE SET
+                fdid = EXCLUDED.fdid,
                 call_type = EXCLUDED.call_type,
                 priority = EXCLUDED.priority,
                 status = EXCLUDED.status,
@@ -379,9 +381,29 @@ class AegisXmlParser
         $stmt = $this->db->prepare($sql);
 
         foreach ($xml->AgencyContexts->AgencyContext as $context) {
+            $agencyType = (string)$context->AgencyType ?: null;
+
+            // Extract FDID from XML; fall back to ref_agencies lookup if absent.
+            $fdid = null;
+            $fdidNode = $context->FDID ?? null;
+            if ($fdidNode !== null && (string)$fdidNode !== '') {
+                $fdid = (string)$fdidNode;
+            }
+            if ($fdid === null && $agencyType !== null && $agencyType !== '') {
+                $lookup = $this->db->prepare(
+                    'SELECT fdid FROM ref_agencies WHERE LOWER(label) = LOWER(:lbl) OR code = :code LIMIT 1'
+                );
+                $lookup->execute([':lbl' => $agencyType, ':code' => $agencyType]);
+                $refRow = $lookup->fetch();
+                if ($refRow && !empty($refRow['fdid'])) {
+                    $fdid = (string)$refRow['fdid'];
+                }
+            }
+
             $stmt->execute([
                 'call_id' => $callId,
-                'agency_type' => (string)$context->AgencyType ?: null,
+                'agency_type' => $agencyType,
+                'fdid' => $fdid,
                 'call_type' => (string)$context->CallType ?: null,
                 'priority' => (string)$context->Priority ?: null,
                 'status' => (string)$context->Status ?: null,
