@@ -13,6 +13,8 @@ use PHPUnit\Framework\TestCase;
 /**
  * @covers \NwsCad\Logging\RedactingProcessor
  * @covers \NwsCad\Config
+ * @uses \NwsCad\Logger
+ * @uses \NwsCad\Logging\SecretRegistry
  */
 class SecretRedactionTest extends TestCase
 {
