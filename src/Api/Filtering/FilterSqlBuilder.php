@@ -17,7 +17,7 @@ final class FilterSqlBuilder
         $needsUnits          = $f->unit !== [];
 
         if ($needsAgencyContexts && !$ctx->isJoined('agency_contexts')) {
-            $joins[] = 'LEFT JOIN agency_contexts ac ON ac.call_id = calls.id';
+            $joins[] = 'LEFT JOIN agency_contexts ON agency_contexts.call_id = calls.id';
         }
         if ($needsLocations && !$ctx->isJoined('locations')) {
             $joins[] = 'LEFT JOIN locations ON locations.call_id = calls.id';
@@ -60,34 +60,53 @@ final class FilterSqlBuilder
             $clauses[] = $cfg['column'] . ' IN (' . implode(', ', $placeholders) . ')';
         }
 
-        // ORI: matches across police_ori OR ems_ori OR fire_ori
+        // ORI: matches across police_ori OR ems_ori OR fire_ori.
+        // PDO named parameters cannot appear more than once per query, so we
+        // generate separate parameter names for each column reference.
         if ($f->ori !== []) {
-            $placeholders = [];
+            $policePh = [];
+            $emsPh    = [];
+            $firePh   = [];
             foreach ($f->ori as $i => $v) {
-                $name = 'ori_' . $i;
-                $placeholders[] = ':' . $name;
-                $params[$name] = $v;
+                $polN = 'ori_police_' . $i;
+                $emsN = 'ori_ems_'    . $i;
+                $firN = 'ori_fire_'   . $i;
+                $policePh[] = ':' . $polN;
+                $emsPh[]    = ':' . $emsN;
+                $firePh[]   = ':' . $firN;
+                $params[$polN] = $v;
+                $params[$emsN] = $v;
+                $params[$firN] = $v;
             }
-            $list = implode(', ', $placeholders);
-            $clauses[] = "(locations.police_ori IN ({$list}) OR locations.ems_ori IN ({$list}) OR locations.fire_ori IN ({$list}))";
+            $clauses[] = '(locations.police_ori IN (' . implode(', ', $policePh) . ')'
+                . ' OR locations.ems_ori IN (' . implode(', ', $emsPh) . ')'
+                . ' OR locations.fire_ori IN (' . implode(', ', $firePh) . '))';
         }
 
-        // Area: matches fire_quadrant OR ems_district
+        // Area: matches fire_quadrant OR ems_district.
+        // Same PDO duplicate-parameter constraint as ORI above.
         if ($f->area !== []) {
-            $placeholders = [];
+            $firePh = [];
+            $emsPh  = [];
             foreach ($f->area as $i => $v) {
-                $name = 'area_' . $i;
-                $placeholders[] = ':' . $name;
-                $params[$name] = $v;
+                $firN = 'area_fire_' . $i;
+                $emsN = 'area_ems_'  . $i;
+                $firePh[] = ':' . $firN;
+                $emsPh[]  = ':' . $emsN;
+                $params[$firN] = $v;
+                $params[$emsN] = $v;
             }
-            $list = implode(', ', $placeholders);
-            $clauses[] = "(locations.fire_quadrant IN ({$list}) OR locations.ems_district IN ({$list}))";
+            $clauses[] = '(locations.fire_quadrant IN (' . implode(', ', $firePh) . ')'
+                . ' OR locations.ems_district IN (' . implode(', ', $emsPh) . '))';
         }
 
         // LIKE filters (location, nature_of_call). Escape % and _ so users typing them are taken literally.
+        // location matches two columns — use distinct parameter names to avoid PDO duplicate-parameter error.
         if ($f->location !== null) {
-            $params['location'] = '%' . self::escapeLike($f->location) . '%';
-            $clauses[] = '(locations.full_address LIKE :location OR locations.common_name LIKE :location)';
+            $escaped = '%' . self::escapeLike($f->location) . '%';
+            $params['location_addr']   = $escaped;
+            $params['location_cname']  = $escaped;
+            $clauses[] = '(locations.full_address LIKE :location_addr OR locations.common_name LIKE :location_cname)';
         }
         if ($f->natureOfCall !== null) {
             $params['nature_of_call'] = '%' . self::escapeLike($f->natureOfCall) . '%';
@@ -95,6 +114,7 @@ final class FilterSqlBuilder
         }
 
         // Free-text q across narratives + caller + incident #. Joins narratives if used.
+        // Three columns → three distinct parameter names (PDO duplicate-parameter constraint).
         if ($f->search !== null && $f->search !== '') {
             if (!$ctx->isJoined('narratives')) {
                 $joins[] = 'LEFT JOIN narratives ON narratives.call_id = calls.id';
@@ -102,8 +122,11 @@ final class FilterSqlBuilder
             if (!$needsIncidents && !$ctx->isJoined('incidents')) {
                 $joins[] = 'LEFT JOIN incidents ON incidents.call_id = calls.id';
             }
-            $params['q'] = '%' . self::escapeLike($f->search) . '%';
-            $clauses[] = '(narratives.note LIKE :q OR calls.caller_name LIKE :q OR incidents.incident_number LIKE :q)';
+            $escaped = '%' . self::escapeLike($f->search) . '%';
+            $params['q_note']     = $escaped;
+            $params['q_caller']   = $escaped;
+            $params['q_incident'] = $escaped;
+            $clauses[] = '(narratives.note LIKE :q_note OR calls.caller_name LIKE :q_caller OR incidents.incident_number LIKE :q_incident)';
         }
 
         // Status: each selected value becomes a parenthesised clause; multiple OR'd

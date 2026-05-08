@@ -51,7 +51,7 @@ final class FilterSqlBuilderTest extends TestCase
         $this->assertStringContainsString('IN (:call_type_0, :call_type_1)', $where);
         $this->assertSame('Police', $params['call_type_0']);
         $this->assertSame('Fire',   $params['call_type_1']);
-        $this->assertContains('LEFT JOIN agency_contexts ac ON ac.call_id = calls.id', $joins);
+        $this->assertContains('LEFT JOIN agency_contexts ON agency_contexts.call_id = calls.id', $joins);
     }
 
     public function testStatusOpenDecodesToFlagsClause(): void
@@ -89,9 +89,13 @@ final class FilterSqlBuilderTest extends TestCase
     public function testOriMatchesAcrossThreeColumns(): void
     {
         [$where, $params, $joins] = $this->build(['ori' => 'IN0480000']);
-        $this->assertStringContainsString('locations.police_ori IN (:ori_0)', $where);
-        $this->assertStringContainsString('OR locations.ems_ori IN (:ori_0)', $where);
-        $this->assertStringContainsString('OR locations.fire_ori IN (:ori_0)', $where);
+        // Each column gets its own parameter name to satisfy PDO duplicate-parameter constraint
+        $this->assertStringContainsString('locations.police_ori IN (:ori_police_0)', $where);
+        $this->assertStringContainsString('OR locations.ems_ori IN (:ori_ems_0)', $where);
+        $this->assertStringContainsString('OR locations.fire_ori IN (:ori_fire_0)', $where);
+        $this->assertSame('IN0480000', $params['ori_police_0']);
+        $this->assertSame('IN0480000', $params['ori_ems_0']);
+        $this->assertSame('IN0480000', $params['ori_fire_0']);
         $this->assertContains('LEFT JOIN locations ON locations.call_id = calls.id', $joins);
     }
 
@@ -99,7 +103,7 @@ final class FilterSqlBuilderTest extends TestCase
     {
         [$where, $params, $joins] = $this->build(['fdid' => '48013']);
         $this->assertStringContainsString('agency_contexts.fdid IN (:fdid_0)', $where);
-        $this->assertContains('LEFT JOIN agency_contexts ac ON ac.call_id = calls.id', $joins);
+        $this->assertContains('LEFT JOIN agency_contexts ON agency_contexts.call_id = calls.id', $joins);
     }
 
     public function testNatureOfCallUsesLikeWithEscapedPattern(): void
@@ -113,8 +117,11 @@ final class FilterSqlBuilderTest extends TestCase
     public function testLocationMatchesAddressAndCommonName(): void
     {
         [$where, $params] = $this->build(['location' => 'Main St']);
-        $this->assertStringContainsString('locations.full_address LIKE :location', $where);
-        $this->assertStringContainsString('locations.common_name LIKE :location', $where);
+        // Distinct parameter names per column to satisfy PDO duplicate-parameter constraint
+        $this->assertStringContainsString('locations.full_address LIKE :location_addr', $where);
+        $this->assertStringContainsString('locations.common_name LIKE :location_cname', $where);
+        $this->assertSame('%Main St%', $params['location_addr']);
+        $this->assertSame('%Main St%', $params['location_cname']);
     }
 
     public function testCallIdMultiSelect(): void
@@ -143,7 +150,7 @@ final class FilterSqlBuilderTest extends TestCase
             ['call_type' => 'Police'],
             ['calls', 'agency_contexts'] // already joined
         );
-        $this->assertNotContains('LEFT JOIN agency_contexts ac ON ac.call_id = calls.id', $joins);
+        $this->assertNotContains('LEFT JOIN agency_contexts ON agency_contexts.call_id = calls.id', $joins);
     }
 
     public function testCombinesMultipleFiltersWithAnd(): void
