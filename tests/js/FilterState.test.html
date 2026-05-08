@@ -1,0 +1,28 @@
+<!-- tests/js/FilterState.test.html -->
+<!doctype html>
+<html><body>
+<script src="../../public/assets/js/filters/FilterState.js"></script>
+<script>
+  const tests = [];
+  function eq(a, b, msg) {
+    const ok = JSON.stringify(a) === JSON.stringify(b);
+    tests.push({ msg, ok, a, b });
+  }
+
+  const s1 = FilterState.fromQuery('call_type=Police,Fire&status=open&q=jane');
+  eq(s1.get('call_type'), ['Police','Fire'], 'parses csv multi');
+  eq(s1.get('status'),    ['open'],         'parses csv single multi');
+  eq(s1.get('q'),         'jane',           'parses scalar');
+
+  const s2 = new FilterState();
+  s2.merge({ call_type: ['Police'], q: 'foo' });
+  eq(s2.toQueryString(), 'call_type=Police&q=foo', 'serializes round trip');
+
+  s2.merge({ q: '' });
+  eq(s2.get('q'), undefined, 'empty string deletes key');
+
+  document.body.innerHTML = tests.map(t =>
+    '<p style="font-family:monospace">' + (t.ok ? '✓' : '✗') + ' ' + t.msg + '</p>'
+  ).join('');
+</script>
+</body></html>
