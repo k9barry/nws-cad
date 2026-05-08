@@ -29,7 +29,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Unified filter system across desktop dashboard, mobile dashboard, and new `/calls` and `/units` list pages.
+- New filter vocabulary: call_type, incident_type, nature_of_call (LIKE), agency, ORI, FDID, beat, area, city, location, call_id, unit #, status (open/closed/canceled), and date range with presets.
+- New `Api\Filtering\` namespace (`FilterCriteria`, `FilterSqlBuilder`, `FilterRegistry`, `FilterContext`, `FilterOptionsCache`, `DateRange`, `InvalidFilterException`).
+- New endpoint `GET /api/filter-options` returning curated reference data + derived option lists.
+- New reference tables: `ref_agencies`, `ref_oris`, `ref_fdids`, `ref_beats`, `ref_areas`. Seeded via `php bin/seed-reference.php`.
+- New `agency_contexts.fdid` column; populated by `AegisXmlParser` from XML or `ref_agencies` lookup.
+- New composite indexes on `calls`, `agency_contexts`, `locations`, `units`, `incidents` (see migration).
+- Vendored frontend libraries: Choices.js v10 and Flatpickr v4 under `public/assets/vendor/`.
 - Notifications dashboard UI: enable/disable channels and dispatch synthetic test sends from `/notifications` without dropping into the shell. Backed by three new endpoints (`POST /api/notifications/channels/{type}/{enable|disable|test}`) and a shared `Notifications\ChannelFactory` for channel construction.
+
+### Removed
+- Legacy `public/assets/js/filter-manager.js` (replaced by `FilterPanel`).
+- Mobile filter logic in `mobile.js` (replaced by `FilterPanel` compact mode).
+- `Api\Request::filters()` (superseded by `FilterCriteria`).
+- `partials/filter-modal.php` and `partials-mobile/filters-modal.php` (replaced by `partials/filter-panel.php`).
 
 ### Changed
 - Consolidated v1.1.0 database migration scripts into init.sql files (migrations already reflected in init schemas)
