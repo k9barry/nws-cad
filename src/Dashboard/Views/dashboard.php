@@ -22,13 +22,13 @@
 // Include modular components
 $partialsPath = __DIR__ . '/partials/';
 
-// 1. Map and Statistics Cards with Recent Calls Table
-include $partialsPath . 'map-and-stats.php';
-
-// 2. Filter Panel
+// 1. Filter Panel (must come first — appears in-flow above the data it filters)
 $filterFields = 'date,call_type,incident_type,nature_of_call,agency,ori,fdid,beat,area,city,location,call_id,unit,status,q';
 $filterCompact = 'false';
 include $partialsPath . 'filter-panel.php';
+
+// 2. Map and Statistics Cards with Recent Calls Table
+include $partialsPath . 'map-and-stats.php';
 
 // 3. Modals
 include $partialsPath . 'call-detail-modal.php';
