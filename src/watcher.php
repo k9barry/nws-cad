@@ -59,29 +59,8 @@ try {
         return IncidentDto::fromRow($row);
     };
 
-    $channelFactory = function (array $row) use ($config): NotificationChannel {
-        $type = $row['type'];
-        $cfg = json_decode($row['config_json'] ?: '{}', true) ?: [];
-        if ($type === 'ntfy') {
-            $tokenEnv = $cfg['auth_token_env'] ?? 'NTFY_AUTH_TOKEN';
-            return new NtfyChannel(
-                baseUrl: $row['base_url'],
-                authToken: $config->secret($tokenEnv),
-                config: $cfg,
-            );
-        }
-        if ($type === 'pushover') {
-            $tokenEnv = $cfg['token_env'] ?? 'PUSHOVER_TOKEN';
-            $userEnv = $cfg['user_env'] ?? 'PUSHOVER_USER';
-            return new PushoverChannel(
-                baseUrl: $row['base_url'],
-                token: $config->secret($tokenEnv),
-                user: $config->secret($userEnv),
-                config: $cfg,
-            );
-        }
-        throw new \RuntimeException("Unknown channel type: {$type}");
-    };
+    $channelFactoryInstance = new \NwsCad\Notifications\ChannelFactory($config);
+    $channelFactory = [$channelFactoryInstance, 'create'];
 
     $notificationDispatcher = new NotificationDispatcher(
         channelRepo: new ChannelRepository(),
