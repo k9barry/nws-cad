@@ -10,6 +10,8 @@ use PHPUnit\Framework\TestCase;
 /**
  * Performance tests for database queries
  * Tests query execution times to ensure optimal performance
+ *
+ * @coversNothing
  */
 class DatabaseQueryTest extends TestCase
 {

@@ -10,6 +10,8 @@ use PHPUnit\Framework\TestCase;
 /**
  * Performance tests for API endpoints
  * Tests response times to ensure acceptable performance
+ *
+ * @coversNothing
  */
 class ApiEndpointTest extends TestCase
 {
