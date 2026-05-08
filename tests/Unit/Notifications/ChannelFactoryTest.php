@@ -30,6 +30,9 @@ class ChannelFactoryTest extends TestCase
     protected function tearDown(): void
     {
         unset($_ENV['NTFY_AUTH_TOKEN'], $_ENV['PUSHOVER_TOKEN'], $_ENV['PUSHOVER_USER']);
+        putenv('NTFY_AUTH_TOKEN');
+        putenv('PUSHOVER_TOKEN');
+        putenv('PUSHOVER_USER');
     }
 
     public function testCreatesNtfyChannel(): void

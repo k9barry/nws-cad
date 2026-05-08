@@ -31,7 +31,7 @@ class ChannelFactory
             'pushover' => new PushoverChannel(
                 baseUrl: $row['base_url'],
                 token: $this->config->secret($cfg['token_env'] ?? 'PUSHOVER_TOKEN'),
-                user:  $this->config->secret($cfg['user_env']  ?? 'PUSHOVER_USER'),
+                user: $this->config->secret($cfg['user_env'] ?? 'PUSHOVER_USER'),
                 config: $cfg,
             ),
             default => throw new InvalidArgumentException("Unknown channel type: {$row['type']}"),
