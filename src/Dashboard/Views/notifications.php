@@ -95,6 +95,32 @@ declare(strict_types=1);
         if (el) el.textContent = value ?? '';
     }
 
+    // DB returns "YYYY-MM-DD HH:MM:SS" with no offset; MySQL is UTC. Without
+    // explicit Z, JS would parse as local and display the UTC digits as-is.
+    function fmtSentAtLocal(s) {
+        if (!s) return '';
+        const d = new Date(s.replace(' ', 'T') + 'Z');
+        return isNaN(d) ? String(s) : d.toLocaleString();
+    }
+
+    function summarizeRow(row) {
+        const parts = [];
+        if (row.call_number) parts.push(`#${row.call_number}`);
+        if (row.call_type)   parts.push(row.call_type);
+        const intent = row.intent ?? '';
+        const topic  = row.topic ? `→ ${row.topic}` : '';
+        if (intent || topic) parts.push(`${intent} ${topic}`.trim());
+        return parts.join(' · ');
+    }
+
+    function detailLine(row) {
+        const bits = [fmtSentAtLocal(row.created_at)];
+        const where = row.full_address || row.common_name;
+        if (where) bits.push(where);
+        if (row.nature_of_call) bits.push(row.nature_of_call);
+        return bits.filter(Boolean).join(' · ');
+    }
+
     async function fetchAllChannels() {
         const resp = await apiCall('/notifications/channels');
         const byName = {};
@@ -120,14 +146,27 @@ declare(strict_types=1);
         }
         for (const row of items) {
             const li = document.createElement('li');
-            li.className = 'list-group-item d-flex justify-content-between';
-            const left = document.createElement('span');
-            left.textContent = `${row.ok ? '✓' : '✗'} ${row.created_at ?? ''} ${row.intent ?? ''} ${row.topic ?? ''}`;
+            li.className = 'list-group-item d-flex justify-content-between align-items-start';
+
+            const left = document.createElement('div');
+            left.className = 'me-2';
+
+            const main = document.createElement('div');
+            main.textContent = `${row.ok ? '✓' : '✗'} ${summarizeRow(row)}`.trim();
+            left.appendChild(main);
+
+            const sub = document.createElement('div');
+            sub.className = 'text-muted small';
+            sub.textContent = detailLine(row);
+            left.appendChild(sub);
+
             li.appendChild(left);
+
             const right = document.createElement('span');
-            right.className = 'text-muted';
+            right.className = 'text-muted text-nowrap';
             right.textContent = `${row.http_status ?? ''} (${row.duration_ms ?? 0}ms)`;
             li.appendChild(right);
+
             ul.appendChild(li);
         }
     }
@@ -201,7 +240,7 @@ declare(strict_types=1);
         if (ch && ch.last_error_at) {
             const err = node.querySelector('.channel-error');
             err.hidden = false;
-            setText(node, '.channel-error-time', ch.last_error_at);
+            setText(node, '.channel-error-time', fmtSentAtLocal(ch.last_error_at));
             setText(node, '.channel-error-message', ch.last_error_message || '');
         }
 
@@ -271,7 +310,7 @@ declare(strict_types=1);
         const errEl = card.querySelector('.channel-error');
         if (ch && ch.last_error_at) {
             errEl.hidden = false;
-            card.querySelector('.channel-error-time').textContent = ch.last_error_at;
+            card.querySelector('.channel-error-time').textContent = fmtSentAtLocal(ch.last_error_at);
             card.querySelector('.channel-error-message').textContent = ch.last_error_message || '';
         } else {
             errEl.hidden = true;

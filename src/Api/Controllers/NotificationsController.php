@@ -64,12 +64,24 @@ final class NotificationsController
                 return;
             }
 
+            // Aggregate child rows so multi-agency / multi-location calls
+            // don't inflate the send-log row count.
             $stmt = $this->db->prepare(
-                "SELECT id, channel_id, call_id, intent, topic, ok,
-                        http_status, duration_ms, error, created_at
-                 FROM notification_send_log
-                 WHERE channel_id = ?
-                 ORDER BY id DESC LIMIT ?"
+                "SELECT s.id, s.channel_id, s.call_id, s.intent, s.topic, s.ok,
+                        s.http_status, s.duration_ms, s.error, s.created_at,
+                        c.call_number, c.nature_of_call,
+                        MAX(ac.call_type) AS call_type,
+                        MAX(l.full_address) AS full_address,
+                        MAX(l.common_name) AS common_name
+                 FROM notification_send_log s
+                 LEFT JOIN calls c ON c.id = s.call_id
+                 LEFT JOIN agency_contexts ac ON ac.call_id = c.id
+                 LEFT JOIN locations l ON l.call_id = c.id
+                 WHERE s.channel_id = ?
+                 GROUP BY s.id, s.channel_id, s.call_id, s.intent, s.topic, s.ok,
+                          s.http_status, s.duration_ms, s.error, s.created_at,
+                          c.call_number, c.nature_of_call
+                 ORDER BY s.id DESC LIMIT ?"
             );
             $stmt->bindValue(1, $channelId, PDO::PARAM_INT);
             $stmt->bindValue(2, $limit, PDO::PARAM_INT);
