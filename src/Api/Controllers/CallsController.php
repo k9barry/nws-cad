@@ -47,18 +47,34 @@ class CallsController
             $allowedSort = ['create_datetime', 'close_datetime', 'call_number'];
             $sortField   = in_array($sorting['sort'], $allowedSort, true) ? $sorting['sort'] : 'create_datetime';
 
+            // We always pull location columns for the response DTO (map markers, table
+            // address column, "zoom to map" button), so declare locations as already-joined
+            // to keep FilterSqlBuilder from emitting a duplicate JOIN when a location-
+            // targeting filter (city/beat/area/ori/location) is active.
             $builder = new \NwsCad\Api\Filtering\FilterSqlBuilder();
-            $sql     = $builder->build($criteria, new \NwsCad\Api\Filtering\FilterContext('calls', ['calls']));
+            $sql     = $builder->build(
+                $criteria,
+                new \NwsCad\Api\Filtering\FilterContext('calls', ['calls', 'locations'])
+            );
+
+            $locationsJoin = 'LEFT JOIN locations ON locations.call_id = calls.id';
 
             // Count
-            $countSql  = 'SELECT COUNT(DISTINCT calls.id) FROM calls ' . implode(' ', $sql->joins) . ' ' . $sql->whereClause;
+            $countSql  = 'SELECT COUNT(DISTINCT calls.id) FROM calls '
+                . $locationsJoin . ' '
+                . implode(' ', $sql->joins) . ' '
+                . $sql->whereClause;
             $countStmt = $this->db->prepare($countSql);
             $countStmt->execute($sql->params);
             $total = (int) $countStmt->fetchColumn();
 
             // Page
             $offset  = ($pagination['page'] - 1) * $pagination['per_page'];
-            $listSql = 'SELECT DISTINCT calls.* FROM calls '
+            $listSql = 'SELECT DISTINCT calls.*, '
+                . 'locations.full_address, locations.city, locations.state, '
+                . 'locations.latitude_y, locations.longitude_x '
+                . 'FROM calls '
+                . $locationsJoin . ' '
                 . implode(' ', $sql->joins) . ' '
                 . $sql->whereClause
                 . " ORDER BY calls.{$sortField} {$sorting['order']}"
@@ -70,7 +86,50 @@ class CallsController
             $stmt->bindValue(':limit', $pagination['per_page'], PDO::PARAM_INT);
             $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
             $stmt->execute();
-            $items = $stmt->fetchAll();
+            $rows = $stmt->fetchAll();
+
+            $related = !empty($rows)
+                ? $this->getRelatedDataBatch(array_column($rows, 'id'))
+                : [];
+
+            $items = array_map(function (array $row) use ($related) {
+                $id  = (int) $row['id'];
+                $lat = $row['latitude_y']  ?? null;
+                $lng = $row['longitude_x'] ?? null;
+                return [
+                    'id'              => $id,
+                    'call_id'         => (int) $row['call_id'],
+                    'call_number'     => $row['call_number'],
+                    'call_source'     => $row['call_source'],
+                    'caller'          => [
+                        'name'  => $row['caller_name'],
+                        'phone' => $row['caller_phone'],
+                    ],
+                    'nature_of_call'  => $row['nature_of_call'],
+                    'create_datetime' => $row['create_datetime'],
+                    'close_datetime'  => $row['close_datetime'],
+                    'created_by'      => $row['created_by'],
+                    'closed_flag'     => (bool) $row['closed_flag'],
+                    'canceled_flag'   => (bool) $row['canceled_flag'],
+                    'alarm_level'     => $row['alarm_level'] !== null ? (int) $row['alarm_level'] : null,
+                    'emd_code'        => $row['emd_code'],
+                    'location'        => [
+                        'address'     => $row['full_address'] ?? null,
+                        'city'        => $row['city']         ?? null,
+                        'state'       => $row['state']        ?? null,
+                        'coordinates' => ($lat !== null && $lng !== null && $lat !== '' && $lng !== '')
+                            ? ['lat' => (float) $lat, 'lng' => (float) $lng]
+                            : null,
+                    ],
+                    'agency_types'     => $related['agency_types'][$id]     ?? [],
+                    'call_types'       => $related['call_types'][$id]       ?? [],
+                    'jurisdictions'    => $related['jurisdictions'][$id]    ?? [],
+                    'priorities'       => $related['priorities'][$id]       ?? [],
+                    'statuses'         => $related['statuses'][$id]         ?? [],
+                    'incident_numbers' => $related['incident_numbers'][$id] ?? [],
+                    'unit_count'       => $related['unit_counts'][$id]      ?? 0,
+                ];
+            }, $rows);
 
             Response::success([
                 'items'      => $items,
