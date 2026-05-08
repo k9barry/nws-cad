@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS agency_contexts (
     call_id BIGINT UNSIGNED NOT NULL,
     
     agency_type VARCHAR(50) COMMENT 'Police, Fire, EMS',
+    fdid VARCHAR(10) NULL,
     call_type VARCHAR(100),
     priority VARCHAR(100),
     status VARCHAR(100),
@@ -469,3 +470,82 @@ CREATE TABLE IF NOT EXISTS notification_send_log (
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE SET NULL,
     INDEX idx_send_log_channel_created (channel_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- REFERENCE TABLES (added v1.3.0 — filter refactor)
+-- ============================================================================
+
+CREATE TABLE ref_agencies (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    code VARCHAR(32) NOT NULL,
+    label VARCHAR(128) NOT NULL,
+    kind ENUM('police','fire','ems') NOT NULL,
+    ori VARCHAR(16) DEFAULT NULL,
+    fdid VARCHAR(10) DEFAULT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order SMALLINT NOT NULL DEFAULT 100,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_ref_agencies_code (code),
+    KEY idx_ref_agencies_kind (kind, active),
+    KEY idx_ref_agencies_ori (ori),
+    KEY idx_ref_agencies_fdid (fdid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE ref_oris (
+    ori VARCHAR(16) NOT NULL,
+    label VARCHAR(128) NOT NULL,
+    kind ENUM('police','fire','ems') NOT NULL,
+    agency_id INT UNSIGNED DEFAULT NULL,
+    PRIMARY KEY (ori),
+    KEY idx_ref_oris_agency (agency_id),
+    CONSTRAINT fk_ref_oris_agency FOREIGN KEY (agency_id) REFERENCES ref_agencies(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE ref_fdids (
+    fdid VARCHAR(10) NOT NULL,
+    label VARCHAR(128) NOT NULL,
+    agency_id INT UNSIGNED DEFAULT NULL,
+    PRIMARY KEY (fdid),
+    KEY idx_ref_fdids_agency (agency_id),
+    CONSTRAINT fk_ref_fdids_agency FOREIGN KEY (agency_id) REFERENCES ref_agencies(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE ref_beats (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    code VARCHAR(32) NOT NULL,
+    label VARCHAR(128) NOT NULL,
+    kind VARCHAR(32) NOT NULL,
+    jurisdiction VARCHAR(64) DEFAULT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_ref_beats_code (code),
+    KEY idx_ref_beats_active (active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE ref_areas (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    code VARCHAR(32) NOT NULL,
+    label VARCHAR(128) NOT NULL,
+    kind ENUM('fire_quad','ems_district') NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_ref_areas_code (code),
+    KEY idx_ref_areas_kind (kind, active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- FILTER REFACTOR INDEXES (added v1.3.0)
+-- ============================================================================
+
+CREATE INDEX idx_calls_create_closed ON calls (create_datetime, closed_flag, canceled_flag);
+CREATE INDEX idx_ac_call_type ON agency_contexts (call_type);
+CREATE INDEX idx_ac_fdid ON agency_contexts (fdid);
+CREATE INDEX idx_loc_police_ori ON locations (police_ori);
+CREATE INDEX idx_loc_ems_ori ON locations (ems_ori);
+CREATE INDEX idx_loc_fire_ori ON locations (fire_ori);
+CREATE INDEX idx_loc_police_beat ON locations (police_beat);
+CREATE INDEX idx_loc_fire_quad ON locations (fire_quadrant);
+CREATE INDEX idx_loc_ems_district ON locations (ems_district);
+CREATE INDEX idx_loc_city ON locations (city);
+CREATE INDEX idx_units_unit_number ON units (unit_number);
+CREATE INDEX idx_inc_incident_type ON incidents (incident_type);
