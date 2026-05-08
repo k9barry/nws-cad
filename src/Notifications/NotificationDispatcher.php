@@ -128,15 +128,42 @@ final class NotificationDispatcher
         }
     }
 
-    /** @return string[] */
+    /**
+     * Build the deduplicated list of topics to fan out to for an event.
+     *
+     * The DTO's jurisdiction and units fields arrive as pipe-joined GROUP_CONCAT
+     * strings (one per matched row), so the same jurisdiction/unit can appear
+     * multiple times. Splitting and deduping here is critical: without it the
+     * full string lands as a single "topic" and TopicSanitizer turns the pipes
+     * into underscores, producing absurd names like
+     * "IN0481000_IN0481000_IN0481000_..." that ntfy 404s on.
+     *
+     * @return string[]
+     */
     private function buildTopics(IncidentDto $dto): array
     {
-        $derived = array_filter([
-            $dto->agencyType,
-            $dto->jurisdiction,
-            ...explode('|', $dto->units),
-        ], static fn (?string $v) => $v !== null && $v !== '');
+        $parts = [];
+        if ($dto->agencyType !== null && $dto->agencyType !== '') {
+            $parts[] = $dto->agencyType;
+        }
+        foreach (self::splitPipe($dto->jurisdiction ?? '') as $j) {
+            $parts[] = $j;
+        }
+        foreach (self::splitPipe($dto->units) as $u) {
+            $parts[] = $u;
+        }
+        return array_values(array_unique($parts));
+    }
 
-        return array_values(array_unique($derived));
+    /** @return string[] */
+    private static function splitPipe(string $value): array
+    {
+        if ($value === '') {
+            return [];
+        }
+        return array_values(array_filter(
+            array_map('trim', explode('|', $value)),
+            static fn (string $v): bool => $v !== '',
+        ));
     }
 }

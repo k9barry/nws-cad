@@ -44,12 +44,23 @@ final class NtfyChannel implements NotificationChannel
         $messageBody = $this->buildBody($incident);
         $title = $this->buildTitle($incident);
 
+        $seenTopics = [];
         foreach ($context->topicsToNotify as $rawTopic) {
             $sanitized = TopicSanitizer::clean($rawTopic);
             if ($sanitized === null) {
                 $logger->info('Skipping ntfy topic (empty after sanitize)', ['raw' => $rawTopic]);
                 continue;
             }
+            // Defense in depth: two raw topics may collapse to the same
+            // sanitized form. Drop the second to avoid duplicate sends and
+            // duplicate notification_send_log rows.
+            if (isset($seenTopics[$sanitized])) {
+                $logger->info('Skipping ntfy topic (duplicate after sanitize)', [
+                    'raw' => $rawTopic, 'sanitized' => $sanitized,
+                ]);
+                continue;
+            }
+            $seenTopics[$sanitized] = true;
 
             $url = rtrim($this->baseUrl, '/') . '/' . rawurlencode($sanitized);
             $headers = [

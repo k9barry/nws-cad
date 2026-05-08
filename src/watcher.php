@@ -42,7 +42,9 @@ try {
                 c.id, c.call_id, c.call_number, c.alarm_level, c.create_datetime,
                 c.nature_of_call,
                 ac.call_type, ac.agency_type,
-                l.full_address, l.nearest_cross_streets, l.latitude_y AS latitude, l.longitude_x AS longitude,
+                l.full_address, l.nearest_cross_streets,
+                l.common_name, l.police_beat, l.fire_quadrant,
+                l.latitude_y AS latitude, l.longitude_x AS longitude,
                 (SELECT {$jurisdictionAgg} FROM incidents WHERE call_id = c.id) AS jurisdiction,
                 (SELECT {$unitsAgg}        FROM units     WHERE call_id = c.id) AS units,
                 (SELECT {$narrativeAgg}    FROM narratives WHERE call_id = c.id) AS narrative
