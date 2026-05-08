@@ -19,6 +19,7 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Api\Filtering\FilterSqlBuilder
  * @uses \NwsCad\Api\Filtering\SqlFragment
  * @uses \NwsCad\Api\Filtering\DateRange
+ * @uses \NwsCad\Api\Filtering\InvalidFilterException
  * @uses \NwsCad\Config
  * @uses \NwsCad\Database
  * @uses \NwsCad\Logger

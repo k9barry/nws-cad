@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace NwsCad\Api\Controllers;
 
 use NwsCad\Database;
-use NwsCad\Api\Request;
 use NwsCad\Api\Response;
 use NwsCad\Api\DbHelper;
 use NwsCad\Api\Filtering\FilterCriteria;
@@ -283,252 +282,172 @@ class StatsController
     public function calls(): void
     {
         try {
-            $filters = Request::filters([
-                'date_from',
-                'date_to',
-                'agency_type',
-                'jurisdiction'
-            ]);
+            $criteria = FilterCriteria::fromQuery(
+                $_GET,
+                FilterRegistry::for('stats')
+            );
+        } catch (InvalidFilterException $e) {
+            Response::error($e->getMessage(), 400);
+            return;
+        }
 
-            $params = [];
-            
-            // Helper function to build WHERE clause and params for different queries
-            $buildWhereClause = function($includeIncidents = false) use ($filters, &$params) {
-                $where = [];
-                
-                // Date range filter
-                if (isset($filters['date_from'])) {
-                    $where[] = "c.create_datetime >= :date_from";
-                    $params[':date_from'] = $filters['date_from'];
-                }
-                if (isset($filters['date_to'])) {
-                    $where[] = "c.create_datetime <= :date_to";
-                    $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
-                }
-                
-                // Agency type filter
-                if (isset($filters['agency_type'])) {
-                    $where[] = "ac.agency_type = :agency_type";
-                    $params[':agency_type'] = $filters['agency_type'];
-                }
-                
-                // Jurisdiction filter
-                if ($includeIncidents && isset($filters['jurisdiction'])) {
-                    $where[] = "i.jurisdiction = :jurisdiction";
-                    $params[':jurisdiction'] = $filters['jurisdiction'];
-                }
-                
-                return !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
-            };
-            
-            // Helper function to build JOIN clauses
-            $buildJoinClause = function($includeIncidents = false) {
-                $joins = '';
-                // agency_contexts is needed for agency_type, call_type queries
-                if (isset($GLOBALS['filters']['agency_type']) || $includeIncidents === 'agency_only') {
-                    $joins .= "INNER JOIN agency_contexts ac ON c.id = ac.call_id ";
-                }
-                // incidents is needed for jurisdiction filter
-                if ($includeIncidents && isset($GLOBALS['filters']['jurisdiction'])) {
-                    $joins .= "INNER JOIN incidents i ON c.id = i.call_id ";
-                }
-                return $joins;
-            };
+        try {
+            $builder = new FilterSqlBuilder();
+            $sql     = $builder->build(
+                $criteria,
+                new FilterContext('calls', ['calls'])
+            );
+
+            $whereClause = $sql->whereClause;
+            $joinsSql    = $sql->joins ? implode(' ', $sql->joins) . ' ' : '';
+            $params      = $sql->params;
 
             // Total calls
-            $whereClause = $buildWhereClause(true);
-            $joinClause = '';
-            if (isset($filters['agency_type'])) {
-                $joinClause .= "INNER JOIN agency_contexts ac ON c.id = ac.call_id ";
-            }
-            if (isset($filters['jurisdiction'])) {
-                $joinClause .= "INNER JOIN incidents i ON c.id = i.call_id ";
-            }
-            
-            $sql = "
-                SELECT COUNT(DISTINCT c.id) as total
-                FROM calls c
-                {$joinClause}
+            $querySql = "
+                SELECT COUNT(DISTINCT calls.id) as total
+                FROM calls
+                {$joinsSql}
                 {$whereClause}
             ";
-            $stmt = $this->db->prepare($sql);
+            $stmt = $this->db->prepare($querySql);
             $stmt->execute($params);
             $totalCalls = (int)$stmt->fetchColumn();
 
             // Calls by status
-            $sql = "
-                SELECT 
-                    CASE 
-                        WHEN MAX(c.canceled_flag) = 1 THEN 'Canceled'
-                        WHEN MAX(c.closed_flag) = 1 THEN 'Closed'
+            $querySql = "
+                SELECT
+                    CASE
+                        WHEN MAX(calls.canceled_flag) = 1 THEN 'Canceled'
+                        WHEN MAX(calls.closed_flag) = 1 THEN 'Closed'
                         ELSE 'Open'
                     END as status,
-                    COUNT(DISTINCT c.id) as count
-                FROM calls c
-                {$joinClause}
+                    COUNT(DISTINCT calls.id) as count
+                FROM calls
+                {$joinsSql}
                 {$whereClause}
-                GROUP BY c.id
+                GROUP BY calls.id
             ";
-            $stmt = $this->db->prepare($sql);
+            $stmt = $this->db->prepare($querySql);
             $stmt->execute($params);
-            
-            // Count by status
+
             $statusCounts = ['Open' => 0, 'Closed' => 0, 'Canceled' => 0];
             foreach ($stmt->fetchAll() as $row) {
                 $statusCounts[$row['status']] = ($statusCounts[$row['status']] ?? 0) + 1;
             }
             $byStatus = $statusCounts;
 
-            // Calls by agency type - needs agency_contexts join
-            $agencyTypeWhere = [];
-            if (isset($filters['date_from'])) {
-                $agencyTypeWhere[] = "c.create_datetime >= :date_from";
+            // Calls by agency type — ensure agency_contexts is joined
+            $agencyJoinsSql = $joinsSql;
+            if (stripos($agencyJoinsSql, 'agency_contexts') === false) {
+                $agencyJoinsSql .= 'LEFT JOIN agency_contexts ON agency_contexts.call_id = calls.id ';
             }
-            if (isset($filters['date_to'])) {
-                $agencyTypeWhere[] = "c.create_datetime <= :date_to";
-            }
-            if (isset($filters['agency_type'])) {
-                $agencyTypeWhere[] = "ac.agency_type = :agency_type";
-            }
-            if (isset($filters['jurisdiction'])) {
-                $agencyTypeWhere[] = "i.jurisdiction = :jurisdiction";
-            }
-            $agencyTypeWhereClause = !empty($agencyTypeWhere) ? 'WHERE ' . implode(' AND ', $agencyTypeWhere) : '';
-            
-            $agencyTypeJoin = "INNER JOIN agency_contexts ac ON c.id = ac.call_id ";
-            if (isset($filters['jurisdiction'])) {
-                $agencyTypeJoin .= "INNER JOIN incidents i ON c.id = i.call_id ";
-            }
-            
-            $sql = "
-                SELECT 
-                    ac.agency_type,
-                    COUNT(DISTINCT c.id) as count
-                FROM calls c
-                {$agencyTypeJoin}
-                {$agencyTypeWhereClause}
-                GROUP BY ac.agency_type
+            $querySql = "
+                SELECT
+                    agency_contexts.agency_type,
+                    COUNT(DISTINCT calls.id) as count
+                FROM calls
+                {$agencyJoinsSql}
+                {$whereClause}
+                GROUP BY agency_contexts.agency_type
                 ORDER BY count DESC
             ";
-            $stmt = $this->db->prepare($sql);
+            $stmt = $this->db->prepare($querySql);
             $stmt->execute($params);
             $byAgencyType = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-            // Calls by call type (top 10) - same as agency type join
-            $sql = "
-                SELECT 
-                    ac.call_type,
-                    COUNT(DISTINCT c.id) as count
-                FROM calls c
-                {$agencyTypeJoin}
-                {$agencyTypeWhereClause}
-                GROUP BY ac.call_type
+            // Calls by call type (top 10) — reuse same agency_contexts join
+            $querySql = "
+                SELECT
+                    agency_contexts.call_type,
+                    COUNT(DISTINCT calls.id) as count
+                FROM calls
+                {$agencyJoinsSql}
+                {$whereClause}
+                GROUP BY agency_contexts.call_type
                 ORDER BY count DESC
                 LIMIT 10
             ";
-            $stmt = $this->db->prepare($sql);
+            $stmt = $this->db->prepare($querySql);
             $stmt->execute($params);
             $byCallType = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
             // Calls by hour of day
-            $hourFunc = DbHelper::hour('c.create_datetime');
-            $sql = "
-                SELECT 
+            $hourFunc = DbHelper::hour('calls.create_datetime');
+            $querySql = "
+                SELECT
                     {$hourFunc} as hour,
-                    COUNT(DISTINCT c.id) as count
-                FROM calls c
-                {$joinClause}
+                    COUNT(DISTINCT calls.id) as count
+                FROM calls
+                {$joinsSql}
                 {$whereClause}
                 GROUP BY {$hourFunc}
                 ORDER BY hour
             ";
-            $stmt = $this->db->prepare($sql);
+            $stmt = $this->db->prepare($querySql);
             $stmt->execute($params);
             $byHour = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
             // Calls by day of week
-            $dayFunc = DbHelper::dayOfWeek('c.create_datetime');
-            $sql = "
-                SELECT 
+            $dayFunc = DbHelper::dayOfWeek('calls.create_datetime');
+            $querySql = "
+                SELECT
                     {$dayFunc} as day_of_week,
-                    COUNT(DISTINCT c.id) as count
-                FROM calls c
-                {$joinClause}
+                    COUNT(DISTINCT calls.id) as count
+                FROM calls
+                {$joinsSql}
                 {$whereClause}
                 GROUP BY {$dayFunc}
                 ORDER BY day_of_week
             ";
-            $stmt = $this->db->prepare($sql);
+            $stmt = $this->db->prepare($querySql);
             $stmt->execute($params);
             $byDayOfWeek = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-            // Map day numbers to names
             $byDayOfWeekNamed = [];
             foreach ($byDayOfWeek as $day => $count) {
                 $byDayOfWeekNamed[self::DAY_NAMES[$day] ?? 'Unknown'] = $count;
             }
 
-            // Calls by date (last 30 days if no date range specified)
-            $byDateWhere = [];
-            if (isset($filters['date_from'])) {
-                $byDateWhere[] = "c.create_datetime >= :date_from";
+            // Calls by date — when no date filter, limit to last 30 days
+            $byDateParams = $params;
+            if ($criteria->dateRange !== null) {
+                // Date range already encoded in $whereClause / $params
+                $byDateWhereClause = $whereClause;
+            } else {
+                $thirtyDaysAgo = (new \DateTimeImmutable('-30 days'))->format('Y-m-d H:i:s');
+                $byDateParams['date_30d'] = $thirtyDaysAgo;
+                $byDateWhereClause = 'WHERE calls.create_datetime >= :date_30d';
             }
-            if (isset($filters['date_to'])) {
-                $byDateWhere[] = "c.create_datetime <= :date_to";
-            } elseif (!isset($filters['date_from'])) {
-                // Add 30 day limit if no dates specified
-                $byDateWhere[] = "c.create_datetime >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
-            }
-            if (isset($filters['agency_type'])) {
-                $byDateWhere[] = "ac.agency_type = :agency_type";
-            }
-            if (isset($filters['jurisdiction'])) {
-                $byDateWhere[] = "i.jurisdiction = :jurisdiction";
-            }
-            $byDateWhereClause = !empty($byDateWhere) ? 'WHERE ' . implode(' AND ', $byDateWhere) : '';
 
-            $dateFunc = DbHelper::date('c.create_datetime');
-            $sql = "
-                SELECT 
+            $dateFunc = DbHelper::date('calls.create_datetime');
+            $querySql = "
+                SELECT
                     {$dateFunc} as date,
-                    COUNT(DISTINCT c.id) as count
-                FROM calls c
-                {$joinClause}
+                    COUNT(DISTINCT calls.id) as count
+                FROM calls
+                {$joinsSql}
                 {$byDateWhereClause}
                 GROUP BY date
                 ORDER BY date
             ";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($params);
+            $stmt = $this->db->prepare($querySql);
+            $stmt->execute($byDateParams);
             $byDate = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-            // Average call duration (for closed calls)
-            $durationWhere = [];
-            if (isset($filters['date_from'])) {
-                $durationWhere[] = "c.create_datetime >= :date_from";
-            }
-            if (isset($filters['date_to'])) {
-                $durationWhere[] = "c.create_datetime <= :date_to";
-            }
-            if (isset($filters['agency_type'])) {
-                $durationWhere[] = "ac.agency_type = :agency_type";
-            }
-            if (isset($filters['jurisdiction'])) {
-                $durationWhere[] = "i.jurisdiction = :jurisdiction";
-            }
-            $durationWhere[] = "c.closed_flag = 1";
-            $durationWhere[] = "c.close_datetime IS NOT NULL";
-            $durationWhereClause = !empty($durationWhere) ? 'WHERE ' . implode(' AND ', $durationWhere) : '';
-            
-            $timestampDiff = DbHelper::timestampDiff('MINUTE', 'c.create_datetime', 'c.close_datetime');
-            $sql = "
-                SELECT 
+            // Average call duration (for closed calls only)
+            $durationClauses = $whereClause !== ''
+                ? $whereClause . ' AND calls.closed_flag = 1 AND calls.close_datetime IS NOT NULL'
+                : 'WHERE calls.closed_flag = 1 AND calls.close_datetime IS NOT NULL';
+
+            $timestampDiff = DbHelper::timestampDiff('MINUTE', 'calls.create_datetime', 'calls.close_datetime');
+            $querySql = "
+                SELECT
                     AVG({$timestampDiff}) as avg_duration_minutes
-                FROM calls c
-                {$joinClause}
-                {$durationWhereClause}
+                FROM calls
+                {$joinsSql}
+                {$durationClauses}
             ";
-            $stmt = $this->db->prepare($sql);
+            $stmt = $this->db->prepare($querySql);
             $stmt->execute($params);
             $avgDuration = (float)($stmt->fetchColumn() ?? 0);
 
@@ -554,40 +473,46 @@ class StatsController
     public function units(): void
     {
         try {
-            $filters = Request::filters([
-                'date_from',
-                'date_to',
-                'unit_type',
-                'jurisdiction'
-            ]);
+            $criteria = FilterCriteria::fromQuery(
+                $_GET,
+                FilterRegistry::for('stats')
+            );
+        } catch (InvalidFilterException $e) {
+            Response::error($e->getMessage(), 400);
+            return;
+        }
 
-            $where = [];
+        try {
+            // Build WHERE clause on the units table.
+            // date range applies to u.assigned_datetime (unit assignment time, not call create time).
+            // unit_type and jurisdiction are units-table columns not covered by FilterCriteria/FilterSqlBuilder.
+            $where  = [];
             $params = [];
 
-            // Date range filter
-            if (isset($filters['date_from'])) {
-                $where[] = "u.assigned_datetime >= :date_from";
-                $params[':date_from'] = $filters['date_from'];
+            if ($criteria->dateRange !== null) {
+                $where[]                = 'u.assigned_datetime >= :date_from';
+                $where[]                = 'u.assigned_datetime <= :date_to';
+                $params[':date_from']   = $criteria->dateRange->from->format('Y-m-d H:i:s');
+                $params[':date_to']     = $criteria->dateRange->to->format('Y-m-d H:i:s');
             }
 
-            if (isset($filters['date_to'])) {
-                $where[] = "u.assigned_datetime <= :date_to";
-                $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+            // unit_type filter — units table column, read directly from GET after criteria parsed it safely
+            $unitType = isset($_GET['unit_type']) && is_string($_GET['unit_type']) && $_GET['unit_type'] !== ''
+                ? $_GET['unit_type'] : null;
+            if ($unitType !== null) {
+                $where[]              = 'u.unit_type = :unit_type';
+                $params[':unit_type'] = $unitType;
             }
 
-            // Unit type filter
-            if (isset($filters['unit_type'])) {
-                $where[] = "u.unit_type = :unit_type";
-                $params[':unit_type'] = $filters['unit_type'];
+            // jurisdiction filter — units table column
+            $jurisdiction = isset($_GET['jurisdiction']) && is_string($_GET['jurisdiction']) && $_GET['jurisdiction'] !== ''
+                ? $_GET['jurisdiction'] : null;
+            if ($jurisdiction !== null) {
+                $where[]                = 'u.jurisdiction = :jurisdiction';
+                $params[':jurisdiction'] = $jurisdiction;
             }
 
-            // Jurisdiction filter
-            if (isset($filters['jurisdiction'])) {
-                $where[] = "u.jurisdiction = :jurisdiction";
-                $params[':jurisdiction'] = $filters['jurisdiction'];
-            }
-
-            $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+            $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
             // Total unit dispatches
             $sql = "SELECT COUNT(*) FROM units u {$whereClause}";
@@ -597,7 +522,7 @@ class StatsController
 
             // Dispatches by unit type
             $sql = "
-                SELECT 
+                SELECT
                     u.unit_type,
                     COUNT(*) as count
                 FROM units u
@@ -611,7 +536,7 @@ class StatsController
 
             // Dispatches by jurisdiction
             $sql = "
-                SELECT 
+                SELECT
                     u.jurisdiction,
                     COUNT(*) as count
                 FROM units u
@@ -625,7 +550,7 @@ class StatsController
 
             // Most active units (top 20)
             $sql = "
-                SELECT 
+                SELECT
                     u.unit_number,
                     COUNT(*) as dispatch_count
                 FROM units u
@@ -639,50 +564,38 @@ class StatsController
             $mostActiveUnits = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
             // Average response times (dispatch to arrive)
-            $responseDiff = DbHelper::timestampDiff('MINUTE', 'u.dispatch_datetime', 'u.arrive_datetime');
-            $sql = "
-                SELECT 
-                    AVG({$responseDiff}) as avg_response_minutes
-                FROM units u
-                {$whereClause}
-                AND u.dispatch_datetime IS NOT NULL 
-                AND u.arrive_datetime IS NOT NULL
-            ";
+            $responseDiff    = DbHelper::timestampDiff('MINUTE', 'u.dispatch_datetime', 'u.arrive_datetime');
+            $responseWhere   = $whereClause !== ''
+                ? $whereClause . ' AND u.dispatch_datetime IS NOT NULL AND u.arrive_datetime IS NOT NULL'
+                : 'WHERE u.dispatch_datetime IS NOT NULL AND u.arrive_datetime IS NOT NULL';
+            $sql = "SELECT AVG({$responseDiff}) as avg_response_minutes FROM units u {$responseWhere}";
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
             $avgResponseTime = (float)$stmt->fetchColumn();
 
             // Average enroute time (dispatch to enroute)
-            $enrouteDiff = DbHelper::timestampDiff('SECOND', 'u.dispatch_datetime', 'u.enroute_datetime');
-            $sql = "
-                SELECT 
-                    AVG({$enrouteDiff}) as avg_enroute_seconds
-                FROM units u
-                {$whereClause}
-                AND u.dispatch_datetime IS NOT NULL 
-                AND u.enroute_datetime IS NOT NULL
-            ";
+            $enrouteDiff   = DbHelper::timestampDiff('SECOND', 'u.dispatch_datetime', 'u.enroute_datetime');
+            $enrouteWhere  = $whereClause !== ''
+                ? $whereClause . ' AND u.dispatch_datetime IS NOT NULL AND u.enroute_datetime IS NOT NULL'
+                : 'WHERE u.dispatch_datetime IS NOT NULL AND u.enroute_datetime IS NOT NULL';
+            $sql = "SELECT AVG({$enrouteDiff}) as avg_enroute_seconds FROM units u {$enrouteWhere}";
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
             $avgEnrouteTime = (float)$stmt->fetchColumn();
 
             // Average on-scene time (arrive to clear)
-            $onSceneDiff = DbHelper::timestampDiff('MINUTE', 'u.arrive_datetime', 'u.clear_datetime');
-            $sql = "
-                SELECT 
-                    AVG({$onSceneDiff}) as avg_onscene_minutes
-                FROM units u
-                {$whereClause}
-                AND u.arrive_datetime IS NOT NULL 
-                AND u.clear_datetime IS NOT NULL
-            ";
+            $onSceneDiff  = DbHelper::timestampDiff('MINUTE', 'u.arrive_datetime', 'u.clear_datetime');
+            $onSceneWhere = $whereClause !== ''
+                ? $whereClause . ' AND u.arrive_datetime IS NOT NULL AND u.clear_datetime IS NOT NULL'
+                : 'WHERE u.arrive_datetime IS NOT NULL AND u.clear_datetime IS NOT NULL';
+            $sql = "SELECT AVG({$onSceneDiff}) as avg_onscene_minutes FROM units u {$onSceneWhere}";
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
             $avgOnSceneTime = (float)$stmt->fetchColumn();
 
             // Primary unit vs backup
             $sql = "
-                SELECT 
+                SELECT
                     CASE WHEN u.is_primary = 1 THEN 'Primary' ELSE 'Backup' END as unit_role,
                     COUNT(*) as count
                 FROM units u
@@ -717,174 +630,182 @@ class StatsController
     public function responseTimes(): void
     {
         try {
-            $filters = Request::filters([
-                'date_from',
-                'date_to',
-                'agency_type',
-                'unit_type',
-                'jurisdiction',
-                'priority'
-            ]);
+            $criteria = FilterCriteria::fromQuery(
+                $_GET,
+                FilterRegistry::for('stats')
+            );
+        } catch (InvalidFilterException $e) {
+            Response::error($e->getMessage(), 400);
+            return;
+        }
 
-            $where = [];
-            $params = [];
-            $joins = [];
+        try {
+            // Build WHERE clause and joins for unit-based queries.
+            // FilterSqlBuilder with unitsBase=true generates joins reaching back through units.call_id.
+            // We always need the calls join for the time-breakdown query (c.create_datetime),
+            // so we mark it as already-joined and add it explicitly.
+            $builder = new FilterSqlBuilder();
+            $sql     = $builder->build(
+                $criteria,
+                new FilterContext('units', ['units', 'calls'], true)
+            );
 
-            // Date range filter
-            if (isset($filters['date_from'])) {
-                $where[] = "u.assigned_datetime >= :date_from";
-                $params[':date_from'] = $filters['date_from'];
+            $filterJoins    = $sql->joins ? implode(' ', $sql->joins) . ' ' : '';
+            $filterWhere    = $sql->whereClause; // references calls.* columns when dateRange is set
+            $params         = $sql->params;
+
+            // Always join calls (needed for date-range filter on calls.create_datetime and time breakdown)
+            $baseJoinClause = 'INNER JOIN calls ON calls.id = units.call_id ' . $filterJoins;
+
+            // unit_type and jurisdiction are units-table columns not in FilterCriteria.
+            // Read them from GET after criteria parsing so they are validated as safe non-empty strings.
+            $extraWhere = [];
+
+            $unitType = isset($_GET['unit_type']) && is_string($_GET['unit_type']) && $_GET['unit_type'] !== ''
+                ? $_GET['unit_type'] : null;
+            if ($unitType !== null) {
+                $extraWhere[]           = 'units.unit_type = :unit_type';
+                $params[':unit_type']   = $unitType;
             }
 
-            if (isset($filters['date_to'])) {
-                $where[] = "u.assigned_datetime <= :date_to";
-                $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
+            $jurisdiction = isset($_GET['jurisdiction']) && is_string($_GET['jurisdiction']) && $_GET['jurisdiction'] !== ''
+                ? $_GET['jurisdiction'] : null;
+            if ($jurisdiction !== null) {
+                $extraWhere[]             = 'units.jurisdiction = :jurisdiction';
+                $params[':jurisdiction']  = $jurisdiction;
             }
 
-            // Agency type filter
-            if (isset($filters['agency_type'])) {
-                $joins['agency_contexts'] = true;
-                $where[] = "ac.agency_type = :agency_type";
-                $params[':agency_type'] = $filters['agency_type'];
+            // priority is an agency_contexts column — needs that table joined.
+            // agency_contexts may already be joined by FilterSqlBuilder (if agency filter active).
+            $priority = isset($_GET['priority']) && is_string($_GET['priority']) && $_GET['priority'] !== ''
+                ? $_GET['priority'] : null;
+            if ($priority !== null) {
+                if (stripos($baseJoinClause, 'agency_contexts') === false) {
+                    $baseJoinClause .= 'LEFT JOIN agency_contexts ON agency_contexts.call_id = units.call_id ';
+                }
+                $escapedPriority        = str_replace(['%', '_'], ['\\%', '\\_'], $priority);
+                $extraWhere[]           = 'agency_contexts.priority LIKE :priority';
+                $params[':priority']    = '%' . $escapedPriority . '%';
             }
 
-            // Priority filter
-            if (isset($filters['priority'])) {
-                $joins['agency_contexts'] = true;
-                $where[] = "ac.priority LIKE :priority";
-                // Escape LIKE wildcards in user input to prevent pattern injection
-                $escapedPriority = str_replace(['%', '_'], ['\\%', '\\_'], $filters['priority']);
-                $params[':priority'] = '%' . $escapedPriority . '%';
+            // Combine filter WHERE with extra unit/priority conditions
+            if ($extraWhere) {
+                $extraClause = implode(' AND ', $extraWhere);
+                $whereClause = $filterWhere !== ''
+                    ? $filterWhere . ' AND ' . $extraClause
+                    : 'WHERE ' . $extraClause;
+            } else {
+                $whereClause = $filterWhere;
             }
 
-            // Unit type filter
-            if (isset($filters['unit_type'])) {
-                $where[] = "u.unit_type = :unit_type";
-                $params[':unit_type'] = $filters['unit_type'];
-            }
+            // Helper: append a required-column condition to the base WHERE
+            $withCols = static function (string $baseWhere, string ...$cols): string {
+                $extra = implode(' AND ', $cols);
+                return $baseWhere !== '' ? $baseWhere . ' AND ' . $extra : 'WHERE ' . $extra;
+            };
 
-            // Jurisdiction filter
-            if (isset($filters['jurisdiction'])) {
-                $where[] = "u.jurisdiction = :jurisdiction";
-                $params[':jurisdiction'] = $filters['jurisdiction'];
-            }
-
-            // Build JOIN clause
-            $joinClause = "INNER JOIN calls c ON u.call_id = c.id";
-            if (isset($joins['agency_contexts'])) {
-                $joinClause .= " INNER JOIN agency_contexts ac ON c.id = ac.call_id";
-            }
-
-            $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+            $responseMinutes = DbHelper::timestampDiff('MINUTE', 'units.dispatch_datetime', 'units.arrive_datetime');
 
             // Overall response time statistics (dispatch to arrive)
-            $responseMinutes = DbHelper::timestampDiff('MINUTE', 'u.dispatch_datetime', 'u.arrive_datetime');
-            $sql = "
-                SELECT 
+            $overallWhere = $withCols($whereClause, 'units.dispatch_datetime IS NOT NULL', 'units.arrive_datetime IS NOT NULL');
+            $querySql = "
+                SELECT
                     COUNT(*) as total_responses,
                     AVG({$responseMinutes}) as avg_minutes,
                     MIN({$responseMinutes}) as min_minutes,
                     MAX({$responseMinutes}) as max_minutes,
                     STDDEV({$responseMinutes}) as stddev_minutes
-                FROM units u
-                {$joinClause}
-                {$whereClause}
-                AND u.dispatch_datetime IS NOT NULL 
-                AND u.arrive_datetime IS NOT NULL
+                FROM units
+                {$baseJoinClause}
+                {$overallWhere}
             ";
-            $stmt = $this->db->prepare($sql);
+            $stmt = $this->db->prepare($querySql);
             $stmt->execute($params);
             $overall = $stmt->fetch();
 
             // Response times by unit type
-            $sql = "
-                SELECT 
-                    u.unit_type,
+            $querySql = "
+                SELECT
+                    units.unit_type,
                     COUNT(*) as count,
                     AVG({$responseMinutes}) as avg_minutes
-                FROM units u
-                {$joinClause}
-                {$whereClause}
-                AND u.dispatch_datetime IS NOT NULL 
-                AND u.arrive_datetime IS NOT NULL
-                GROUP BY u.unit_type
+                FROM units
+                {$baseJoinClause}
+                {$overallWhere}
+                GROUP BY units.unit_type
                 ORDER BY avg_minutes ASC
             ";
-            $stmt = $this->db->prepare($sql);
+            $stmt = $this->db->prepare($querySql);
             $stmt->execute($params);
             $byUnitType = $stmt->fetchAll();
 
             // Response times by jurisdiction
-            $sql = "
-                SELECT 
-                    u.jurisdiction,
+            $querySql = "
+                SELECT
+                    units.jurisdiction,
                     COUNT(*) as count,
                     AVG({$responseMinutes}) as avg_minutes
-                FROM units u
-                {$joinClause}
-                {$whereClause}
-                AND u.dispatch_datetime IS NOT NULL 
-                AND u.arrive_datetime IS NOT NULL
-                GROUP BY u.jurisdiction
+                FROM units
+                {$baseJoinClause}
+                {$overallWhere}
+                GROUP BY units.jurisdiction
                 ORDER BY avg_minutes ASC
             ";
-            $stmt = $this->db->prepare($sql);
+            $stmt = $this->db->prepare($querySql);
             $stmt->execute($params);
             $byJurisdiction = $stmt->fetchAll();
 
-            // Response time percentiles (90th percentile)
-            $sql = "
-                SELECT 
+            // Response time percentiles — fetch all values for PHP-side calculation
+            $querySql = "
+                SELECT
                     {$responseMinutes} as response_minutes
-                FROM units u
-                {$joinClause}
-                {$whereClause}
-                AND u.dispatch_datetime IS NOT NULL 
-                AND u.arrive_datetime IS NOT NULL
+                FROM units
+                {$baseJoinClause}
+                {$overallWhere}
                 ORDER BY response_minutes
             ";
-            $stmt = $this->db->prepare($sql);
+            $stmt = $this->db->prepare($querySql);
             $stmt->execute($params);
-            $responseTimes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $responseTimeValues = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
             $percentiles = [];
-            if (count($responseTimes) > 0) {
+            if (count($responseTimeValues) > 0) {
                 $percentiles = [
-                    '50th' => $this->calculatePercentile($responseTimes, 50),
-                    '75th' => $this->calculatePercentile($responseTimes, 75),
-                    '90th' => $this->calculatePercentile($responseTimes, 90),
-                    '95th' => $this->calculatePercentile($responseTimes, 95)
+                    '50th' => $this->calculatePercentile($responseTimeValues, 50),
+                    '75th' => $this->calculatePercentile($responseTimeValues, 75),
+                    '90th' => $this->calculatePercentile($responseTimeValues, 90),
+                    '95th' => $this->calculatePercentile($responseTimeValues, 95)
                 ];
             }
 
-            // Breakdown of response time components
-            $callToAssigned = DbHelper::timestampDiff('SECOND', 'c.create_datetime', 'u.assigned_datetime');
-            $assignedToDispatch = DbHelper::timestampDiff('SECOND', 'u.assigned_datetime', 'u.dispatch_datetime');
-            $dispatchToEnroute = DbHelper::timestampDiff('SECOND', 'u.dispatch_datetime', 'u.enroute_datetime');
-            $enrouteToArrive = DbHelper::timestampDiff('MINUTE', 'u.enroute_datetime', 'u.arrive_datetime');
-            
-            $sql = "
-                SELECT 
+            // Breakdown of response time components (requires assigned_datetime)
+            $callToAssigned     = DbHelper::timestampDiff('SECOND', 'calls.create_datetime', 'units.assigned_datetime');
+            $assignedToDispatch = DbHelper::timestampDiff('SECOND', 'units.assigned_datetime', 'units.dispatch_datetime');
+            $dispatchToEnroute  = DbHelper::timestampDiff('SECOND', 'units.dispatch_datetime', 'units.enroute_datetime');
+            $enrouteToArrive    = DbHelper::timestampDiff('MINUTE', 'units.enroute_datetime', 'units.arrive_datetime');
+
+            $breakdownWhere = $withCols($whereClause, 'units.assigned_datetime IS NOT NULL');
+            $querySql = "
+                SELECT
                     AVG({$callToAssigned}) as avg_call_to_assigned_seconds,
                     AVG({$assignedToDispatch}) as avg_assigned_to_dispatch_seconds,
                     AVG({$dispatchToEnroute}) as avg_dispatch_to_enroute_seconds,
                     AVG({$enrouteToArrive}) as avg_enroute_to_arrive_minutes
-                FROM units u
-                {$joinClause}
-                {$whereClause}
-                AND u.assigned_datetime IS NOT NULL
+                FROM units
+                {$baseJoinClause}
+                {$breakdownWhere}
             ";
-            $stmt = $this->db->prepare($sql);
+            $stmt = $this->db->prepare($querySql);
             $stmt->execute($params);
             $breakdown = $stmt->fetch();
 
             Response::success([
                 'overall' => [
-                    'total_responses' => (int)$overall['total_responses'],
-                    'average_minutes' => round((float)$overall['avg_minutes'], 2),
-                    'min_minutes' => round((float)$overall['min_minutes'], 2),
-                    'max_minutes' => round((float)$overall['max_minutes'], 2),
-                    'stddev_minutes' => round((float)$overall['stddev_minutes'], 2)
+                    'total_responses' => (int)($overall['total_responses'] ?? 0),
+                    'average_minutes' => round((float)($overall['avg_minutes'] ?? 0), 2),
+                    'min_minutes' => round((float)($overall['min_minutes'] ?? 0), 2),
+                    'max_minutes' => round((float)($overall['max_minutes'] ?? 0), 2),
+                    'stddev_minutes' => round((float)($overall['stddev_minutes'] ?? 0), 2)
                 ],
                 'percentiles' => $percentiles,
                 'by_unit_type' => array_map(function ($row) {
@@ -902,10 +823,10 @@ class StatsController
                     ];
                 }, $byJurisdiction),
                 'time_breakdown' => [
-                    'call_to_assigned_seconds' => round((float)$breakdown['avg_call_to_assigned_seconds'], 2),
-                    'assigned_to_dispatch_seconds' => round((float)$breakdown['avg_assigned_to_dispatch_seconds'], 2),
-                    'dispatch_to_enroute_seconds' => round((float)$breakdown['avg_dispatch_to_enroute_seconds'], 2),
-                    'enroute_to_arrive_minutes' => round((float)$breakdown['avg_enroute_to_arrive_minutes'], 2)
+                    'call_to_assigned_seconds' => round((float)($breakdown['avg_call_to_assigned_seconds'] ?? 0), 2),
+                    'assigned_to_dispatch_seconds' => round((float)($breakdown['avg_assigned_to_dispatch_seconds'] ?? 0), 2),
+                    'dispatch_to_enroute_seconds' => round((float)($breakdown['avg_dispatch_to_enroute_seconds'] ?? 0), 2),
+                    'enroute_to_arrive_minutes' => round((float)($breakdown['avg_enroute_to_arrive_minutes'] ?? 0), 2)
                 ]
             ]);
         } catch (Exception $e) {

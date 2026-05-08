@@ -23,6 +23,8 @@ final class FilterRegistry
         'stats' => [
             'preset', 'from', 'to', 'date_field',
             'agency', 'ori', 'fdid', 'city', 'call_type',
+            // units() / responseTimes() endpoint-specific filters
+            'unit_type', 'jurisdiction', 'priority',
         ],
     ];
 
