@@ -73,11 +73,12 @@ CREATE TABLE IF NOT EXISTS agency_contexts (
     -- EMD
     emd_case_number VARCHAR(100),
     emd_code VARCHAR(50),
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
+
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_agency_contexts_call_agency (call_id, agency_type),
     INDEX idx_call_id (call_id),
     INDEX idx_agency_type (agency_type),
     INDEX idx_status (status),
@@ -164,11 +165,12 @@ CREATE TABLE IF NOT EXISTS incidents (
     case_number VARCHAR(100),
     jurisdiction VARCHAR(50),
     create_datetime DATETIME,
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
+
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_incidents_call_number (call_id, incident_number),
     INDEX idx_call_id (call_id),
     INDEX idx_incident_number (incident_number),
     INDEX idx_agency_type (agency_type),
@@ -321,10 +323,10 @@ CREATE TABLE IF NOT EXISTS persons (
     -- Role
     role VARCHAR(100) COMMENT 'Inquiry, Suspect, Victim, Witness, etc.',
     primary_caller_flag BOOLEAN DEFAULT FALSE,
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
+
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
     INDEX idx_call_id (call_id),
     INDEX idx_name (last_name, first_name),
@@ -355,13 +357,13 @@ CREATE TABLE IF NOT EXISTS vehicles (
     
     -- Registration
     registered_owner VARCHAR(255),
-    
+
     -- Additional info
     description TEXT,
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
+
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
     INDEX idx_call_id (call_id),
     INDEX idx_license (license_plate, license_state),
@@ -375,14 +377,14 @@ CREATE TABLE IF NOT EXISTS vehicles (
 CREATE TABLE IF NOT EXISTS call_dispositions (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     call_id BIGINT UNSIGNED NOT NULL,
-    
+
     disposition_name VARCHAR(100) NOT NULL,
     description VARCHAR(255),
     count INT DEFAULT 1,
     disposition_datetime DATETIME,
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
+
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
     INDEX idx_call_id (call_id),
     INDEX idx_name (disposition_name),

@@ -73,11 +73,14 @@ CREATE TABLE IF NOT EXISTS agency_contexts (
     -- EMD
     emd_case_number VARCHAR(100),
     emd_code VARCHAR(50),
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
+
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
+    -- One row per (call, agency); parser upserts on this key so mutating
+    -- state (status, closed_flag) replaces the prior snapshot in place.
+    UNIQUE KEY uk_agency_contexts_call_agency (call_id, agency_type),
     INDEX idx_call_id (call_id),
     INDEX idx_agency_type (agency_type),
     INDEX idx_status (status),
@@ -164,11 +167,12 @@ CREATE TABLE IF NOT EXISTS incidents (
     case_number VARCHAR(100),
     jurisdiction VARCHAR(50),
     create_datetime DATETIME,
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
+
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_incidents_call_number (call_id, incident_number),
     INDEX idx_call_id (call_id),
     INDEX idx_incident_number (incident_number),
     INDEX idx_agency_type (agency_type),
@@ -321,10 +325,13 @@ CREATE TABLE IF NOT EXISTS persons (
     -- Role
     role VARCHAR(100) COMMENT 'Inquiry, Suspect, Victim, Witness, etc.',
     primary_caller_flag BOOLEAN DEFAULT FALSE,
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
+
+    -- Parser delete-then-inserts all rows for the call on each XML, so
+    -- the table always reflects the latest snapshot. No natural-key
+    -- UNIQUE: persons have no clean primary key in CAD output.
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
     INDEX idx_call_id (call_id),
     INDEX idx_name (last_name, first_name),
@@ -355,13 +362,14 @@ CREATE TABLE IF NOT EXISTS vehicles (
     
     -- Registration
     registered_owner VARCHAR(255),
-    
+
     -- Additional info
     description TEXT,
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
+
+    -- Parser delete-then-inserts; no natural-key UNIQUE.
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
     INDEX idx_call_id (call_id),
     INDEX idx_license (license_plate, license_state),
@@ -380,9 +388,10 @@ CREATE TABLE IF NOT EXISTS call_dispositions (
     description VARCHAR(255),
     count INT DEFAULT 1,
     disposition_datetime DATETIME,
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
+
+    -- Parser delete-then-inserts; no natural-key UNIQUE.
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
     INDEX idx_call_id (call_id),
     INDEX idx_name (disposition_name),
@@ -468,23 +477,3 @@ CREATE TABLE IF NOT EXISTS notification_send_log (
     INDEX idx_send_log_channel_created (channel_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- Create database if not exists
--- ============================================================================
-CREATE DATABASE IF NOT EXISTS nws_cad CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- Use the database
-USE nws_cad;
-
--- Create user with proper privileges (grants to wildcard host for Docker networking)
-CREATE USER IF NOT EXISTS 'nws_cad_user'@'%' IDENTIFIED BY 'nek8PRNbNxiDQzfR2eGKGw==';
-GRANT ALL PRIVILEGES ON nws_cad.* TO 'nws_cad_user'@'%';
-
--- Also create for localhost just in case
-CREATE USER IF NOT EXISTS 'nws_cad_user'@'localhost' IDENTIFIED BY 'nek8PRNbNxiDQzfR2eGKGw==';
-GRANT ALL PRIVILEGES ON nws_cad.* TO 'nws_cad_user'@'localhost';
-
-FLUSH PRIVILEGES;
-
--- Verify user creation
-SELECT User, Host FROM mysql.user WHERE User = 'nws_cad_user';
