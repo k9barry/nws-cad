@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Notifications dashboard UI: enable/disable channels and dispatch synthetic test sends from `/notifications` without dropping into the shell. Backed by three new endpoints (`POST /api/notifications/channels/{type}/{enable|disable|test}`) and a shared `Notifications\ChannelFactory` for channel construction.
+
 ### Changed
 - Consolidated v1.1.0 database migration scripts into init.sql files (migrations already reflected in init schemas)
 - Removed redundant `database/mysql/migration_v1.1.0.sql` and `database/postgres/migration_v1.1.0.sql`
