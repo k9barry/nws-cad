@@ -90,7 +90,19 @@ class Config
                 [$key, $value] = explode('=', $line, 2);
                 $key = trim($key);
                 $value = trim($value);
-                
+
+                // Strip a single matched pair of surrounding quotes (standard dotenv behavior).
+                // Without this, a value like `KEY="Bearer tk_xxx"` ends up containing the literal
+                // quote characters and silently breaks anything that uses it as an HTTP header.
+                $len = strlen($value);
+                if ($len >= 2) {
+                    $first = $value[0];
+                    $last = $value[$len - 1];
+                    if (($first === '"' && $last === '"') || ($first === "'" && $last === "'")) {
+                        $value = substr($value, 1, -1);
+                    }
+                }
+
                 if (!isset($_ENV[$key])) {
                     putenv("$key=$value");
                     $_ENV[$key] = $value;
