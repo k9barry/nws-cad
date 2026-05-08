@@ -17,6 +17,8 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && update-ca-certificates \
     && docker-php-ext-install pdo pdo_mysql pdo_pgsql xml simplexml \
+    && pecl install pcov \
+    && docker-php-ext-enable pcov \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
