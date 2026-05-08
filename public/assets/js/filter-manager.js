@@ -21,13 +21,22 @@ class FilterManager {
     async init() {
         // Load filters from URL first (takes precedence)
         const urlFilters = this.loadFromURL();
-        
+
         // Fall back to sessionStorage if no URL params
         const savedFilters = urlFilters || this.loadFromStorage();
-        
-        if (savedFilters) {
+
+        // A saved filter set is "meaningful" only if the user has actually
+        // chosen a quick period (including the explicit "All Time" empty
+        // string). Without that key we treat the saved set as cleared and
+        // fall through to the "Today" default — otherwise an empty `{}` in
+        // sessionStorage (left behind by clear(), or carried over from a
+        // build before the default existed) would show every call ever
+        // ingested and surface CAD's reused call_numbers as duplicates.
+        const hasMeaningfulSaved = savedFilters && 'quick_period' in savedFilters;
+
+        if (hasMeaningfulSaved) {
             this.currentFilters = savedFilters;
-            
+
             // Recalculate dates if using a quick period to ensure fresh dates
             if (this.currentFilters.quick_period && this.currentFilters.quick_period !== '') {
                 const dates = this.calculateDateRange(this.currentFilters.quick_period);
@@ -35,19 +44,27 @@ class FilterManager {
                 this.currentFilters.date_to = dates.to;
                 console.log('[FilterManager] Recalculated dates for quick period:', this.currentFilters.quick_period, dates);
             }
-            
-            this.applyToForm(this.currentFilters);
         } else {
-            // No saved filters - apply default: Today
-            this.currentFilters = {
-                quick_period: 'today'
-            };
-            // Calculate today's dates
+            // No saved filters (or saved but cleared) - apply default: Today
             const dates = this.calculateDateRange('today');
-            this.currentFilters.date_from = dates.from;
-            this.currentFilters.date_to = dates.to;
-            console.log('[FilterManager] No saved filters, using default: Today with dates:', dates);
+            this.currentFilters = {
+                quick_period: 'today',
+                date_from: dates.from,
+                date_to: dates.to,
+            };
+            // Preserve any other non-period filters the user had set
+            // (status, agency, jurisdiction, etc.) on top of the default.
+            if (savedFilters) {
+                for (const [k, v] of Object.entries(savedFilters)) {
+                    if (!(k in this.currentFilters)) {
+                        this.currentFilters[k] = v;
+                    }
+                }
+            }
+            console.log('[FilterManager] Applying default Today filter with dates:', dates);
         }
+
+        this.applyToForm(this.currentFilters);
         
         // Setup event handlers
         this.setupFormHandlers();

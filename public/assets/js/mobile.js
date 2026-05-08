@@ -37,8 +37,15 @@ const MobileDashboard = {
     init() {
         console.log('[Mobile] Initializing mobile dashboard');
         
-        // Load saved filters
-        this.filters = Dashboard.filters.load() || this.getDefaultFilters();
+        // Load saved filters. Treat an empty `{}` left behind by clear() (or
+        // a sessionStorage payload from the desktop dashboard that uses a
+        // different key set) as "no saved filters" so the default 7-day
+        // window actually applies — otherwise the mobile list would show
+        // every call ever ingested and surface CAD's reused call_numbers
+        // as duplicates.
+        const saved = Dashboard.filters.load();
+        const hasMobileFilters = saved && 'quick_select' in saved;
+        this.filters = hasMobileFilters ? saved : this.getDefaultFilters();
         
         // Initialize components
         this.initBottomNav();
