@@ -16,6 +16,7 @@ use NwsCad\Api\Controllers\StatsController;
 use NwsCad\Api\Controllers\LogsController;
 use NwsCad\Api\Controllers\NotificationsController;
 use NwsCad\Api\Controllers\HealthController;
+use NwsCad\Api\Controllers\FilterOptionsController;
 
 // Enable CORS
 header('Access-Control-Allow-Origin: *');
@@ -41,6 +42,9 @@ $router = new Router('/api');
 
 // Health Check Route (used by docker-compose api healthcheck)
 $router->get('/health', [HealthController::class, 'index']);
+
+// Filter Options Route
+$router->get('/filter-options', [FilterOptionsController::class, 'index']);
 
 // API info endpoint
 $router->get('/', function() {
