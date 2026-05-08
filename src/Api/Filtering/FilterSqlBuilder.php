@@ -16,17 +16,37 @@ final class FilterSqlBuilder
         $needsIncidents      = $f->incidentType !== [];
         $needsUnits          = $f->unit !== [];
 
-        if ($needsAgencyContexts && !$ctx->isJoined('agency_contexts')) {
-            $joins[] = 'LEFT JOIN agency_contexts ON agency_contexts.call_id = calls.id';
-        }
-        if ($needsLocations && !$ctx->isJoined('locations')) {
-            $joins[] = 'LEFT JOIN locations ON locations.call_id = calls.id';
-        }
-        if ($needsIncidents && !$ctx->isJoined('incidents')) {
-            $joins[] = 'LEFT JOIN incidents ON incidents.call_id = calls.id';
-        }
-        if ($needsUnits && !$ctx->isJoined('units')) {
-            $joins[] = 'LEFT JOIN units ON units.call_id = calls.id';
+        if ($ctx->unitsBase) {
+            // Base table is `units`; joins reach back through units.call_id
+            if ($needsAgencyContexts && !$ctx->isJoined('agency_contexts')) {
+                $joins[] = 'LEFT JOIN agency_contexts ON agency_contexts.call_id = units.call_id';
+            }
+            if ($needsLocations && !$ctx->isJoined('locations')) {
+                $joins[] = 'LEFT JOIN locations ON locations.call_id = units.call_id';
+            }
+            if ($needsIncidents && !$ctx->isJoined('incidents')) {
+                $joins[] = 'LEFT JOIN incidents ON incidents.call_id = units.call_id';
+            }
+            // units is already the base — no self-join needed
+            // Join calls when date filters or call_id filters reference calls columns
+            $needsCalls = $f->dateRange !== null || $f->callId !== [] || $f->status !== [] || $f->natureOfCall !== null || $f->search !== null;
+            if ($needsCalls && !$ctx->isJoined('calls')) {
+                $joins[] = 'LEFT JOIN calls ON calls.id = units.call_id';
+            }
+        } else {
+            // Base table is `calls`; joins go forward
+            if ($needsAgencyContexts && !$ctx->isJoined('agency_contexts')) {
+                $joins[] = 'LEFT JOIN agency_contexts ON agency_contexts.call_id = calls.id';
+            }
+            if ($needsLocations && !$ctx->isJoined('locations')) {
+                $joins[] = 'LEFT JOIN locations ON locations.call_id = calls.id';
+            }
+            if ($needsIncidents && !$ctx->isJoined('incidents')) {
+                $joins[] = 'LEFT JOIN incidents ON incidents.call_id = calls.id';
+            }
+            if ($needsUnits && !$ctx->isJoined('units')) {
+                $joins[] = 'LEFT JOIN units ON units.call_id = calls.id';
+            }
         }
 
         // Date range

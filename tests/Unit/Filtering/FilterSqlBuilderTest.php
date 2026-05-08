@@ -162,4 +162,12 @@ final class FilterSqlBuilderTest extends TestCase
         ]);
         $this->assertStringContainsString(' AND ', $where);
     }
+
+    public function testUnitsBaseFlipsJoinsToReachThroughUnits(): void
+    {
+        $criteria = FilterCriteria::fromQuery(['agency' => 'Pendleton Police'], FilterRegistry::for('units'));
+        $ctx = new FilterContext('units', ['units'], unitsBase: true);
+        $sql = (new FilterSqlBuilder())->build($criteria, $ctx);
+        $this->assertContains('LEFT JOIN agency_contexts ON agency_contexts.call_id = units.call_id', $sql->joins);
+    }
 }
