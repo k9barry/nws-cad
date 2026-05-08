@@ -76,7 +76,8 @@ declare(strict_types=1);
 
 <script>
 (function() {
-    const apiBase = window.APP_CONFIG.apiBaseUrl;
+    function start() {
+    const apiBase = window.APP_CONFIG?.apiBaseUrl ?? '/api';
     const container = document.getElementById('notifications-channels-container');
     const tpl = document.getElementById('channel-card-template');
     const KNOWN = [
@@ -294,5 +295,12 @@ declare(strict_types=1);
             container.replaceChildren(div);
         }
     })();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', start);
+    } else {
+        start();
+    }
 })();
 </script>
