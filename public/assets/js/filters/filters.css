@@ -16,3 +16,8 @@
 @media (max-width: 640px) {
   .filter-panel { grid-template-columns: 1fr; }
 }
+
+/* Mobile collapsible filter panel */
+.filter-panel.is-collapsed .filter-panel-field { display: none; }
+.filter-panel.is-collapsed .filter-panel-restore { display: none; }
+.filter-panel.is-collapsed .filter-panel-header { padding-bottom: 0; margin-bottom: 0; }

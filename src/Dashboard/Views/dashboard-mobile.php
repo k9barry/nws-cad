@@ -18,7 +18,7 @@
 <div class="mobile-content">
     <!-- Stats Cards - Horizontal Scroll -->
     <div class="mobile-stats-scroll">
-        <div class="mobile-stat-card border-primary" data-bs-toggle="modal" data-bs-target="#mobile-filters-modal">
+        <div class="mobile-stat-card border-primary" id="filter-panel-toggle">
             <h6>Total Calls</h6>
             <h2 class="text-primary" id="stat-total">
                 <span class="spinner-border spinner-border-sm"></span>
@@ -102,10 +102,14 @@
 </div>
 
 <?php
+// Include shared filter panel (compact mode for mobile)
+$filterFields = 'date,call_type,agency,ori,city,unit,status,q';
+$filterCompact = 'true';
+include __DIR__ . '/partials/filter-panel.php';
+
 // Include mobile modals
 $mobile_partials_path = __DIR__ . '/partials-mobile/';
 
-include $mobile_partials_path . 'filters-modal.php';
 include $mobile_partials_path . 'call-detail-modal.php';
 include $mobile_partials_path . 'analytics-modal.php';
 ?>
