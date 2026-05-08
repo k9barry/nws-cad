@@ -83,54 +83,72 @@
          */
         function updateFilterSummary() {
             const summaryEl = document.getElementById('filter-summary');
-            if (!summaryEl) return;
-            if (!panel) return;
+            if (!summaryEl || !panel) return;
 
             const vals = panel.getState().snapshot();
-            const parts = [];
+            const chips = [];
 
-            // Date preset or custom range
-            if (vals.preset) {
-                const presets = {
-                    'today': 'Today',
-                    'yesterday': 'Yesterday',
-                    'last_7_days': 'Last 7 Days',
-                    'last_30_days': 'Last 30 Days',
-                    'this_month': 'This Month',
-                    'last_month': 'Last Month',
-                };
-                parts.push(presets[vals.preset] || vals.preset);
-            } else if (vals.from && vals.to) {
-                parts.push(`${vals.from} to ${vals.to}`);
-            } else {
-                parts.push('All Time');
+            // Date chip (always present — either preset, custom range, or "All Time")
+            const presets = {
+                today: 'Today', yesterday: 'Yesterday',
+                last_7_days: 'Last 7 Days', last_30_days: 'Last 30 Days',
+                this_month: 'This Month', last_month: 'Last Month',
+            };
+            if (vals.preset)               chips.push({ label: presets[vals.preset] || vals.preset, kind: 'accent' });
+            else if (vals.from && vals.to) chips.push({ label: `${vals.from} → ${vals.to}`, kind: 'accent' });
+            else                           chips.push({ label: 'All Time', kind: 'plain' });
+
+            // Status chips — colored per state
+            if (vals.status && vals.status.length) {
+                vals.status.forEach(function (s) {
+                    chips.push({ label: s.charAt(0).toUpperCase() + s.slice(1), kind: 'status-' + s });
+                });
             }
 
-            // Add other active filters
+            // Other active filters → compact chips
             const labelMap = {
-                call_type:     'Type',
-                incident_type: 'Incident',
-                nature_of_call:'Nature',
-                agency:        'Agency',
-                ori:           'ORI',
-                fdid:          'FDID',
-                beat:          'Beat',
-                area:          'Area',
-                city:          'City',
-                location:      'Location',
-                call_id:       'Call ID',
-                unit:          'Unit',
-                status:        'Status',
-                q:             'Search',
+                call_type: 'Type', incident_type: 'Incident', nature_of_call: 'Nature',
+                agency: 'Agency', ori: 'ORI', fdid: 'FDID',
+                beat: 'Beat', area: 'Area', city: 'City',
+                location: 'Location', call_id: 'Call ID', unit: 'Unit', q: 'Search',
             };
             Object.keys(labelMap).forEach(function (key) {
                 const v = vals[key];
                 if (!v) return;
-                const display = Array.isArray(v) ? v.join(', ') : v;
-                if (display) parts.push(`${labelMap[key]}: ${display}`);
+                if (Array.isArray(v) && v.length === 0) return;
+                const display = Array.isArray(v)
+                    ? (v.length > 2 ? `${v.length} ${labelMap[key].toLowerCase()}s` : v.join(', '))
+                    : String(v);
+                if (display) chips.push({ label: `${labelMap[key]}: ${display}`, kind: 'plain' });
             });
 
-            summaryEl.textContent = parts.join(' • ');
+            // Render
+            summaryEl.innerHTML = '';
+            chips.forEach(function (c) {
+                const span = document.createElement('span');
+                span.className = 'summary-chip summary-chip--' + c.kind;
+                span.textContent = c.label;
+                summaryEl.appendChild(span);
+            });
+
+            // Update count badge on the Filters button
+            updateFilterCountBadge(chips.length);
+        }
+
+        function updateFilterCountBadge(count) {
+            const btn = document.querySelector('[data-bs-target="#filter-drawer"]');
+            if (!btn) return;
+            let badge = btn.querySelector('.filter-count-badge');
+            if (count <= 1) {
+                if (badge) badge.remove();
+                return;
+            }
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'filter-count-badge';
+                btn.appendChild(badge);
+            }
+            badge.textContent = String(count);
         }
         
         /**

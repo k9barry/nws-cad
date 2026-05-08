@@ -1,111 +1,412 @@
-/* public/assets/js/filters/filters.css */
+/*
+ * Filter Panel — drawer-friendly, polished
+ *
+ * The panel lives inside a Bootstrap offcanvas on every list view (dashboard,
+ * /calls, /units), so all sizing is tuned for a ~420px-wide column. The
+ * compact variant (data-compact="true") is set explicitly by every page that
+ * mounts inside the drawer.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Drawer chrome (offcanvas wrapper)                                   */
+/* ------------------------------------------------------------------ */
+
+.offcanvas#filter-drawer {
+  width: 420px;
+  max-width: 92vw;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: -8px 0 24px rgba(13, 110, 253, 0.06);
+}
+
+.offcanvas#filter-drawer .offcanvas-header {
+  background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+  color: #fff;
+  padding: 1rem 1.25rem;
+  border-bottom: 0;
+  box-shadow: 0 2px 6px rgba(13, 110, 253, 0.18);
+}
+
+.offcanvas#filter-drawer .offcanvas-title {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.offcanvas#filter-drawer .offcanvas-title .bi {
+  font-size: 1.1rem;
+  opacity: 0.95;
+}
+
+.offcanvas#filter-drawer .btn-close {
+  filter: invert(1) brightness(2);
+  opacity: 0.8;
+}
+.offcanvas#filter-drawer .btn-close:hover { opacity: 1; }
+
+.offcanvas#filter-drawer .offcanvas-body {
+  padding: 0;                /* the .filter-panel handles its own padding */
+  background: #fafbfc;
+}
+
+/* ------------------------------------------------------------------ */
+/* Filters trigger button (in page header)                              */
+/* ------------------------------------------------------------------ */
+
+[data-bs-target="#filter-drawer"] {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+[data-bs-target="#filter-drawer"]:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(13, 110, 253, 0.18);
+}
+[data-bs-target="#filter-drawer"] .bi { font-size: 1rem; }
+
+/* Active filter count badge appended via JS */
+[data-bs-target="#filter-drawer"] .filter-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.4rem;
+  margin-left: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--primary-color, #0d6efd);
+  border-radius: 999px;
+  line-height: 1;
+}
+
+/* Active filters summary text in header */
+#filter-summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+#filter-summary .summary-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #495057;
+  background: #fff;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+#filter-summary .summary-chip--accent {
+  color: #0a58ca;
+  background: #e7f1ff;
+  border-color: #cfe2ff;
+}
+#filter-summary .summary-chip--status-open    { color: #0f5132; background: #d1e7dd; border-color: #badbcc; }
+#filter-summary .summary-chip--status-closed  { color: #495057; background: #e9ecef; border-color: #dee2e6; }
+#filter-summary .summary-chip--status-canceled{ color: #842029; background: #f8d7da; border-color: #f5c2c7; }
+
+/* ------------------------------------------------------------------ */
+/* Filter panel core                                                    */
+/* ------------------------------------------------------------------ */
+
 .filter-panel {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.75rem 1rem;
-  padding: 1rem 1.25rem;
-  margin-bottom: 1.5rem;
-  background: var(--bs-light, #f8f9fa);
-  border: 1px solid var(--bs-border-color, #dee2e6);
-  border-radius: 0.5rem;
+  gap: 1rem 1.25rem;
+  padding: 1.25rem;
+  background: transparent;          /* drawer body provides the background */
 }
 
-/* Header spans the full grid row so it sits above the fields, not in a column */
+/* Inline (non-drawer) usage keeps a card look */
+.filter-panel:not(.offcanvas-body .filter-panel) {
+  background: #fff;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 0.625rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* Header row: label on left, reset on right; spans full grid */
 .filter-panel-header {
   grid-column: 1 / -1;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.25rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--bs-border-color, #dee2e6);
+  margin: 0 0 0.25rem;
+  padding: 0 0 0.75rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .filter-panel-header::before {
-  content: '\F408 Filters';
-  font-family: 'bootstrap-icons', sans-serif;
+  content: 'Refine your view';
+  font-size: 0.75rem;
   font-weight: 600;
-  color: var(--bs-secondary, #6c757d);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6c757d;
 }
 
 .filter-panel-reset {
   background: transparent;
-  border: 1px solid var(--bs-secondary, #6c757d);
-  color: var(--bs-secondary, #6c757d);
-  padding: 0.25rem 0.75rem;
-  border-radius: 0.25rem;
+  border: 1px solid rgba(220, 53, 69, 0.4);
+  color: #dc3545;
+  padding: 0.3rem 0.85rem;
+  border-radius: 0.4rem;
   cursor: pointer;
-  font-size: 0.85rem;
-}
-.filter-panel-reset:hover { background: var(--bs-secondary, #6c757d); color: white; }
-
-.filter-panel-field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
-.filter-panel-field > label {
-  font-size: 0.85rem;
-  color: var(--bs-secondary, #6c757d);
+  font-size: 0.8rem;
   font-weight: 500;
-  margin-bottom: 0;
+  letter-spacing: 0.01em;
+  transition: all 0.15s ease;
+}
+.filter-panel-reset::before {
+  content: '\F659';                 /* bi-x-circle */
+  font-family: 'bootstrap-icons', sans-serif;
+  font-weight: 400;
+  margin-right: 0.35rem;
+}
+.filter-panel-reset:hover {
+  background: #dc3545;
+  color: #fff;
+  border-color: #dc3545;
 }
 
-/* Plain text/date inputs match Bootstrap form-control sizing */
+/* ------------------------------------------------------------------ */
+/* Field cells                                                          */
+/* ------------------------------------------------------------------ */
+
+.filter-panel-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.filter-panel-field > label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6c757d;
+  margin: 0;
+}
+
+/* Plain text inputs */
 .filter-panel-field input[type="text"],
-.filter-panel-field input[type="date"] {
-  padding: 0.375rem 0.5rem;
-  border: 1px solid var(--bs-border-color, #ced4da);
-  border-radius: 0.25rem;
-  font-size: 0.9rem;
-  background: white;
+.filter-panel-field input[type="date"],
+.filter-panel-field--date select {
+  width: 100%;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: #212529;
+  background: #fff;
+  border: 1px solid #ced4da;
+  border-radius: 0.4rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.filter-panel-field input[type="text"]:focus,
+.filter-panel-field input[type="date"]:focus,
+.filter-panel-field--date select:focus {
+  outline: 0;
+  border-color: #86b7fe;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
 }
 
-/* Date-range field: preset select + range input on the same row */
-.filter-panel-field--date select { padding: 0.375rem 0.5rem; border: 1px solid var(--bs-border-color, #ced4da); border-radius: 0.25rem; font-size: 0.9rem; background: white; }
+/* Date field — preset select + range input stack vertically with a gap */
+.filter-panel-field--date {
+  gap: 0.4rem;
+}
 
-/* Status chip toggles */
-.filter-panel-field--status { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; }
-.filter-panel-field--status .filter-panel-label { font-size: 0.85rem; color: var(--bs-secondary, #6c757d); font-weight: 500; margin-right: 0.5rem; }
+/* ------------------------------------------------------------------ */
+/* Status chip toggles                                                  */
+/* ------------------------------------------------------------------ */
+
+.filter-panel-field--status {
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.filter-panel-field--status .filter-panel-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6c757d;
+}
+
+.filter-panel-field--status > :not(.filter-panel-label) {
+  display: inline-flex;
+}
+
+/* Chip group container */
+.filter-panel-field--status {
+  position: relative;
+}
+
 .filter-panel-chip {
-  padding: 0.25rem 0.75rem;
-  background: white;
+  padding: 0.35rem 0.85rem;
+  background: #fff;
   border: 1px solid var(--bs-border-color, #dee2e6);
   border-radius: 999px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #495057;
+  transition: all 0.15s ease;
+  margin-right: 0.35rem;
+  margin-bottom: 0.35rem;
 }
-.filter-panel-chip.is-active { background: var(--bs-primary, #0d6efd); color: white; border-color: var(--bs-primary, #0d6efd); }
+.filter-panel-chip:hover {
+  border-color: #adb5bd;
+  background: #f8f9fa;
+}
 
-.filter-panel-announcer { position: absolute; left: -9999px; }
+/* Status-specific colors when active */
+.filter-panel-chip.is-active {
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.filter-panel-field--status .filter-panel-chip:nth-of-type(1).is-active { /* Open */
+  background: #198754;
+}
+.filter-panel-field--status .filter-panel-chip:nth-of-type(2).is-active { /* Closed */
+  background: #6c757d;
+}
+.filter-panel-field--status .filter-panel-chip:nth-of-type(3).is-active { /* Canceled */
+  background: #dc3545;
+}
+
+/* ------------------------------------------------------------------ */
+/* Restore-last-filter banner                                           */
+/* ------------------------------------------------------------------ */
 
 .filter-panel-restore {
   grid-column: 1 / -1;
-  padding: 0.5rem 0.75rem;
-  background: var(--bs-info-bg-subtle, #cff4fc);
-  border-radius: 0.25rem;
-  font-size: 0.9rem;
+  padding: 0.65rem 0.9rem;
+  background: linear-gradient(135deg, #cff4fc 0%, #b6effb 100%);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  color: #055160;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 1px 2px rgba(13, 202, 240, 0.15);
 }
 .filter-panel-restore button {
   margin-left: 0.5rem;
-  padding: 0.15rem 0.5rem;
-  background: var(--bs-primary, #0d6efd);
+  padding: 0.3rem 0.85rem;
+  background: #0d6efd;
   color: white;
   border: 0;
-  border-radius: 0.25rem;
+  border-radius: 0.4rem;
   cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: background 0.15s ease;
+}
+.filter-panel-restore button:hover { background: #0a58ca; }
+
+.filter-panel-announcer { position: absolute; left: -9999px; }
+
+/* ------------------------------------------------------------------ */
+/* Choices.js theming — match Bootstrap form-control                    */
+/* ------------------------------------------------------------------ */
+
+.filter-panel-field .choices { margin-bottom: 0; font-size: 0.875rem; }
+.filter-panel-field .choices__inner {
+  min-height: 38px;
+  padding: 0.35rem 0.65rem;
+  background: #fff;
+  border: 1px solid #ced4da;
+  border-radius: 0.4rem;
+  font-size: 0.875rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.filter-panel-field .choices.is-focused .choices__inner,
+.filter-panel-field .choices.is-open .choices__inner {
+  border-color: #86b7fe;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+.filter-panel-field .choices__list--multiple .choices__item {
+  background: #0d6efd;
+  border-color: #0a58ca;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.2rem 0.55rem;
+  margin: 0.15rem 0.2rem 0.15rem 0;
+  border-radius: 0.3rem;
+}
+.filter-panel-field .choices__list--multiple .choices__item.is-highlighted {
+  background: #0a58ca;
+}
+.filter-panel-field .choices__list--dropdown {
+  border-color: #dee2e6;
+  border-radius: 0.4rem;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+}
+.filter-panel-field .choices__list--dropdown .choices__item--selectable.is-highlighted {
+  background: #e7f1ff;
+  color: #0a58ca;
 }
 
-/* Tame Choices.js widget so it doesn't blow out the column width */
-.filter-panel-field .choices { margin-bottom: 0; font-size: 0.9rem; }
-.filter-panel-field .choices__inner { min-height: 38px; padding: 0.25rem 0.5rem; background: white; border: 1px solid var(--bs-border-color, #ced4da); }
-.filter-panel-field .choices__list--multiple .choices__item { background: var(--bs-primary, #0d6efd); border-color: var(--bs-primary, #0d6efd); font-size: 0.85rem; }
+/* ------------------------------------------------------------------ */
+/* Flatpickr theming                                                     */
+/* ------------------------------------------------------------------ */
 
-/* Compact (mobile-detected) — tighter padding, single column */
-.filter-panel--compact { grid-template-columns: 1fr; padding: 0.75rem; gap: 0.5rem; }
+.flatpickr-calendar {
+  border-radius: 0.5rem;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  font-size: 0.875rem;
+  border: 1px solid #dee2e6;
+}
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+  background: #0d6efd;
+  border-color: #0d6efd;
+}
+.flatpickr-day.inRange {
+  background: #cfe2ff;
+  border-color: #cfe2ff;
+  box-shadow: -5px 0 0 #cfe2ff, 5px 0 0 #cfe2ff;
+}
 
-/* Narrow viewport */
+/* ------------------------------------------------------------------ */
+/* Compact (mobile/drawer) — single column, tighter spacing              */
+/* ------------------------------------------------------------------ */
+
+.filter-panel--compact {
+  grid-template-columns: 1fr;
+  padding: 1rem;
+  gap: 0.85rem;
+}
+.filter-panel--compact .filter-panel-header {
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
 @media (max-width: 640px) {
-  .filter-panel { grid-template-columns: 1fr; }
+  .filter-panel { grid-template-columns: 1fr; padding: 0.85rem; gap: 0.75rem; }
+  .offcanvas#filter-drawer { width: 100%; }
 }
 
-/* Collapsed (mobile, on stat-card toggle) */
-.filter-panel.is-collapsed > .filter-panel-field,
-.filter-panel.is-collapsed > .filter-panel-restore { display: none; }
-.filter-panel.is-collapsed > .filter-panel-header { padding-bottom: 0; margin-bottom: 0; border-bottom: 0; }
+/* ------------------------------------------------------------------ */
+/* Smooth focus ring on the whole panel                                 */
+/* ------------------------------------------------------------------ */
+
+.filter-panel *:focus-visible {
+  outline: 2px solid #86b7fe;
+  outline-offset: 2px;
+  border-radius: 0.3rem;
+}

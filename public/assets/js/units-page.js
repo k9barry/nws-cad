@@ -41,14 +41,49 @@
   function updateSummary(state) {
     const el = document.getElementById('filter-summary');
     if (!el) return;
-    const parts = [];
     const v = state.values;
-    if (v.preset)        parts.push(v.preset.replace(/_/g, ' '));
-    else if (v.from && v.to) parts.push(v.from + ' → ' + v.to);
-    if (v.status && v.status.length) parts.push(v.status.join('/'));
-    if (v.unit && v.unit.length)     parts.push(v.unit.length + ' units');
-    if (v.agency && v.agency.length) parts.push(v.agency.length + ' agencies');
-    el.textContent = parts.length ? parts.join(', ') : 'All';
+    const chips = [];
+
+    const presets = {
+      today: 'Today', yesterday: 'Yesterday',
+      last_7_days: 'Last 7 Days', last_30_days: 'Last 30 Days',
+      this_month: 'This Month', last_month: 'Last Month',
+    };
+    if (v.preset)               chips.push({ label: presets[v.preset] || v.preset, kind: 'accent' });
+    else if (v.from && v.to)    chips.push({ label: v.from + ' → ' + v.to, kind: 'accent' });
+    else                        chips.push({ label: 'All Time', kind: 'plain' });
+
+    if (v.status && v.status.length) {
+      v.status.forEach(function (s) {
+        chips.push({ label: s.charAt(0).toUpperCase() + s.slice(1), kind: 'status-' + s });
+      });
+    }
+    if (v.unit && v.unit.length)     chips.push({ label: v.unit.length === 1 ? 'Unit ' + v.unit[0] : v.unit.length + ' units', kind: 'plain' });
+    if (v.agency && v.agency.length) chips.push({ label: v.agency.length + ' agencies', kind: 'plain' });
+    if (v.call_id)                   chips.push({ label: 'Call ' + (Array.isArray(v.call_id) ? v.call_id[0] : v.call_id), kind: 'plain' });
+
+    el.innerHTML = '';
+    chips.forEach(function (c) {
+      const span = document.createElement('span');
+      span.className = 'summary-chip summary-chip--' + c.kind;
+      span.textContent = c.label;
+      el.appendChild(span);
+    });
+
+    const btn = document.querySelector('[data-bs-target="#filter-drawer"]');
+    if (btn) {
+      let badge = btn.querySelector('.filter-count-badge');
+      if (chips.length <= 1) {
+        if (badge) badge.remove();
+      } else {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'filter-count-badge';
+          btn.appendChild(badge);
+        }
+        badge.textContent = String(chips.length);
+      }
+    }
   }
 
   document.addEventListener('DOMContentLoaded', async function () {
