@@ -85,11 +85,8 @@ declare(strict_types=1);
     ];
 
     const apiCall = (path, options) => {
-        if (window.Dashboard && Dashboard.apiRequest) {
-            return Dashboard.apiRequest(path.replace(/^\/api/, ''), options);
-        }
         const opts = Object.assign({ headers: { 'Accept': 'application/json' } }, options || {});
-        return fetch(`${apiBase}${path.startsWith('/api') ? path.slice(4) : path}`, opts).then(r => r.json());
+        return fetch(`${apiBase}${path}`, opts).then(r => r.json());
     };
 
     function setText(node, sel, value) {
@@ -100,7 +97,9 @@ declare(strict_types=1);
     async function fetchAllChannels() {
         const resp = await apiCall('/notifications/channels');
         const byName = {};
-        if (resp.success) for (const ch of resp.data.items) byName[ch.name] = ch;
+        if (resp.success && resp.data && Array.isArray(resp.data.items)) {
+            for (const ch of resp.data.items) byName[ch.name] = ch;
+        }
         return byName;
     }
 
@@ -134,9 +133,14 @@ declare(strict_types=1);
 
     function showInlineError(card, message) {
         const div = card.querySelector('.channel-inline-error');
+        if (div._hideTimer) clearTimeout(div._hideTimer);
         div.textContent = message;
         div.hidden = false;
-        setTimeout(() => { div.hidden = true; div.textContent = ''; }, 8000);
+        div._hideTimer = setTimeout(() => {
+            div.hidden = true;
+            div.textContent = '';
+            div._hideTimer = null;
+        }, 8000);
     }
 
     function showTestResult(payload) {
@@ -205,31 +209,34 @@ declare(strict_types=1);
         else renderLog(ul, []);
 
         toggle.addEventListener('change', async () => {
-            const wantEnable = toggle.checked;
-            if (wantEnable) {
-                const resp = await apiCall(`/notifications/channels/${known.type}/enable`, { method: 'POST' });
-                if (!resp.success) {
-                    toggle.checked = false;
-                    testBtn.disabled = true;
-                    showInlineError(card, resp.error || 'Failed to enable channel');
-                    return;
+            toggle.disabled = true;
+            try {
+                const wantEnable = toggle.checked;
+                if (wantEnable) {
+                    const resp = await apiCall(`/notifications/channels/${known.type}/enable`, { method: 'POST' });
+                    if (!resp.success) {
+                        toggle.checked = false;
+                        showInlineError(card, resp.error || 'Failed to enable channel');
+                        return;
+                    }
+                    await refreshCard(known, card);
+                } else {
+                    const ok = await confirmDisable(known.name);
+                    if (!ok) {
+                        toggle.checked = true;
+                        return;
+                    }
+                    const resp = await apiCall(`/notifications/channels/${known.type}/disable`, { method: 'POST' });
+                    if (!resp.success) {
+                        toggle.checked = true;
+                        showInlineError(card, resp.error || 'Failed to disable channel');
+                        return;
+                    }
+                    await refreshCard(known, card);
                 }
-                testBtn.disabled = false;
-                await refreshCard(known, card);
-            } else {
-                const ok = await confirmDisable(known.name);
-                if (!ok) {
-                    toggle.checked = true;
-                    return;
-                }
-                const resp = await apiCall(`/notifications/channels/${known.type}/disable`, { method: 'POST' });
-                if (!resp.success) {
-                    toggle.checked = true;
-                    showInlineError(card, resp.error || 'Failed to disable channel');
-                    return;
-                }
-                testBtn.disabled = true;
-                await refreshCard(known, card);
+            } finally {
+                toggle.disabled = false;
+                testBtn.disabled = !toggle.checked;
             }
         });
 
@@ -272,9 +279,19 @@ declare(strict_types=1);
     }
 
     (async function init() {
-        const byName = await fetchAllChannels();
-        for (const known of KNOWN) {
-            await renderCard(known, byName);
+        try {
+            const byName = await fetchAllChannels();
+            for (const known of KNOWN) {
+                await renderCard(known, byName);
+            }
+        } catch (e) {
+            const div = document.createElement('div');
+            div.className = 'col-12';
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-danger';
+            alert.textContent = 'Failed to load notification channels. Check the API.';
+            div.appendChild(alert);
+            container.replaceChildren(div);
         }
     })();
 })();
