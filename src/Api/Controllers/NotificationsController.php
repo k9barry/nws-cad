@@ -5,17 +5,28 @@ declare(strict_types=1);
 namespace NwsCad\Api\Controllers;
 
 use NwsCad\Api\Response;
+use NwsCad\Config;
 use NwsCad\Database;
+use NwsCad\Notifications\ChannelFactory;
+use NwsCad\Notifications\ChannelRepository;
+use NwsCad\Notifications\IncidentDto;
+use NwsCad\Notifications\Events\Intent;
+use NwsCad\Notifications\NotificationContext;
+use DateTimeImmutable;
 use PDO;
 use Exception;
 
 final class NotificationsController
 {
     private PDO $db;
+    private ChannelFactory $factory;
+    private ChannelRepository $repo;
 
-    public function __construct()
+    public function __construct(?ChannelFactory $factory = null, ?ChannelRepository $repo = null)
     {
         $this->db = Database::getConnection();
+        $this->factory = $factory ?? new ChannelFactory(Config::getInstance());
+        $this->repo = $repo ?? new ChannelRepository($this->db);
     }
 
     /** GET /api/notifications/channels */
@@ -141,6 +152,76 @@ final class NotificationsController
             Response::success(['updated' => $stmt->rowCount()]);
         } catch (Exception $e) {
             Response::error('Failed to disable channel: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /** POST /api/notifications/channels/{type}/test */
+    public function test(string $type): void
+    {
+        try {
+            if (! $this->validateType($type)) {
+                Response::error("Unknown channel type: {$type}", 404);
+                return;
+            }
+
+            $stmt = $this->db->prepare(
+                "SELECT id, name, type, enabled, base_url, config_json
+                 FROM notification_channels WHERE type = ? AND name = ?"
+            );
+            $stmt->execute([$type, "{$type}_primary"]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if ($row === false) {
+                Response::error('Channel not found. Enable it first.', 422);
+                return;
+            }
+            if ((int) $row['enabled'] !== 1) {
+                Response::error('Channel is disabled.', 422);
+                return;
+            }
+
+            $dto = IncidentDto::fromRow([
+                'id'              => 0,
+                'call_id'         => 0,
+                'call_number'     => 'TEST-' . date('YmdHis'),
+                'call_type'       => 'TEST',
+                'agency_type'     => 'TEST',
+                'jurisdiction'    => null,
+                'units'           => '',
+                'nature_of_call'  => 'Notification test',
+                'full_address'    => 'Dashboard self-test',
+                'alarm_level'     => 1,
+                'create_datetime' => (new DateTimeImmutable())->format('Y-m-d H:i:s'),
+            ]);
+            $ctx = new NotificationContext(
+                intent: Intent::Created,
+                resendAll: true,
+                topicsToNotify: ['test'],
+                channelConfig: [],
+            );
+
+            $channel = $this->factory->create($row);
+            $results = $channel->send($dto, $ctx);
+
+            if ($results === []) {
+                Response::error('Channel returned no results', 500);
+                return;
+            }
+
+            foreach ($results as $r) {
+                $this->repo->recordSend((int) $row['id'], null, 'test', $r);
+            }
+
+            $first = $results[0];
+            Response::success([
+                'ok'          => $first->ok,
+                'http_status' => $first->httpStatus,
+                'duration_ms' => $first->durationMs,
+                'error'       => $first->error,
+                'topic'       => $first->topic,
+            ]);
+        } catch (Exception $e) {
+            Response::error('Failed to send test: ' . $e->getMessage(), 500);
         }
     }
 

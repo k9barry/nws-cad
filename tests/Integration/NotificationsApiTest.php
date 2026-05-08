@@ -17,6 +17,12 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Logger
  * @uses \NwsCad\Logging\RedactingProcessor
  * @uses \NwsCad\Logging\SecretRegistry
+ * @uses \NwsCad\Notifications\ChannelFactory
+ * @uses \NwsCad\Notifications\ChannelRepository
+ * @uses \NwsCad\Notifications\IncidentDto
+ * @uses \NwsCad\Notifications\NotificationContext
+ * @uses \NwsCad\Notifications\SendResult
+ * @uses \NwsCad\Notifications\Events\Intent
  */
 class NotificationsApiTest extends TestCase
 {
@@ -189,6 +195,112 @@ class NotificationsApiTest extends TestCase
         $controller = new NotificationsController();
         ob_start();
         $controller->disable('webhook');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertFalse($payload['success']);
+    }
+
+    public function testTestReturns422WhenChannelMissing(): void
+    {
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->test('ntfy');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertFalse($payload['success']);
+        $this->assertStringContainsString('not found', $payload['error']);
+    }
+
+    public function testTestReturns422WhenChannelDisabled(): void
+    {
+        self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
+            VALUES ('ntfy_primary', 'ntfy', 0, 'u', '{}')");
+
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->test('ntfy');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertFalse($payload['success']);
+        $this->assertStringContainsString('disabled', $payload['error']);
+    }
+
+    public function testTestSendsAndLogsSuccess(): void
+    {
+        self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
+            VALUES ('ntfy_primary', 'ntfy', 1, 'https://ntfy.example', '{\"auth_token_env\":\"NTFY_AUTH_TOKEN\"}')");
+        $channelId = (int) self::$db->lastInsertId();
+
+        $stub = new class implements \NwsCad\Notifications\NotificationChannel {
+            public static function type(): string { return 'ntfy'; }
+            public function send(\NwsCad\Notifications\IncidentDto $i, \NwsCad\Notifications\NotificationContext $c): array {
+                return [\NwsCad\Notifications\SendResult::ok(200, 12, 'test')];
+            }
+        };
+
+        $factory = new class($stub) extends \NwsCad\Notifications\ChannelFactory {
+            public function __construct(private $stub) {
+                parent::__construct(\NwsCad\Config::getInstance());
+            }
+            public function create(array $row): \NwsCad\Notifications\NotificationChannel { return $this->stub; }
+        };
+
+        $controller = new NotificationsController($factory);
+        ob_start();
+        $controller->test('ntfy');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertTrue($payload['success'], json_encode($payload));
+        $this->assertTrue((bool) $payload['data']['ok']);
+        $this->assertSame(200, (int) $payload['data']['http_status']);
+
+        $logged = self::$db->query(
+            "SELECT intent, ok, topic FROM notification_send_log WHERE channel_id = {$channelId}"
+        )->fetch(\PDO::FETCH_ASSOC);
+        $this->assertSame('test', $logged['intent']);
+        $this->assertSame(1, (int) $logged['ok']);
+        $this->assertSame('test', $logged['topic']);
+    }
+
+    public function testTestLogsFailureWhenChannelReturnsFail(): void
+    {
+        self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
+            VALUES ('ntfy_primary', 'ntfy', 1, 'u', '{}')");
+
+        $stub = new class implements \NwsCad\Notifications\NotificationChannel {
+            public static function type(): string { return 'ntfy'; }
+            public function send(\NwsCad\Notifications\IncidentDto $i, \NwsCad\Notifications\NotificationContext $c): array {
+                return [\NwsCad\Notifications\SendResult::fail(503, 9, 'Service Unavailable', 'test')];
+            }
+        };
+        $factory = new class($stub) extends \NwsCad\Notifications\ChannelFactory {
+            public function __construct(private $stub) {
+                parent::__construct(\NwsCad\Config::getInstance());
+            }
+            public function create(array $row): \NwsCad\Notifications\NotificationChannel { return $this->stub; }
+        };
+
+        $controller = new NotificationsController($factory);
+        ob_start();
+        $controller->test('ntfy');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertTrue($payload['success']);
+        $this->assertFalse((bool) $payload['data']['ok']);
+        $this->assertSame(503, (int) $payload['data']['http_status']);
+        $this->assertSame('Service Unavailable', $payload['data']['error']);
+
+        $logged = self::$db->query(
+            "SELECT ok FROM notification_send_log ORDER BY id DESC LIMIT 1"
+        )->fetchColumn();
+        $this->assertSame(0, (int) $logged);
+    }
+
+    public function testTestReturns404ForUnknownType(): void
+    {
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->test('webhook');
         $payload = json_decode((string) ob_get_clean(), true);
 
         $this->assertFalse($payload['success']);
