@@ -221,6 +221,65 @@ docker-compose build --no-cache app
 docker-compose up -d
 ```
 
+### `[Warning] [MY-014084] [InnoDB] Threads are unable to reserve space in redo log` (log_checkpointer lagging)
+
+**Symptom:** Recurring warnings in the `mysql` container log such as:
+
+```
+[Warning] [MY-014084] [InnoDB] Threads are unable to reserve space in redo log
+which can't be reclaimed due to the 'log_checkpointer' consumer still lagging
+behind at LSN = ... . Consider increasing innodb_redo_log_capacity.
+```
+
+**What it means:** MySQL 8's redo log is too small for the write rate (the
+file-watcher ingest can produce sustained bursts of inserts). The default
+`innodb_redo_log_capacity` is only **100 MiB**, and `log_checkpointer` cannot
+free space fast enough, so user threads stall waiting for capacity.
+
+**Fix already shipped:** the repo bind-mounts `docker/mysql/my.cnf` into the
+`mysql` container at `/etc/mysql/conf.d/custom.cnf`, setting:
+
+```ini
+[mysqld]
+innodb_redo_log_capacity = 1073741824   # 1 GiB
+```
+
+If you're seeing the warning on an older checkout, pull and recreate the
+container:
+
+```bash
+git pull
+./stack.sh rebuild
+# or, without the script:
+COMPOSE_PROFILES=mysql docker compose up -d mysql
+```
+
+**Verify the setting is live:**
+
+```bash
+docker compose exec mysql sh -c \
+  'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N \
+   -e "SHOW VARIABLES LIKE '\''innodb_redo_log_capacity'\'';"'
+# expect: innodb_redo_log_capacity   1073741824
+```
+
+**Tuning further:** if the warning recurs under heavier ingest, raise the
+value in `docker/mysql/my.cnf` to 2 GiB (`2147483648`) or 4 GiB
+(`4294967296`) and run `./stack.sh restart` (or `docker compose up -d mysql`).
+The `#innodb_redo/` directory grows on demand — disk is not preallocated
+to the cap.
+
+**Immediate relief without a restart** (the variable is dynamic):
+
+```bash
+docker compose exec mysql sh -c \
+  'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" \
+   -e "SET GLOBAL innodb_redo_log_capacity = 1073741824;"'
+```
+
+This survives until the next container restart; the conf.d file makes it
+stick across restarts.
+
 ## Logs
 
 ### View Logs
