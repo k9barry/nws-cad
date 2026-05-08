@@ -202,7 +202,6 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
     <script src="/assets/js/mobile.js?v=<?= time() ?>"></script>
     <?php else: ?>
     <!-- Desktop-specific scripts -->
-    <script src="/assets/js/filter-manager.js?v=<?= time() ?>"></script>
     <script src="/assets/js/maps.js?v=<?= time() ?>"></script>
     <script src="/assets/js/charts.js?v=<?= time() ?>"></script>
     

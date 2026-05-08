@@ -58,6 +58,7 @@
         async function onFilterChange() {
             console.log('[Dashboard Main] Filters changed, qs:', currentQs);
             updateFilterSummary();
+            window.dispatchEvent(new CustomEvent('filter-applied', { detail: { qs: currentQs } }));
             await refreshDashboard();
         }
         

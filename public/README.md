@@ -19,9 +19,10 @@ public/
         ├── dashboard.js      # Core utilities
         ├── maps.js           # Map functionality
         ├── charts.js         # Chart functionality
-        ├── dashboard-main.js # Main page
-        ├── calls.js          # Calls page
-        ├── units.js          # Units page
+        ├── filter-panel.js   # Filter panel orchestrator
+        ├── dashboard-main.js # Main dashboard page
+        ├── calls-page.js     # Calls list page
+        ├── units-page.js     # Units list page
         └── analytics.js      # Analytics page
 
 src/Dashboard/Views/

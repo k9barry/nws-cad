@@ -20,7 +20,7 @@ This directory contains modular components for the NWS CAD Dashboard. Each file 
 - Agency Type, Jurisdiction, Status, Priority filters
 - Search field
 - Clear, Cancel, Apply buttons
-**Managed by**: FilterManager JavaScript class
+**Managed by**: FilterPanel JavaScript class (`filter-panel.js`)
 
 ### 3. call-detail-modal.php
 **Purpose**: Modal container for call details
@@ -66,7 +66,7 @@ include $partialsPath . 'analytics-modal.php';
 
 ### Required JavaScript:
 - `dashboard.js` - Core dashboard functionality
-- `filter-manager.js` - Filter management
+- `filter-panel.js` - Filter panel orchestrator (URL sync, FilterPanel class)
 - `dashboard-main.js` - Dashboard page logic
 - `analytics.js` - Analytics charts
 - `maps.js` - Leaflet map functionality
