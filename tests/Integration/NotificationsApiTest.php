@@ -253,6 +253,8 @@ class NotificationsApiTest extends TestCase
         $this->assertTrue($payload['success'], json_encode($payload));
         $this->assertTrue((bool) $payload['data']['ok']);
         $this->assertSame(200, (int) $payload['data']['http_status']);
+        $this->assertIsInt($payload['data']['log_id']);
+        $this->assertGreaterThan(0, $payload['data']['log_id']);
 
         $logged = self::$db->query(
             "SELECT intent, ok, topic FROM notification_send_log WHERE channel_id = {$channelId}"

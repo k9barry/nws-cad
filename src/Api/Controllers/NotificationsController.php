@@ -212,12 +212,21 @@ final class NotificationsController
                 $this->repo->recordSend((int) $row['id'], null, 'test', $r);
             }
 
+            // Retrieve the ID of the most recently inserted log row for this channel
+            $idStmt = $this->db->prepare(
+                "SELECT id FROM notification_send_log WHERE channel_id = ? ORDER BY id DESC LIMIT 1"
+            );
+            $idStmt->execute([(int) $row['id']]);
+            $idRow = $idStmt->fetch();
+            $logId = $idRow ? (int) $idRow['id'] : 0;
+
             $first = $results[0];
             Response::success([
                 'ok'          => $first->ok,
                 'http_status' => $first->httpStatus,
                 'duration_ms' => $first->durationMs,
                 'error'       => $first->error,
+                'log_id'      => $logId,
                 'topic'       => $first->topic,
             ]);
         } catch (Exception $e) {
