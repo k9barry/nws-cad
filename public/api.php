@@ -15,6 +15,7 @@ use NwsCad\Api\Controllers\SearchController;
 use NwsCad\Api\Controllers\StatsController;
 use NwsCad\Api\Controllers\LogsController;
 use NwsCad\Api\Controllers\NotificationsController;
+use NwsCad\Api\Controllers\HealthController;
 
 // Enable CORS
 header('Access-Control-Allow-Origin: *');
@@ -38,6 +39,9 @@ set_exception_handler(function ($e) {
 // IMPORTANT: Must be '/api' NOT '/api.php' to match URI paths correctly
 $router = new Router('/api');
 
+// Health Check Route (used by docker-compose api healthcheck)
+$router->get('/health', [HealthController::class, 'index']);
+
 // API info endpoint
 $router->get('/', function() {
     Response::success([
@@ -50,6 +54,7 @@ $router->get('/', function() {
             'search' => '/api/search',
             'stats' => '/api/stats',
             'notifications' => '/api/notifications/channels',
+            'health' => '/api/health',
             'docs' => '/api/docs'
         ]
     ]);
@@ -92,6 +97,11 @@ $router->get('/stats/response-times', [StatsController::class, 'responseTimes'])
 // Notifications Controller Routes (read-only)
 $router->get('/notifications/channels', [NotificationsController::class, 'channels']);
 $router->get('/notifications/log',      [NotificationsController::class, 'log']);
+
+// Notifications Controller Routes (write)
+$router->post('/notifications/channels/{type}/enable',  [NotificationsController::class, 'enable']);
+$router->post('/notifications/channels/{type}/disable', [NotificationsController::class, 'disable']);
+$router->post('/notifications/channels/{type}/test',    [NotificationsController::class, 'test']);
 
 // Logs Controller Routes
 $router->get('/logs', [LogsController::class, 'index']);
