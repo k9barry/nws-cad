@@ -94,6 +94,11 @@ class AegisXmlParser
             $this->logger->debug("Committing database transaction...");
             $this->db->commit();
 
+            // Invalidate derived filter-option caches whose values may have grown
+            // after ingesting this XML (call_type, incident_type, unit, city).
+            // Curated ref_* lists are not touched by XML ingest, so they are omitted.
+            \NwsCad\Api\Filtering\FilterOptionsCache::invalidate(['call_type', 'incident_type', 'unit', 'city']);
+
             $this->logger->info("File processed successfully: {$filename} (Call ID: {$callId})");
 
             [$intent, $changedFields, $addedTopics] = IntentResolver::resolve($existingSnapshot, $incomingSnapshot);

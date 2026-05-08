@@ -17,6 +17,7 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Logger
  * @uses \NwsCad\Logging\RedactingProcessor
  * @uses \NwsCad\Logging\SecretRegistry
+ * @uses \NwsCad\Api\Filtering\FilterOptionsCache
  * @uses \NwsCad\Notifications\EventDispatcher
  * @uses \NwsCad\Notifications\Events\CallProcessedEvent
  * @uses \NwsCad\Notifications\Events\Intent
@@ -542,6 +543,26 @@ XML;
             @unlink($tmpPath);
             $db->exec("DELETE FROM ref_agencies WHERE code = 'FOO_FD'");
         }
+    }
+
+    public function testInvalidatesFilterOptionsCacheAfterCommit(): void
+    {
+        if (!getenv('MYSQL_HOST')) {
+            $this->markTestSkipped('Database not configured for testing');
+        }
+
+        cleanTestDatabase();
+
+        \NwsCad\Api\Filtering\FilterOptionsCache::put('call_type', ['Police']);
+        $this->assertSame(['Police'], \NwsCad\Api\Filtering\FilterOptionsCache::get('call_type'),
+            'Precondition: cache entry must exist before processFile()');
+
+        $parser = new AegisXmlParser();
+        $result = $parser->processFile($this->testXmlPath);
+        $this->assertTrue($result, 'processFile() must return true for valid XML');
+
+        $this->assertNull(\NwsCad\Api\Filtering\FilterOptionsCache::get('call_type'),
+            'FilterOptionsCache entry for call_type must be invalidated after a successful commit');
     }
 
     private function buildXmlWithAgencyContextHavingFdid(string $fdid): string
