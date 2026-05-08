@@ -18,6 +18,12 @@ class ApiResponseTest extends TestCase
     {
         parent::setUp();
 
+        // Reset Response's per-request "already sent" flag. Response::json()
+        // sets it in testing mode (in lieu of exit()) so any subsequent call
+        // is a no-op within the same request — tests need the flag clean
+        // each time so the first json() emission is captured.
+        Response::resetForTesting();
+
         // Capture the buffer level PHPUnit set up for us, then push our own.
         // Tests that consume our buffer via `ob_get_clean()` are fine; tests
         // that don't will be cleaned up in tearDown — but we MUST NOT touch

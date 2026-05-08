@@ -10,6 +10,12 @@ use PHPUnit\Framework\TestCase;
 /**
  * Integration tests for Logs API endpoints
  * @covers \NwsCad\Api\Controllers\LogsController
+ * @uses \NwsCad\Api\Request
+ * @uses \NwsCad\Api\Response
+ * @uses \NwsCad\Config
+ * @uses \NwsCad\Logger
+ * @uses \NwsCad\Logging\RedactingProcessor
+ * @uses \NwsCad\Logging\SecretRegistry
  */
 class ApiLogsTest extends TestCase
 {
@@ -19,11 +25,16 @@ class ApiLogsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
+        // Each test needs a fresh response state — Response::json() in
+        // testing mode short-circuits subsequent calls within a request, so
+        // without a reset every test after the first would silently no-op.
+        \NwsCad\Api\Response::resetForTesting();
+
         // Enable logs for testing
         putenv('APP_LOGS_ENABLED=true');
         putenv('APP_ENV=testing');
-        
+
         $config = Config::getInstance();
         $this->testLogPath = $config->get('paths.logs');
         
@@ -177,27 +188,51 @@ EOL;
 
     public function testDeniesAccessWhenDisabled(): void
     {
-        // Disable logs
+        // Disable logs. Config reads $_ENV first then falls back to getenv(),
+        // so a putenv() alone wouldn't override the phpunit.xml-supplied
+        // $_ENV['APP_ENV']='testing'. Set both.
+        $prevEnv = $_ENV['APP_ENV'] ?? null;
+        $prevLogsEnabled = $_ENV['APP_LOGS_ENABLED'] ?? null;
+        $_ENV['APP_LOGS_ENABLED'] = 'false';
+        $_ENV['APP_ENV'] = 'production';
         putenv('APP_LOGS_ENABLED=false');
         putenv('APP_ENV=production');
-        
+
         // Force config reload
         $reflection = new \ReflectionClass(Config::class);
         $instanceProperty = $reflection->getProperty('instance');
         $instanceProperty->setAccessible(true);
         $instanceProperty->setValue(null, null);
-        
+
+        // Response::json() in testing mode no-ops on the second call (it
+        // can't exit() like production), so the forbidden response from
+        // checkAccess() is what we want to see — even though index() will
+        // continue running and call Response::success() afterwards, the
+        // success body is silently dropped.
+        \NwsCad\Api\Response::resetForTesting();
+
         $controller = new \NwsCad\Api\Controllers\LogsController();
-        
+
         ob_start();
         $controller->index();
         $output = ob_get_clean();
-        
+
         $data = json_decode($output, true);
-        
+
+        $this->assertIsArray($data, 'Controller should have emitted a JSON response');
         $this->assertFalse($data['success']);
-        
+
         // Reset for other tests
+        if ($prevEnv === null) {
+            unset($_ENV['APP_ENV']);
+        } else {
+            $_ENV['APP_ENV'] = $prevEnv;
+        }
+        if ($prevLogsEnabled === null) {
+            unset($_ENV['APP_LOGS_ENABLED']);
+        } else {
+            $_ENV['APP_LOGS_ENABLED'] = $prevLogsEnabled;
+        }
         putenv('APP_LOGS_ENABLED=true');
         putenv('APP_ENV=testing');
         $instanceProperty->setValue(null, null);

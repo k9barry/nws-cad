@@ -10,6 +10,14 @@ use PHPUnit\Framework\TestCase;
 /**
  * Integration tests for Stats API endpoints
  * @covers \NwsCad\Api\Controllers\StatsController
+ * @uses \NwsCad\Api\DbHelper
+ * @uses \NwsCad\Api\Request
+ * @uses \NwsCad\Api\Response
+ * @uses \NwsCad\Config
+ * @uses \NwsCad\Database
+ * @uses \NwsCad\Logger
+ * @uses \NwsCad\Logging\RedactingProcessor
+ * @uses \NwsCad\Logging\SecretRegistry
  */
 class ApiStatsTest extends TestCase
 {
@@ -34,12 +42,16 @@ class ApiStatsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         if (!isset(self::$db)) {
             $this->markTestSkipped('Database not available');
         }
-        
+
         cleanTestDatabase();
+        // Reset Response's testing-mode "already sent" flag so each test
+        // starts with a clean slate; otherwise the second test's
+        // Response::success() call silently no-ops.
+        \NwsCad\Api\Response::resetForTesting();
     }
 
     public function testCanCountTotalCalls(): void

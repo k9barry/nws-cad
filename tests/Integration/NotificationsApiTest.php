@@ -5,11 +5,18 @@ declare(strict_types=1);
 namespace NwsCad\Tests\Integration;
 
 use NwsCad\Api\Controllers\NotificationsController;
+use NwsCad\Api\Response;
 use NwsCad\Database;
 use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\Api\Controllers\NotificationsController
+ * @uses \NwsCad\Api\Response
+ * @uses \NwsCad\Database
+ * @uses \NwsCad\Config
+ * @uses \NwsCad\Logger
+ * @uses \NwsCad\Logging\RedactingProcessor
+ * @uses \NwsCad\Logging\SecretRegistry
  */
 class NotificationsApiTest extends TestCase
 {
@@ -27,6 +34,10 @@ class NotificationsApiTest extends TestCase
     protected function setUp(): void
     {
         cleanTestDatabase();
+        // Each test needs a fresh response state — Response::json() in
+        // testing mode short-circuits subsequent calls within a request, so
+        // without a reset every test after the first would silently no-op.
+        Response::resetForTesting();
     }
 
     public function testChannelsReturnsEmpty(): void

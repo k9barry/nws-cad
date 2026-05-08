@@ -11,16 +11,50 @@ namespace NwsCad\Api;
 class Response
 {
     /**
+     * Set in testing mode after the first json() call so that any subsequent
+     * Response::* call in the same request becomes a no-op. Production
+     * behaviour (echo + exit) is unchanged: the first call halts the process,
+     * so the flag is never read. Tests must call {@see resetForTesting()} in
+     * setUp() to start each test with a clean slate.
+     */
+    private static bool $alreadySent = false;
+
+    /**
      * Send JSON response
      */
     public static function json(mixed $data, int $statusCode = 200): void
     {
+        // PHPUnit defines PHPUNIT_COMPOSER_INSTALL in its bootstrap, which is
+        // a reliable signal we are running under tests regardless of how the
+        // test happens to be playing with APP_ENV / $_ENV / putenv. (Some
+        // tests set APP_ENV=production to exercise prod-only branches.) In
+        // production neither this constant nor any phpunit code is loaded.
+        $inTests = defined('PHPUNIT_COMPOSER_INSTALL');
+
+        if ($inTests && self::$alreadySent) {
+            // A controller already responded earlier in this request. In
+            // production exit() would have prevented us reaching here; in
+            // tests we silently drop the second body so a generic
+            // catch (\Exception) -> Response::error() inside a controller
+            // doesn't double-emit JSON onto the captured output.
+            return;
+        }
         http_response_code($statusCode);
         header('Content-Type: application/json');
         echo json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        if (($_ENV['APP_ENV'] ?? getenv('APP_ENV')) !== 'testing') {
+        if (! $inTests) {
             exit;
         }
+        self::$alreadySent = true;
+    }
+
+    /**
+     * Reset the testing-mode "already sent" flag. Tests must call this in
+     * setUp() so each test starts with a fresh response state.
+     */
+    public static function resetForTesting(): void
+    {
+        self::$alreadySent = false;
     }
 
     /**
@@ -100,7 +134,7 @@ class Response
     public static function paginated(array $data, int $total, int $page, int $perPage): void
     {
         $totalPages = (int)ceil($total / $perPage);
-        
+
         self::success([
             'items' => $data,
             'pagination' => [

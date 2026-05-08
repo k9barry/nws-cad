@@ -11,6 +11,12 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\Notifications\ChannelRepository
+ * @uses \NwsCad\Config
+ * @uses \NwsCad\Database
+ * @uses \NwsCad\Logger
+ * @uses \NwsCad\Logging\RedactingProcessor
+ * @uses \NwsCad\Logging\SecretRegistry
+ * @uses \NwsCad\Notifications\SendResult
  */
 class ChannelRepositoryTest extends TestCase
 {
