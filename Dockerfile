@@ -1,6 +1,10 @@
 ARG PHP_VERSION=8.3
 FROM php:${PHP_VERSION}-cli
 
+# Timezone — provided as a build arg from docker-compose (sourced from .env).
+# Default UTC keeps standalone `docker build` working without compose.
+ARG TZ=UTC
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
@@ -39,6 +43,6 @@ RUN mkdir -p /var/www/watch /var/www/logs /var/www/tmp \
 
 # Set PHP configuration
 RUN echo "memory_limit = 512M" > /usr/local/etc/php/conf.d/memory-limit.ini \
-    && echo "date.timezone = UTC" > /usr/local/etc/php/conf.d/timezone.ini
+    && echo "date.timezone = ${TZ}" > /usr/local/etc/php/conf.d/timezone.ini
 
 CMD ["php", "/var/www/src/watcher.php"]

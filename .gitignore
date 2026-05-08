@@ -4,6 +4,9 @@
 # Environment files
 .env
 
+# Dozzle simple-auth users file (contains bcrypt-hashed credentials)
+/docker/dozzle/users.yml
+
 # Log files
 /logs/*.log
 !/logs/.gitkeep

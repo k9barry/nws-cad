@@ -68,6 +68,12 @@ public function index(): void {
 }
 ```
 
+### Health checks & DB profile
+
+- `GET /api/health` — `HealthController::index()` runs `SELECT 1`. Returns `{success:true,data:{status:"ok",db:"ok",timestamp:<ISO8601>}}` on success, or 503 with `{success:false,error:"Database unreachable",errors:{db:"unreachable"}}`. The `api` compose healthcheck curls this route.
+- `FileWatcher::start()` writes `logs/.watcher-heartbeat` (touch) on boot and at the top of every loop iteration. The `app` compose healthcheck flags the container unhealthy if the heartbeat mtime is older than 60 seconds. **Caveat:** if `WATCHER_INTERVAL` is set above ~30 seconds, the 60-second staleness window will produce flapping — keep `WATCHER_INTERVAL` ≤ 30s (default 5s) or widen the threshold in `docker-compose.yml`.
+- `mysql` is in compose profile `mysql`; `postgres` is in compose profile `pgsql`. Set `COMPOSE_PROFILES=$DB_TYPE` (in shell or `.env`) so only the active DB starts. Running `docker compose up -d` without selecting a profile starts no database and `app`/`api` will block on `service_healthy`.
+
 ### Cross-DB SQL
 
 Never write MySQL- or Postgres-only SQL inline. Use `DbHelper`:

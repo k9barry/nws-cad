@@ -6,6 +6,7 @@ services:
       dockerfile: Dockerfile
       args:
         PHP_VERSION: ${PHP_VERSION:-8.3}
+        TZ: ${TZ:-UTC}
     container_name: nws-cad-app
     restart: unless-stopped
     working_dir: /var/www
@@ -15,6 +16,7 @@ services:
       - ./logs:/var/www/logs
       - watchfolder:/var/www/watch
     environment:
+      - TZ=${TZ:-UTC}
       - DB_TYPE=${DB_TYPE:-mysql}
       - MYSQL_HOST=mysql
       - MYSQL_PORT=${MYSQL_PORT:-3306}
@@ -34,20 +36,30 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+        required: false
       postgres:
         condition: service_healthy
+        required: false
     networks:
       - nws-cad-network
     command: >
-      sh -c "composer install --no-interaction --prefer-dist --optimize-autoloader 2>/dev/null || 
+      sh -c "composer install --no-interaction --prefer-dist --optimize-autoloader 2>/dev/null ||
              (composer config -g disable-tls true && composer config -g secure-http false && composer install --no-interaction --prefer-dist --optimize-autoloader) &&
              php /var/www/src/watcher.php"
+    healthcheck:
+      test: ["CMD-SHELL", "test $(($(date +%s) - $(stat -c %Y /var/www/logs/.watcher-heartbeat 2>/dev/null || echo 0))) -lt 60"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 60s
 
   # PHP API Service
   api:
     build:
       context: .
       dockerfile: docker/api/Dockerfile
+      args:
+        TZ: ${TZ:-UTC}
     container_name: nws-cad-api
     ports:
       - "8080:8080"
@@ -56,20 +68,32 @@ services:
       - ./src:/var/www/src
       - ./vendor:/var/www/vendor
       - ./.env:/var/www/.env
+    environment:
+      - TZ=${TZ:-UTC}
     command: php -S 0.0.0.0:8080 -t /var/www/public /var/www/public/router.php
     depends_on:
       mysql:
         condition: service_healthy
+        required: false
       postgres:
         condition: service_healthy
+        required: false
     networks:
       - nws-cad-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://localhost:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 30s
 
   # MySQL Database Service
   mysql:
     image: mysql:8.0
     container_name: nws-cad-mysql
     restart: unless-stopped
+    profiles:
+      - mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-nws_cad}
@@ -93,6 +117,8 @@ services:
     image: postgres:16
     container_name: nws-cad-postgres
     restart: unless-stopped
+    profiles:
+      - pgsql
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-nws_cad}
       POSTGRES_USER: ${POSTGRES_USER:-nws_user}
@@ -112,27 +138,37 @@ services:
       retries: 5
 
   # Dozzle - Real-time Docker Log Viewer
-  # SECURITY NOTE: Dozzle requires Docker socket access for log viewing.
-  # - By default, binds only to localhost (127.0.0.1) for security
-  # - Enable authentication in production by setting DOZZLE_USERNAME and DOZZLE_PASSWORD
-  # - Do not expose port 9999 to the public internet without authentication
+  # SECURITY NOTE: Dozzle exposes Docker container logs over HTTP.
+  # - Reads /var/run/docker.sock read-only.
+  # - Authentication uses Dozzle's "simple" provider with users defined in
+  #   docker/dozzle/users.yml (bcrypt-hashed; gitignored). Regenerate via:
+  #     docker run --rm amir20/dozzle:latest generate <user> --password <pw> \
+  #       --name <display> --email <email> > docker/dozzle/users.yml
+  # - The legacy DOZZLE_USERNAME / DOZZLE_PASSWORD env vars are NOT supported
+  #   in Dozzle v7+; they are silently ignored if set.
+  # - Do not expose DOZZLE_PORT to the public internet without TLS in front.
   dozzle:
     image: amir20/dozzle:latest
     container_name: nws-cad-dozzle
     restart: unless-stopped
-    profiles:
-      - donotstart
     ports:
-      - "127.0.0.1:${DOZZLE_PORT:-9999}:8080"
+      - "${DOZZLE_PORT:-8081}:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker/dozzle/users.yml:/data/users.yml:ro
     environment:
+      - TZ=${TZ:-UTC}
       - DOZZLE_LEVEL=${LOG_LEVEL:-info}
       - DOZZLE_NO_ANALYTICS=true
-      - DOZZLE_USERNAME=${DOZZLE_USERNAME:-}
-      - DOZZLE_PASSWORD=${DOZZLE_PASSWORD:-}
+      - DOZZLE_AUTH_PROVIDER=simple
     networks:
       - nws-cad-network
+    healthcheck:
+      test: ["CMD", "/dozzle", "healthcheck"]
+      interval: 3s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
 
 networks:
   nws-cad-network:

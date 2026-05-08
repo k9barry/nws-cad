@@ -22,6 +22,7 @@ class FileWatcher
     private AegisXmlParser $parser;
     private $logger;
     private bool $running = true;
+    private string $heartbeatPath;
 
     /**
      * Constructor - Initialize file watcher
@@ -35,6 +36,7 @@ class FileWatcher
         $this->interval = $config->get('watcher.interval');
         $this->filePattern = $config->get('watcher.file_pattern');
         $this->logger = Logger::getInstance();
+        $this->heartbeatPath = rtrim($config->get('paths.logs'), '/') . '/.watcher-heartbeat';
 
         $this->logger->info("Initializing File Watcher Service");
         $this->logger->debug("Loading configuration from Config singleton");
@@ -94,6 +96,7 @@ class FileWatcher
     {
         $this->logger->info("=== File Watcher Started ===");
         $this->logger->debug("Configuration: folder={$this->watchFolder}, pattern={$this->filePattern}, interval={$this->interval}s");
+        $this->touchHeartbeat();
 
         // Test database connectivity before starting
         $this->logger->debug("Testing database connectivity before entering main loop");
@@ -106,6 +109,7 @@ class FileWatcher
         while ($this->running) {
             try {
                 $checkCount++;
+                $this->touchHeartbeat();
                 $this->logger->debug("=== Check #{$checkCount} - Starting folder scan ===");
                 $this->checkForNewFiles();
                 
@@ -124,6 +128,18 @@ class FileWatcher
         }
 
         $this->logger->info("File watcher stopped");
+    }
+
+    /**
+     * Update the watcher heartbeat file. Consumed by the docker healthcheck
+     * for the `app` service: a stale mtime grades the container unhealthy.
+     */
+    private function touchHeartbeat(): void
+    {
+        // Suppressed — heartbeat write failure must not crash the watcher
+        // loop. A persistently failing touch will manifest as an unhealthy
+        // container, which is the correct signal.
+        @touch($this->heartbeatPath);
     }
 
     /**
