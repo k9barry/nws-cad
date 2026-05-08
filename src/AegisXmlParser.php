@@ -961,37 +961,19 @@ class AegisXmlParser
     private function isFileProcessed(string $filename, string $filePath): bool
     {
         $hash = hash_file('sha256', $filePath);
-        
+
         try {
-            $stmt = $this->db->prepare(
-                "SELECT id FROM processed_files WHERE filename = ? AND file_hash = ?"
-            );
-            $stmt->execute([$filename, $hash]);
-            
-            return $stmt->fetch() !== false;
-        } catch (\PDOException $e) {
-            // Check if it's a "MySQL server has gone away" error
-            if (strpos($e->getMessage(), 'MySQL server has gone away') !== false || 
-                strpos($e->getMessage(), '2006') !== false) {
-                $this->logger->error("Database connection lost while checking processed files: {$e->getMessage()}");
-                $this->logger->info("Attempting to reconnect to database...");
-                
-                Database::reconnect();
-                $this->db = Database::getConnection();
-                
-                $this->logger->info("Database reconnection successful, retrying query for file: {$filename}");
-                
-                // Retry the query
-                $stmt = $this->db->prepare(
+            $found = Database::run(function (\PDO $db) use ($filename, $hash): bool {
+                $stmt = $db->prepare(
                     "SELECT id FROM processed_files WHERE filename = ? AND file_hash = ?"
                 );
                 $stmt->execute([$filename, $hash]);
-                
-                $this->logger->info("Query retry successful for file: {$filename}");
                 return $stmt->fetch() !== false;
-            }
-            
-            // Re-throw if it's a different error
+            });
+            // Resync our cached handle in case Database::run() reconnected.
+            $this->db = Database::getConnection();
+            return $found;
+        } catch (\PDOException $e) {
             $this->logger->error("Database error in isFileProcessed: {$e->getMessage()}");
             throw $e;
         }
@@ -1013,35 +995,17 @@ class AegisXmlParser
         $fileTimestamp = $parsed['timestamp_int'] ?? null;
         
         try {
-            $stmt = $this->db->prepare(
-                "INSERT INTO processed_files (filename, file_hash, call_number, file_timestamp, status, records_processed)
-                 VALUES (?, ?, ?, ?, 'success', ?)"
-            );
-            $stmt->execute([$filename, $hash, $callNumber, $fileTimestamp, $recordsProcessed]);
-            $this->logger->info("Marked file as processed: {$filename} ({$recordsProcessed} records)");
-        } catch (\PDOException $e) {
-            // Check if it's a "MySQL server has gone away" error
-            if (strpos($e->getMessage(), 'MySQL server has gone away') !== false || 
-                strpos($e->getMessage(), '2006') !== false) {
-                $this->logger->error("Database connection lost while marking file as processed: {$e->getMessage()}");
-                $this->logger->info("Attempting to reconnect to database...");
-                
-                Database::reconnect();
-                $this->db = Database::getConnection();
-                
-                $this->logger->info("Database reconnection successful, retrying insert for file: {$filename}");
-                
-                // Retry the insert
-                $stmt = $this->db->prepare(
+            Database::run(function (\PDO $db) use ($filename, $hash, $callNumber, $fileTimestamp, $recordsProcessed): void {
+                $stmt = $db->prepare(
                     "INSERT INTO processed_files (filename, file_hash, call_number, file_timestamp, status, records_processed)
                      VALUES (?, ?, ?, ?, 'success', ?)"
                 );
                 $stmt->execute([$filename, $hash, $callNumber, $fileTimestamp, $recordsProcessed]);
-                $this->logger->info("Retry successful - marked file as processed: {$filename} ({$recordsProcessed} records)");
-                return;
-            }
-            
-            // Re-throw if it's a different error
+            });
+            // Resync our cached handle in case Database::run() reconnected.
+            $this->db = Database::getConnection();
+            $this->logger->info("Marked file as processed: {$filename} ({$recordsProcessed} records)");
+        } catch (\PDOException $e) {
             $this->logger->error("Database error in markFileAsProcessed: {$e->getMessage()}");
             throw $e;
         }

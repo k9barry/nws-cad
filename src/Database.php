@@ -125,6 +125,64 @@ class Database
     }
 
     /**
+     * Run a database callable with one transparent reconnect-and-retry on a
+     * lost connection. Use for any single-statement DB op in a long-lived
+     * process (the file watcher) where MySQL may have been bounced underneath
+     * us. Do NOT wrap calls that are part of an open transaction — a mid-
+     * transaction reconnect would silently retry only the failing statement
+     * and corrupt the unit of work.
+     *
+     * @template T
+     * @param callable(PDO):T $fn
+     * @return T
+     */
+    public static function run(callable $fn): mixed
+    {
+        try {
+            return $fn(self::getConnection());
+        } catch (PDOException $e) {
+            if (!self::isConnectionLost($e)) {
+                throw $e;
+            }
+            $logger = Logger::getInstance();
+            $logger->warning("Database connection lost, reconnecting and retrying once: " . $e->getMessage());
+            self::reconnect();
+            return $fn(self::getConnection());
+        }
+    }
+
+    /**
+     * Detect whether a PDOException represents a lost server connection
+     * (as opposed to a query/syntax/constraint error). Covers both MySQL
+     * and PostgreSQL transport-layer failures.
+     */
+    public static function isConnectionLost(PDOException $e): bool
+    {
+        $msg = $e->getMessage();
+        // MySQL: 2006 = server has gone away, 2013 = lost connection during query.
+        // Postgres: server-closed and no-connection messages, plus SQLSTATE 08xxx.
+        $needles = [
+            'MySQL server has gone away',
+            'Lost connection to MySQL server',
+            'Error while sending',
+            ' 2006 ',
+            ' 2013 ',
+            'server closed the connection',
+            'no connection to the server',
+            'connection is closed',
+            'SQLSTATE[08',
+            'SQLSTATE[HY000] [2002]', // can't connect (mysql restart in progress)
+            'SQLSTATE[HY000] [2003]', // can't connect tcp
+        ];
+        foreach ($needles as $needle) {
+            if (str_contains($msg, $needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Prevent cloning and serialization
      */
     private function __construct() {}
