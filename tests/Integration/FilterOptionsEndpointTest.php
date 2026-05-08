@@ -25,27 +25,49 @@ final class FilterOptionsEndpointTest extends TestCase
     {
         Response::resetForTesting();
         FilterOptionsCache::clear();
-        $this->seedReferenceTables();
+        $this->cleanData();
     }
 
-    public function testReturnsAgencyOptionsFromRefTable(): void
+    public function testReturnsAgencyOptionsDerivedFromAgencyContexts(): void
     {
+        $db = Database::getConnection();
+        $db->exec("INSERT INTO calls (call_id, call_number, create_datetime) VALUES (99910, 'AG-T1', NOW())");
+        $callId = (int) $db->lastInsertId();
+        $db->exec("INSERT INTO agency_contexts (call_id, agency_type, call_type) VALUES ({$callId}, 'Police', 'Test')");
+        $db->exec("INSERT INTO agency_contexts (call_id, agency_type, call_type) VALUES ({$callId}, 'Fire',   'Test')");
+
         $_GET = ['fields' => 'agency'];
         ob_start();
         (new \NwsCad\Api\Controllers\FilterOptionsController())->index();
         $body = json_decode(ob_get_clean(), true);
 
         $this->assertTrue($body['success']);
-        $this->assertArrayHasKey('agency', $body['data']);
-        $this->assertNotEmpty($body['data']['agency']);
-        $this->assertSame('PEN_PD', $body['data']['agency'][0]['value']);
+        $this->assertContains('Police', $body['data']['agency']);
+        $this->assertContains('Fire',   $body['data']['agency']);
+    }
+
+    public function testReturnsOriOptionsUnionedAcrossThreeColumns(): void
+    {
+        $db = Database::getConnection();
+        $db->exec("INSERT INTO calls (call_id, call_number, create_datetime) VALUES (99920, 'ORI-T1', NOW())");
+        $callId = (int) $db->lastInsertId();
+        $db->exec("INSERT INTO locations (call_id, full_address, police_ori, ems_ori, fire_ori) VALUES ({$callId}, '1 Main', 'IN0480000', '480051', '48002')");
+
+        $_GET = ['fields' => 'ori'];
+        ob_start();
+        (new \NwsCad\Api\Controllers\FilterOptionsController())->index();
+        $body = json_decode(ob_get_clean(), true);
+
+        $this->assertContains('IN0480000', $body['data']['ori']);
+        $this->assertContains('480051',    $body['data']['ori']);
+        $this->assertContains('48002',     $body['data']['ori']);
     }
 
     public function testReturnsDerivedCityOptionsFromLocations(): void
     {
         $db = Database::getConnection();
-        $db->exec("INSERT INTO calls (call_id, call_number, create_datetime) VALUES (99901, 'TEST-1', NOW())");
-        $callId = (int)$db->lastInsertId();
+        $db->exec("INSERT INTO calls (call_id, call_number, create_datetime) VALUES (99901, 'CITY-T1', NOW())");
+        $callId = (int) $db->lastInsertId();
         $db->exec("INSERT INTO locations (call_id, full_address, city) VALUES ({$callId}, '1 Main St', 'Pendleton')");
 
         $_GET = ['fields' => 'city'];
@@ -66,10 +88,11 @@ final class FilterOptionsEndpointTest extends TestCase
         $this->assertSame(400, http_response_code());
     }
 
-    private function seedReferenceTables(): void
+    private function cleanData(): void
     {
         $db = Database::getConnection();
-        $db->exec("DELETE FROM ref_agencies");
-        $db->exec("INSERT INTO ref_agencies (code,label,kind,active,sort_order) VALUES ('PEN_PD','Pendleton Police','police',1,10)");
+        $db->exec("DELETE FROM agency_contexts");
+        $db->exec("DELETE FROM locations");
+        $db->exec("DELETE FROM calls WHERE call_number LIKE 'AG-T%' OR call_number LIKE 'ORI-T%' OR call_number LIKE 'CITY-T%'");
     }
 }

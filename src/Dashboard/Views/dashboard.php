@@ -38,7 +38,7 @@ $partialsPath = __DIR__ . '/partials/';
     </div>
     <div class="offcanvas-body">
         <?php
-        $filterFields = 'date,call_type,incident_type,nature_of_call,agency,ori,fdid,beat,area,city,location,call_id,unit,status,q';
+        $filterFields = 'date,call_type,nature_of_call,agency,ori,fdid,beat,area,city,location,call_id,unit,status,q';
         $filterCompact = 'true'; // narrow drawer: stack fields vertically
         include $partialsPath . 'filter-panel.php';
         ?>

@@ -12,7 +12,6 @@ use PDO;
 final class FilterOptionsController
 {
     private const SUPPORTED_FIELDS = ['agency', 'ori', 'fdid', 'beat', 'area', 'city', 'call_type', 'incident_type', 'unit'];
-    private const DERIVED_FIELDS   = ['city', 'call_type', 'incident_type', 'unit'];
     private const DERIVED_LIMIT    = 1000;
 
     public function index(): void
@@ -47,10 +46,10 @@ final class FilterOptionsController
     private function loadField(PDO $db, string $field): array
     {
         return match ($field) {
-            'agency'        => $this->fetchAgencies($db),
+            'agency'        => $this->fetchDistinct($db, 'agency_contexts', 'agency_type'),
             'ori'           => $this->fetchOris($db),
-            'fdid'          => $this->fetchFdids($db),
-            'beat'          => $this->fetchBeats($db),
+            'fdid'          => $this->fetchDistinct($db, 'agency_contexts', 'fdid'),
+            'beat'          => $this->fetchDistinct($db, 'locations', 'police_beat'),
             'area'          => $this->fetchAreas($db),
             'city'          => $this->fetchDistinct($db, 'locations', 'city'),
             'call_type'     => $this->fetchDistinct($db, 'agency_contexts', 'call_type'),
@@ -59,40 +58,46 @@ final class FilterOptionsController
         };
     }
 
-    private function fetchAgencies(PDO $db): array
-    {
-        $stmt = $db->query('SELECT code AS value, label, kind, ori, fdid FROM ref_agencies WHERE active = 1 ORDER BY sort_order, label');
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
+    /**
+     * ORIs live in three columns on the locations table (police_ori, ems_ori,
+     * fire_ori). Union-distinct across all three so the dropdown shows every
+     * ORI the system has actually seen.
+     *
+     * @return string[]
+     */
     private function fetchOris(PDO $db): array
     {
-        $stmt = $db->query('SELECT ori AS value, label, kind FROM ref_oris ORDER BY ori');
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $sql = "
+            SELECT DISTINCT police_ori AS ori FROM locations WHERE police_ori IS NOT NULL AND police_ori <> ''
+            UNION
+            SELECT DISTINCT ems_ori    AS ori FROM locations WHERE ems_ori    IS NOT NULL AND ems_ori    <> ''
+            UNION
+            SELECT DISTINCT fire_ori   AS ori FROM locations WHERE fire_ori   IS NOT NULL AND fire_ori   <> ''
+            ORDER BY ori
+            LIMIT " . self::DERIVED_LIMIT;
+        return array_map(static fn ($row) => (string) $row['ori'], $db->query($sql)->fetchAll(PDO::FETCH_ASSOC));
     }
 
-    private function fetchFdids(PDO $db): array
-    {
-        $stmt = $db->query('SELECT fdid AS value, label FROM ref_fdids ORDER BY fdid');
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-    private function fetchBeats(PDO $db): array
-    {
-        $stmt = $db->query('SELECT code AS value, label, kind, jurisdiction FROM ref_beats WHERE active = 1 ORDER BY code');
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
+    /**
+     * Areas span fire_quadrant + ems_district. Union-distinct.
+     *
+     * @return string[]
+     */
     private function fetchAreas(PDO $db): array
     {
-        $stmt = $db->query('SELECT code AS value, label, kind FROM ref_areas WHERE active = 1 ORDER BY code');
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $sql = "
+            SELECT DISTINCT fire_quadrant AS area FROM locations WHERE fire_quadrant IS NOT NULL AND fire_quadrant <> ''
+            UNION
+            SELECT DISTINCT ems_district  AS area FROM locations WHERE ems_district  IS NOT NULL AND ems_district  <> ''
+            ORDER BY area
+            LIMIT " . self::DERIVED_LIMIT;
+        return array_map(static fn ($row) => (string) $row['area'], $db->query($sql)->fetchAll(PDO::FETCH_ASSOC));
     }
 
     /** @return string[] */
     private function fetchDistinct(PDO $db, string $table, string $column): array
     {
-        // Table and column come from the closed SUPPORTED_FIELDS list — never user input.
+        // Table and column come from the closed SUPPORTED_FIELDS dispatch — never user input.
         $sql = "SELECT DISTINCT {$column} FROM {$table} WHERE {$column} IS NOT NULL AND {$column} <> '' ORDER BY {$column} LIMIT " . self::DERIVED_LIMIT;
         return array_map(static fn ($row) => (string) $row[$column], $db->query($sql)->fetchAll(PDO::FETCH_ASSOC));
     }
