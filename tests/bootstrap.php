@@ -30,20 +30,38 @@ $_ENV['APP_ENV'] = 'testing';
 $_ENV['APP_DEBUG'] = 'false';
 $_ENV['LOG_LEVEL'] = 'error';
 
-// Helper function to create test database connection
+// Helper function to create test database connection.
+//
+// CRITICAL SAFETY: this function MUST NOT return a connection to the
+// production database. cleanTestDatabase() does a sweeping DELETE on all
+// 15 tables, so a connection to production destroys live CAD data on
+// every test run. We use a dedicated MYSQL_TEST_DATABASE name and a hard
+// guard that refuses to proceed if it ever matches the production
+// MYSQL_DATABASE name.
 function getTestDbConnection(): PDO
 {
+    $testDbName = $_ENV['MYSQL_TEST_DATABASE'] ?? getenv('MYSQL_TEST_DATABASE') ?: 'nws_cad_test';
+    $prodDbName = $_ENV['MYSQL_DATABASE'] ?? getenv('MYSQL_DATABASE') ?: '';
+
+    if ($prodDbName !== '' && $testDbName === $prodDbName) {
+        throw new RuntimeException(
+            "Refusing to run tests: MYSQL_TEST_DATABASE ({$testDbName}) equals MYSQL_DATABASE ({$prodDbName}). " .
+            "Tests truncate every row in 15 tables; pointing them at production destroys live CAD data. " .
+            "Set MYSQL_TEST_DATABASE to a separate database name (e.g. nws_cad_test) and ensure it exists."
+        );
+    }
+
     $dsn = sprintf(
         "mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4",
         $_ENV['MYSQL_HOST'] ?? '127.0.0.1',
         $_ENV['MYSQL_PORT'] ?? '3306',
-        $_ENV['MYSQL_DATABASE'] ?? 'nws_cad_test',
+        $testDbName,
     );
-    
+
     return new PDO(
         $dsn,
-        $_ENV['MYSQL_USER'] ?? 'test_user',
-        $_ENV['MYSQL_PASSWORD'] ?? 'test_pass',
+        $_ENV['MYSQL_TEST_USER'] ?? getenv('MYSQL_TEST_USER') ?: ($_ENV['MYSQL_USER'] ?? 'test_user'),
+        $_ENV['MYSQL_TEST_PASSWORD'] ?? getenv('MYSQL_TEST_PASSWORD') ?: ($_ENV['MYSQL_PASSWORD'] ?? 'test_pass'),
         [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
