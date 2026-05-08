@@ -90,4 +90,69 @@ class NotificationsApiTest extends TestCase
         $this->assertCount(2, $payload['data']['items']);
         $this->assertSame('T3', $payload['data']['items'][0]['topic']);
     }
+
+    public function testEnableInsertsRowWhenAbsent(): void
+    {
+        $_ENV['NTFY_BASE_URL']   = 'https://ntfy.example';
+        $_ENV['NTFY_AUTH_TOKEN'] = 'token';
+
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->enable('ntfy');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertTrue($payload['success'], json_encode($payload));
+        $this->assertSame('ntfy_primary', $payload['data']['name']);
+        $this->assertSame(1, (int) $payload['data']['enabled']);
+
+        $row = self::$db->query("SELECT * FROM notification_channels WHERE name='ntfy_primary'")
+            ->fetch(\PDO::FETCH_ASSOC);
+        $this->assertSame('https://ntfy.example', $row['base_url']);
+        $this->assertStringContainsString('NTFY_AUTH_TOKEN', $row['config_json']);
+
+        unset($_ENV['NTFY_BASE_URL'], $_ENV['NTFY_AUTH_TOKEN']);
+    }
+
+    public function testEnableFlipsExistingDisabledRow(): void
+    {
+        self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
+            VALUES ('ntfy_primary', 'ntfy', 0, 'https://existing', '{\"auth_token_env\":\"NTFY_AUTH_TOKEN\"}')");
+
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->enable('ntfy');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertTrue($payload['success'], json_encode($payload));
+        $this->assertSame(1, (int) $payload['data']['enabled']);
+        $this->assertSame('https://existing', $payload['data']['base_url']);
+    }
+
+    public function testEnableReturns422WhenBaseUrlEnvMissing(): void
+    {
+        unset($_ENV['NTFY_BASE_URL']);
+        putenv('NTFY_BASE_URL');
+
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->enable('ntfy');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertFalse($payload['success']);
+        $this->assertStringContainsString('NTFY_BASE_URL', $payload['error']);
+        $this->assertSame(0, (int) self::$db->query(
+            "SELECT COUNT(*) FROM notification_channels WHERE name='ntfy_primary'"
+        )->fetchColumn());
+    }
+
+    public function testEnableReturns404ForUnknownType(): void
+    {
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->enable('webhook');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertFalse($payload['success']);
+        $this->assertStringContainsString('Unknown channel type', $payload['error']);
+    }
 }

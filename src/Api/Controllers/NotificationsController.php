@@ -71,6 +71,64 @@ final class NotificationsController
         }
     }
 
+    /** POST /api/notifications/channels/{type}/enable */
+    public function enable(string $type): void
+    {
+        try {
+            if (! $this->validateType($type)) {
+                Response::error("Unknown channel type: {$type}", 404);
+                return;
+            }
+
+            $envKey  = strtoupper($type) . '_BASE_URL';
+            $baseUrl = $_ENV[$envKey] ?? getenv($envKey) ?: '';
+
+            $name = "{$type}_primary";
+
+            $stmt = $this->db->prepare("SELECT id, base_url FROM notification_channels WHERE name = ?");
+            $stmt->execute([$name]);
+            $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if ($existing === false) {
+                if ($baseUrl === '') {
+                    Response::error("Missing env var: {$envKey}", 422);
+                    return;
+                }
+                $defaultConfig = $type === 'ntfy'
+                    ? '{"auth_token_env":"NTFY_AUTH_TOKEN","alarm_priority_map":{"1":3,"2":4,"3":5}}'
+                    : '{"token_env":"PUSHOVER_TOKEN","user_env":"PUSHOVER_USER"}';
+
+                $ins = $this->db->prepare(
+                    "INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
+                     VALUES (?, ?, 1, ?, ?)"
+                );
+                $ins->execute([$name, $type, $baseUrl, $defaultConfig]);
+            } else {
+                $upd = $this->db->prepare(
+                    "UPDATE notification_channels
+                     SET enabled = 1, updated_at = CURRENT_TIMESTAMP
+                     WHERE name = ?"
+                );
+                $upd->execute([$name]);
+            }
+
+            $row = $this->db->prepare(
+                "SELECT id, name, type, enabled, base_url,
+                        last_error_at, last_error_message, created_at, updated_at
+                 FROM notification_channels WHERE name = ?"
+            );
+            $row->execute([$name]);
+            Response::success($row->fetch(\PDO::FETCH_ASSOC));
+        } catch (Exception $e) {
+            Response::error('Failed to enable channel: ' . $e->getMessage(), 500);
+        }
+    }
+
+    private function validateType(string $type): bool
+    {
+        return in_array($type, ['ntfy', 'pushover'], true);
+    }
+
     private function resolveChannelId(string $channel): ?int
     {
         if (ctype_digit($channel)) {
