@@ -11,11 +11,8 @@
                 <div>
                     <i class="bi bi-funnel me-2"></i>
                     <span class="text-muted">Active Filters: </span>
-                    <span id="filter-summary" class="fw-bold">Last 7 Days</span>
+                    <span id="filter-summary" class="fw-bold">Today</span>
                 </div>
-                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#filters-modal">
-                    <i class="bi bi-sliders"></i> Change Filters
-                </button>
             </div>
         </div>
     </div>
@@ -28,8 +25,12 @@ $partialsPath = __DIR__ . '/partials/';
 // 1. Map and Statistics Cards with Recent Calls Table
 include $partialsPath . 'map-and-stats.php';
 
-// 2. Modals
-include $partialsPath . 'filter-modal.php';
+// 2. Filter Panel
+$filterFields = 'date,call_type,incident_type,nature_of_call,agency,ori,fdid,beat,area,city,location,call_id,unit,status,q';
+$filterCompact = 'false';
+include $partialsPath . 'filter-panel.php';
+
+// 3. Modals
 include $partialsPath . 'call-detail-modal.php';
 include $partialsPath . 'analytics-modal.php';
 ?>

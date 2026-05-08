@@ -48,14 +48,15 @@
         
         console.log('[Dashboard Main] Managers:', managers);
         
-        // Global filter manager
-        let filterManager = null;
-        
+        // FilterPanel instance and current query string
+        let panel = null;
+        let currentQs = '';
+
         /**
          * Handle filter changes
          */
-        async function onFilterChange(filters) {
-            console.log('[Dashboard Main] Filters changed:', filters);
+        async function onFilterChange() {
+            console.log('[Dashboard Main] Filters changed, qs:', currentQs);
             updateFilterSummary();
             await refreshDashboard();
         }
@@ -82,33 +83,52 @@
         function updateFilterSummary() {
             const summaryEl = document.getElementById('filter-summary');
             if (!summaryEl) return;
-            
-            const currentFilters = filterManager.getFilters();
+            if (!panel) return;
+
+            const vals = panel.getState().snapshot();
             const parts = [];
-            
-            // Quick period or date range
-            if (currentFilters.quick_period) {
-                const periods = {
+
+            // Date preset or custom range
+            if (vals.preset) {
+                const presets = {
                     'today': 'Today',
                     'yesterday': 'Yesterday',
-                    '7days': 'Last 7 Days',
-                    '30days': 'Last 30 Days',
-                    'thismonth': 'This Month',
-                    'lastmonth': 'Last Month'
+                    'last_7_days': 'Last 7 Days',
+                    'last_30_days': 'Last 30 Days',
+                    'this_month': 'This Month',
+                    'last_month': 'Last Month',
                 };
-                parts.push(periods[currentFilters.quick_period] || 'Custom Range');
-            } else if (currentFilters.date_from && currentFilters.date_to) {
-                parts.push(`${currentFilters.date_from} to ${currentFilters.date_to}`);
+                parts.push(presets[vals.preset] || vals.preset);
+            } else if (vals.from && vals.to) {
+                parts.push(`${vals.from} to ${vals.to}`);
             } else {
                 parts.push('All Time');
             }
-            
-            // Add other filters
-            if (currentFilters.agency_type) parts.push(`Agency: ${currentFilters.agency_type}`);
-            if (currentFilters.jurisdiction) parts.push(`Jurisdiction: ${currentFilters.jurisdiction}`);
-            if (currentFilters.status) parts.push(`Status: ${currentFilters.status}`);
-            if (currentFilters.priority) parts.push(`Priority: ${currentFilters.priority}`);
-            
+
+            // Add other active filters
+            const labelMap = {
+                call_type:     'Type',
+                incident_type: 'Incident',
+                nature_of_call:'Nature',
+                agency:        'Agency',
+                ori:           'ORI',
+                fdid:          'FDID',
+                beat:          'Beat',
+                area:          'Area',
+                city:          'City',
+                location:      'Location',
+                call_id:       'Call ID',
+                unit:          'Unit',
+                status:        'Status',
+                q:             'Search',
+            };
+            Object.keys(labelMap).forEach(function (key) {
+                const v = vals[key];
+                if (!v) return;
+                const display = Array.isArray(v) ? v.join(', ') : v;
+                if (display) parts.push(`${labelMap[key]}: ${display}`);
+            });
+
             summaryEl.textContent = parts.join(' • ');
         }
         
@@ -117,21 +137,15 @@
          */
         async function loadStats() {
             console.log('[Dashboard Main] Loading stats...');
-            const filters = filterManager.getFilters();
-            console.log('[Dashboard Main] Current filters:', filters);
             try {
-                // Translate filters for API
-                const apiFilters = filterManager.translateForAPI(filters);
-                console.log('[Dashboard Main] Translated API filters:', apiFilters);
-                
-                const url = '/stats' + Dashboard.buildQueryString(apiFilters);
+                const url = '/stats' + (currentQs ? '?' + currentQs : '');
                 console.log('[Dashboard Main] Stats API URL:', url);
                 const stats = await Dashboard.apiRequest(url);
                 console.log('[Dashboard Main] Stats response:', stats);
-                
+
                 // Get units for available count (stats endpoint doesn't provide this)
-                const unitsParams = { per_page: 1000, ...apiFilters };
-                const units = await Dashboard.apiRequest('/units' + Dashboard.buildQueryString(unitsParams))
+                const unitsUrl = '/units?' + (currentQs ? currentQs + '&' : '') + 'per_page=1000';
+                const units = await Dashboard.apiRequest(unitsUrl)
                     .then(r => r?.items || []).catch(() => []);
                 
                 console.log('[Dashboard Main] Loaded', units.length, 'units from API');
@@ -194,40 +208,31 @@
         async function loadRecentCalls(page = 1) {
             console.log('[Dashboard Main] Loading recent calls, page:', page);
             currentCallsPage = page;
-            const filters = filterManager.getFilters();
-            console.log('[Dashboard Main] Current filters for recent calls:', filters);
             try {
-                // Translate filters for API
-                const apiFilters = filterManager.translateForAPI(filters);
-                
-                const queryParams = {
-                    page: page,
-                    per_page: callsPerPage,
-                    sort: 'create_datetime',
-                    order: 'desc',
-                    ...apiFilters
-                };
-                
-                // Default to active calls if no status filter
-                if (!filters.status) {
-                    queryParams.closed_flag = 'false';
-                }
-                
-                // Update card title based on filters
+                // Build query string from current filter state plus pagination params
+                const pagingParams = new URLSearchParams(currentQs);
+                pagingParams.set('page', page);
+                pagingParams.set('per_page', callsPerPage);
+                pagingParams.set('sort', 'create_datetime');
+                pagingParams.set('order', 'desc');
+
+                // Update card title based on status filter
                 const titleEl = document.getElementById('recent-calls-title');
                 if (titleEl) {
-                    if (filters.status === 'active' || !filters.status) {
+                    const statusVal = panel ? panel.getState().get('status') : null;
+                    const statusArr = Array.isArray(statusVal) ? statusVal : (statusVal ? [statusVal] : []);
+                    if (statusArr.includes('open') && !statusArr.includes('closed')) {
                         titleEl.textContent = 'Recent Active Calls';
-                    } else if (filters.status === 'closed') {
+                    } else if (statusArr.includes('closed') && !statusArr.includes('open')) {
                         titleEl.textContent = 'Recent Closed Calls';
                     } else {
                         titleEl.textContent = 'Recent Calls';
                     }
                 }
-                
-                const url = '/calls' + Dashboard.buildQueryString(queryParams);
+
+                const url = '/calls?' + pagingParams.toString();
                 console.log('[Dashboard Main] Recent calls API URL:', url);
-                console.log('[Dashboard Main] Query params:', queryParams);
+                console.log('[Dashboard Main] Query params:', pagingParams.toString());
                 
                 console.log('[Dashboard Main] Fetching:', Dashboard.config.apiBaseUrl + url);
                 
@@ -402,25 +407,20 @@
             }
             
             try {
-                // Translate filters for API
-                const filters = filterManager.getFilters();
-                const apiFilters = filterManager.translateForAPI(filters);
-                
-                const queryParams = {
-                    page: 1,
-                    per_page: 100,
-                    ...apiFilters
-                };
-                
+                // Build query from current filter state plus map-specific params
+                const mapParams = new URLSearchParams(currentQs);
+                mapParams.set('page', '1');
+                mapParams.set('per_page', '100');
+
                 // Default to showing only open calls on map if no status filter set
-                if (!filters.status) {
-                    queryParams.closed_flag = 'false';
+                if (!mapParams.has('status')) {
+                    mapParams.set('status', 'open');
                 }
-                
-                const url = '/calls' + Dashboard.buildQueryString(queryParams);
-                
+
+                const url = '/calls?' + mapParams.toString();
+
                 console.log('[Dashboard Main] Fetching calls for map from:', Dashboard.config.apiBaseUrl + url);
-                console.log('[Dashboard Main] Map query params:', queryParams);
+                console.log('[Dashboard Main] Map query params:', mapParams.toString());
                 const response = await fetch(Dashboard.config.apiBaseUrl + url);
                 const result = await response.json();
                 
@@ -469,10 +469,8 @@
             }
             
             console.log('[Dashboard Main] Loading charts...');
-            const filters = filterManager.getFilters();
-            console.log('[Dashboard Main] Current filters for charts:', filters);
             try {
-                const url = '/stats' + Dashboard.buildQueryString(filters);
+                const url = '/stats' + (currentQs ? '?' + currentQs : '');
                 console.log('[Dashboard Main] Charts API URL:', url);
                 const stats = await Dashboard.apiRequest(url);
                 console.log('[Dashboard Main] Charts stats received:', stats);
@@ -1145,32 +1143,28 @@
         
         window.filterDashboard = function(status) {
             console.log('[Dashboard Main] Filtering dashboard to:', status);
-            
-            if (!filterManager) {
-                console.error('[Dashboard Main] FilterManager not initialized');
+
+            if (!panel) {
+                console.error('[Dashboard Main] FilterPanel not initialized');
                 return;
             }
-            
-            // Get current filters
-            const currentFilters = filterManager.getFilters();
-            
-            // Update status
+
+            // Update the panel state
             if (status === 'all') {
-                delete currentFilters.status;
+                panel.getState().merge({ status: [] });
             } else {
-                currentFilters.status = status;
+                panel.getState().merge({ status: [status] });
             }
-            
-            // Save filters
-            filterManager.currentFilters = currentFilters;
-            filterManager.save();
-            
-            // Update filter summary
-            updateFilterSummary();
-            
-            // Refresh dashboard with new filters
-            refreshDashboard();
-            
+
+            // Sync URL and localStorage (mirrors what FilterPanel._apply() does)
+            const qs = panel.getState().toQueryString();
+            const newUrl = window.location.pathname + (qs ? '?' + qs : '');
+            window.history.replaceState({}, '', newUrl);
+            localStorage.setItem('filter-panel:last-state', JSON.stringify(panel.getState().snapshot()));
+            currentQs = qs;
+
+            onFilterChange();
+
             console.log('[Dashboard Main] Dashboard filtered to:', status);
         };
         
@@ -1193,14 +1187,23 @@
             window.location.href = `/${page}`;
         };
         
-        // Initialize FilterManager
-        filterManager = new FilterManager({
-            formId: 'dashboard-filter-form',
-            onFilterChange: onFilterChange,
-            searchDebounceMs: 300
+        // Pre-populate URL with today preset if no URL state and no saved state
+        if (!window.location.search && !localStorage.getItem('filter-panel:last-state')) {
+            const url = new URL(window.location);
+            url.searchParams.set('preset', 'today');
+            window.history.replaceState({}, '', url);
+        }
+
+        // Initialize FilterPanel
+        panel = new FilterPanel({
+            root: document.getElementById('filter-panel'),
+            onChange: function (state) {
+                currentQs = state.toQueryString();
+                onFilterChange();
+            },
         });
-        
-        await filterManager.init();
+        await panel.mount();
+        currentQs = panel.getState().toQueryString();
         updateFilterSummary();
         
         // Initialize pagination event listeners
