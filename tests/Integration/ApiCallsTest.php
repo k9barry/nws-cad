@@ -180,7 +180,7 @@ class ApiCallsTest extends TestCase
         ");
         
         for ($i = 1; $i <= 50; $i++) {
-            $stmt->execute([$i, "CALL-" . str_pad($i, 3, '0', STR_PAD_LEFT), '2024-01-01 10:00:00']);
+            $stmt->execute([$i, 'CALL-' . str_pad((string) $i, 3, '0', STR_PAD_LEFT), '2024-01-01 10:00:00']);
         }
         
         // Get first page (10 per page)

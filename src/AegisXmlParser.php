@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace NwsCad;
 
-use SimpleXMLElement;
+use DateTimeImmutable;
 use Exception;
 use PDO;
+use SimpleXMLElement;
+use NwsCad\Notifications\EventDispatcher;
+use NwsCad\Notifications\Events\CallProcessedEvent;
+use NwsCad\Notifications\IntentResolver;
 
 /**
  * NWS Aegis CAD XML Parser
@@ -71,10 +75,16 @@ class AegisXmlParser
             $this->logger->debug("Starting database transaction...");
             $this->db->beginTransaction();
 
+            // Capture snapshot of existing data before any changes
+            $existingSnapshot = $this->snapshotExisting((int) $xml->CallId);
+
             // Parse and insert call data
             $this->logger->debug("Parsing and inserting call data...");
             $callId = $this->insertCall($xml, $filePath);
             $this->logger->debug("Call data inserted with database ID: {$callId}");
+
+            // Capture snapshot of incoming data from the XML
+            $incomingSnapshot = $this->snapshotIncoming($xml);
 
             // Mark file as processed
             $this->logger->debug("Marking file as processed in database...");
@@ -85,6 +95,18 @@ class AegisXmlParser
             $this->db->commit();
 
             $this->logger->info("File processed successfully: {$filename} (Call ID: {$callId})");
+
+            [$intent, $changedFields, $addedTopics] = IntentResolver::resolve($existingSnapshot, $incomingSnapshot);
+            if ($intent !== null) {
+                EventDispatcher::dispatch(new CallProcessedEvent(
+                    dbCallId: $callId,
+                    intent: $intent,
+                    changedFields: $changedFields,
+                    createDateTime: new DateTimeImmutable($incomingSnapshot['create_datetime'] ?: 'now'),
+                    addedTopics: $addedTopics,
+                ));
+            }
+
             return true;
 
         } catch (Exception $e) {
@@ -1029,18 +1051,18 @@ class AegisXmlParser
     {
         try {
             $hash = hash_file('sha256', $filePath);
-            
+
             // Extract call metadata from filename
             $parsed = FilenameParser::parse($filename);
-            
+
             // Log warning if filename cannot be parsed
             if ($parsed === null) {
                 $this->logger->warning("Could not parse filename for metadata extraction: {$filename}");
             }
-            
+
             $callNumber = $parsed['call_number'] ?? null;
             $fileTimestamp = $parsed['timestamp_int'] ?? null;
-            
+
             $stmt = $this->db->prepare(
                 "INSERT INTO processed_files (filename, file_hash, call_number, file_timestamp, status, error_message)
                  VALUES (?, ?, ?, ?, 'failed', ?)"
@@ -1050,4 +1072,77 @@ class AegisXmlParser
             $this->logger->error("Failed to mark file as failed: " . $e->getMessage());
         }
     }
+
+    /** @return array<string,mixed>|null */
+    private function snapshotExisting(int $xmlCallId): ?array
+    {
+        $stmt = $this->db->prepare("SELECT id FROM calls WHERE call_id = ?");
+        $stmt->execute([$xmlCallId]);
+        $row = $stmt->fetch();
+        if (! $row) {
+            return null;
+        }
+        $dbCallId = (int) $row['id'];
+
+        $scalar = function (string $sql) use ($dbCallId): string {
+            $st = $this->db->prepare($sql);
+            $st->execute([$dbCallId]);
+            $v = $st->fetchColumn();
+            return $v === false || $v === null ? '' : (string) $v;
+        };
+        $scalarInt = function (string $sql) use ($dbCallId): int {
+            $st = $this->db->prepare($sql);
+            $st->execute([$dbCallId]);
+            $v = $st->fetchColumn();
+            return $v === false || $v === null ? 0 : (int) $v;
+        };
+        $list = function (string $sql) use ($dbCallId): string {
+            $st = $this->db->prepare($sql);
+            $st->execute([$dbCallId]);
+            $rows = $st->fetchAll(\PDO::FETCH_COLUMN);
+            return implode('|', $rows ?: []);
+        };
+
+        return [
+            'call_type'     => $scalar("SELECT call_type FROM agency_contexts WHERE call_id = ? ORDER BY id LIMIT 1"),
+            'full_address'  => $scalar("SELECT full_address FROM locations WHERE call_id = ? ORDER BY id LIMIT 1"),
+            'alarm_level'   => $scalarInt("SELECT alarm_level FROM calls WHERE id = ?"),
+            'units'         => $list("SELECT unit_number FROM units WHERE call_id = ? ORDER BY unit_number"),
+            'jurisdictions' => $list("SELECT DISTINCT jurisdiction FROM incidents WHERE call_id = ? AND jurisdiction IS NOT NULL ORDER BY jurisdiction"),
+            'agencies'      => $list("SELECT DISTINCT agency_type FROM agency_contexts WHERE call_id = ? AND agency_type IS NOT NULL ORDER BY agency_type"),
+        ];
+    }
+
+    /** @return array<string,mixed> */
+    private function snapshotIncoming(SimpleXMLElement $xml): array
+    {
+        $units = [];
+        foreach ($xml->AssignedUnits->Unit ?? [] as $u) {
+            $n = trim((string) $u->UnitNumber);
+            if ($n !== '') $units[] = $n;
+        }
+        $junctions = [];
+        foreach ($xml->Incidents->Incident ?? [] as $inc) {
+            $j = trim((string) $inc->Jurisdiction);
+            if ($j !== '') $junctions[] = $j;
+        }
+        $agencies = [];
+        $callType = '';
+        foreach ($xml->AgencyContexts->AgencyContext ?? [] as $ac) {
+            $a = trim((string) $ac->AgencyType);
+            if ($a !== '') $agencies[] = $a;
+            if ($callType === '') $callType = trim((string) $ac->CallType);
+        }
+        return [
+            'call_type' => $callType,
+            'full_address' => trim((string) ($xml->Location->FullAddress ?? '')),
+            'alarm_level' => (int) ($xml->AlarmLevel ?? 0),
+            'units' => implode('|', array_values(array_unique($units))),
+            'jurisdictions' => implode('|', array_values(array_unique($junctions))),
+            'agencies' => implode('|', array_values(array_unique($agencies))),
+            'closed_flag' => (bool) $this->parseBoolean((string) ($xml->ClosedFlag ?? 'false')),
+            'create_datetime' => (string) ($xml->CreateDateTime ?? ''),
+        ];
+    }
+
 }

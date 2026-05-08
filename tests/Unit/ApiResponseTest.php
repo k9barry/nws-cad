@@ -12,20 +12,32 @@ use PHPUnit\Framework\TestCase;
  */
 class ApiResponseTest extends TestCase
 {
+    private int $initialObLevel = 0;
+
     protected function setUp(): void
     {
         parent::setUp();
-        
-        // Prevent actual output during tests
+
+        // Reset Response's per-request "already sent" flag. Response::json()
+        // sets it in testing mode (in lieu of exit()) so any subsequent call
+        // is a no-op within the same request — tests need the flag clean
+        // each time so the first json() emission is captured.
+        Response::resetForTesting();
+
+        // Capture the buffer level PHPUnit set up for us, then push our own.
+        // Tests that consume our buffer via `ob_get_clean()` are fine; tests
+        // that don't will be cleaned up in tearDown — but we MUST NOT touch
+        // any buffer below the level we started at, or PHPUnit flags the
+        // test as "closed output buffers other than its own".
+        $this->initialObLevel = ob_get_level();
         ob_start();
     }
 
     protected function tearDown(): void
     {
         parent::tearDown();
-        
-        // Clean output buffer
-        if (ob_get_level() > 0) {
+
+        while (ob_get_level() > $this->initialObLevel) {
             ob_end_clean();
         }
     }

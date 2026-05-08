@@ -52,19 +52,34 @@ function getTestDbConnection(): PDO
     );
 }
 
-// Helper function to clean test database
+// Helper function to clean test database.
+//
+// Several integration tests (notably ApiFilteringTest::seedFilterTestData)
+// hard-code primary-key values like agency_contexts.call_id=1..7 and rely on
+// the auto-increment counter on `calls` starting from 1 each run. DELETE FROM
+// clears rows but leaves AUTO_INCREMENT advanced, so any prior test that
+// inserts into a table here would break the next test that assumes id=1.
+// TRUNCATE under FOREIGN_KEY_CHECKS=0 deletes rows AND resets the counter
+// without fighting the FK graph; we restore the FK check before returning.
 function cleanTestDatabase(): void
 {
     try {
         $pdo = getTestDbConnection();
         $tables = [
+            'notification_send_log',
+            'notification_channels',
             'unit_dispositions', 'unit_logs', 'unit_personnel', 'units',
             'call_dispositions', 'vehicles', 'persons', 'narratives',
             'incidents', 'locations', 'agency_contexts', 'calls', 'processed_files'
         ];
-        
+
+        // DELETE first (FK ON DELETE CASCADE handles children), then reset
+        // AUTO_INCREMENT separately. We avoid TRUNCATE here because some MySQL
+        // versions reject it on a parent table referenced by a FK even with
+        // FOREIGN_KEY_CHECKS=0.
         foreach ($tables as $table) {
             $pdo->exec("DELETE FROM $table");
+            $pdo->exec("ALTER TABLE $table AUTO_INCREMENT = 1");
         }
     } catch (PDOException $e) {
         // Ignore if database doesn't exist or tables don't exist

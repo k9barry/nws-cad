@@ -313,22 +313,34 @@ class ApiFilteringTest extends TestCase
     }
 
     /**
-     * Test SQL injection protection in date filter
+     * Test SQL injection protection in date filter.
+     *
+     * The defence under test is parameterisation: the malicious input must be
+     * bound as a literal value, not interpolated into the SQL. MySQL's date
+     * parser is lenient and silently truncates "2024-01-01' OR '1'='1" at the
+     * first apostrophe, leaving "2024-01-01"; the result is whatever rows
+     * match `>= 2024-01-01`. So the right invariant is: the count is the
+     * SAME as a clean query for "2024-01-01" — not 0, not "all rows", but
+     * exactly the prefix-parsed date's row count. (The original assertion of
+     * 0 only held under MySQL strict mode, which neither the local docker
+     * container nor the CI runner use.)
      */
     public function testSqlInjectionProtectionInDateFilter(): void
     {
-        $stmt = self::$db->prepare("
-            SELECT COUNT(*) as count FROM calls 
-            WHERE create_datetime >= ?
-        ");
-        
-        // Attempt SQL injection
+        $stmt = self::$db->prepare("SELECT COUNT(*) AS count FROM calls WHERE create_datetime >= ?");
+
         $maliciousInput = "2024-01-01' OR '1'='1";
         $stmt->execute([$maliciousInput]);
-        $result = $stmt->fetch();
-        
-        // Should return 0 because the malicious input is treated as a literal string
-        $this->assertEquals(0, $result['count'], 'SQL injection should be prevented');
+        $injected = (int) $stmt->fetch()['count'];
+
+        $stmt->execute(['2024-01-01']);
+        $clean = (int) $stmt->fetch()['count'];
+
+        $this->assertSame(
+            $clean,
+            $injected,
+            'Malicious input must be bound as a literal — count should match a clean prefix-parsed date.'
+        );
     }
 
     /**

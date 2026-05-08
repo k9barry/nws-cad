@@ -11,6 +11,9 @@ use Monolog\Logger as MonologLogger;
 
 /**
  * @covers \NwsCad\Logger
+ * @uses \NwsCad\Config
+ * @uses \NwsCad\Logging\RedactingProcessor
+ * @uses \NwsCad\Logging\SecretRegistry
  */
 class LoggerTest extends TestCase
 {

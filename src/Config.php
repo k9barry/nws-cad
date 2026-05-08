@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NwsCad;
 
 use Exception;
+use NwsCad\Exceptions\MissingSecretException;
+use NwsCad\Logging\SecretRegistry;
 
 /**
  * Configuration Manager
@@ -70,6 +72,9 @@ class Config
                 'logs' => __DIR__ . '/../logs',
                 'tmp' => __DIR__ . '/../tmp',
             ],
+            'notifications' => [
+                'delta_seconds' => (int) $this->env('NOTIFICATION_DELTA_SECONDS', '900'),
+            ],
         ];
     }
 
@@ -125,5 +130,25 @@ class Config
             ['type' => $dbType],
             $this->get("db.$dbType")
         );
+    }
+
+    public function secret(string $key): string
+    {
+        $value = $_ENV[$key] ?? getenv($key);
+        if ($value === false || $value === null || $value === '') {
+            throw MissingSecretException::forKey($key);
+        }
+        SecretRegistry::register($value);
+        return $value;
+    }
+
+    public function secretOptional(string $key): ?string
+    {
+        $value = $_ENV[$key] ?? getenv($key);
+        if ($value === false || $value === null || $value === '') {
+            return null;
+        }
+        SecretRegistry::register($value);
+        return $value;
     }
 }

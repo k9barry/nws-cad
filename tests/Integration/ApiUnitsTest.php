@@ -58,8 +58,8 @@ class ApiUnitsTest extends TestCase
             INSERT INTO units (call_id, unit_number, unit_type, is_primary)
             VALUES (?, ?, ?, ?)
         ");
-        $stmt->execute([$callId, 'E-101', 'Engine', true]);
-        $stmt->execute([$callId, 'A-201', 'Ambulance', false]);
+        $stmt->execute([$callId, 'E-101', 'Engine', 1]);
+        $stmt->execute([$callId, 'A-201', 'Ambulance', 0]);
         
         // Retrieve units for call
         $stmt = self::$db->prepare("
@@ -96,8 +96,8 @@ class ApiUnitsTest extends TestCase
             INSERT INTO unit_personnel (unit_id, first_name, last_name, is_primary_officer)
             VALUES (?, ?, ?, ?)
         ");
-        $stmt->execute([$unitId, 'John', 'Doe', true]);
-        $stmt->execute([$unitId, 'Jane', 'Smith', false]);
+        $stmt->execute([$unitId, 'John', 'Doe', 1]);
+        $stmt->execute([$unitId, 'Jane', 'Smith', 0]);
         
         // Retrieve unit with personnel
         $stmt = self::$db->prepare("
@@ -203,7 +203,7 @@ class ApiUnitsTest extends TestCase
         
         // Insert unit logs
         $stmt = self::$db->prepare("
-            INSERT INTO unit_logs (unit_id, datetime, status)
+            INSERT INTO unit_logs (unit_id, log_datetime, status)
             VALUES (?, ?, ?)
         ");
         $stmt->execute([$unitId, '2024-01-01 10:01:00', 'Dispatched']);
@@ -212,7 +212,7 @@ class ApiUnitsTest extends TestCase
         
         // Retrieve logs
         $stmt = self::$db->prepare("
-            SELECT * FROM unit_logs WHERE unit_id = ? ORDER BY datetime
+            SELECT * FROM unit_logs WHERE unit_id = ? ORDER BY log_datetime
         ");
         $stmt->execute([$unitId]);
         $logs = $stmt->fetchAll();

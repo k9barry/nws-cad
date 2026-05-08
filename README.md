@@ -16,6 +16,7 @@ A PHP 8.3 system for monitoring, parsing, and storing NWS Aegis CAD (Computer-Ai
 | **Mobile** | 📱 Auto-detection, 👆 Touch-optimized UI, ⬇️ Pull-to-refresh |
 | **Security** | 🔒 XSS/SQL injection/XXE prevention, 🛡️ Rate limiting, 🔐 Security headers |
 | **Testing** | 🧪 142+ automated tests, 📊 80% coverage, 🚀 CI/CD pipeline |
+| **Notifications** | 📢 ntfy.sh + Pushover, hierarchical topics, delta-time gate, read-only dashboard |
 
 ## Quick Start
 
@@ -54,6 +55,7 @@ docker-compose up -d
 |-----------|-------------|------|
 | **File Watcher** | Monitors `watch/` for XML files, parses and stores data | - |
 | **REST API** | 19 endpoints for calls, units, search, statistics | 8080 |
+| **Notifier** | In-process channels (ntfy, Pushover) dispatched from parser commit | - |
 | **Dashboard** | Real-time monitoring with maps and charts | 80 |
 | **Mobile UI** | Touch-optimized interface with auto-detection | 80 |
 | **Database** | MySQL 8.0 or PostgreSQL 16 (configurable) | 3306/5432 |
@@ -218,7 +220,14 @@ composer test:coverage       # 80% minimum required
 | [docs/TESTING.md](docs/TESTING.md) | Testing infrastructure |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and solutions |
 | [docs/BACKUP_GUIDE.md](docs/BACKUP_GUIDE.md) | Database backup procedures |
+| [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) | Notifications operator + developer reference |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
+
+## Notifications (v1.2.0)
+
+The system now sends real-time ntfy.sh and Pushover notifications when CAD calls are created, updated, or closed. The notification module subscribes to a `CallProcessedEvent` fired by `AegisXmlParser` after a successful commit, applies a delta-time gate (events older than `NOTIFICATION_DELTA_SECONDS` are skipped) and intent-based change-detection rules, then fans out to enabled channels. A read-only `/notifications` dashboard view shows channel status and recent send results.
+
+See [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) for the full operator and developer reference.
 
 ## License
 
