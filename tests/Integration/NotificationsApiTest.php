@@ -155,4 +155,42 @@ class NotificationsApiTest extends TestCase
         $this->assertFalse($payload['success']);
         $this->assertStringContainsString('Unknown channel type', $payload['error']);
     }
+
+    public function testDisableSetsEnabledToZero(): void
+    {
+        self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
+            VALUES ('ntfy_primary', 'ntfy', 1, 'u', '{}')");
+
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->disable('ntfy');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertTrue($payload['success']);
+        $this->assertSame(1, (int) $payload['data']['updated']);
+        $this->assertSame(0, (int) self::$db->query(
+            "SELECT enabled FROM notification_channels WHERE name='ntfy_primary'"
+        )->fetchColumn());
+    }
+
+    public function testDisableIsIdempotentWhenNoRows(): void
+    {
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->disable('pushover');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertTrue($payload['success']);
+        $this->assertSame(0, (int) $payload['data']['updated']);
+    }
+
+    public function testDisableReturns404ForUnknownType(): void
+    {
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->disable('webhook');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertFalse($payload['success']);
+    }
 }

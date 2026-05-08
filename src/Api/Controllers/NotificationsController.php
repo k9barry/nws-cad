@@ -124,6 +124,26 @@ final class NotificationsController
         }
     }
 
+    /** POST /api/notifications/channels/{type}/disable */
+    public function disable(string $type): void
+    {
+        try {
+            if (! $this->validateType($type)) {
+                Response::error("Unknown channel type: {$type}", 404);
+                return;
+            }
+            $stmt = $this->db->prepare(
+                "UPDATE notification_channels
+                 SET enabled = 0, updated_at = CURRENT_TIMESTAMP
+                 WHERE type = ?"
+            );
+            $stmt->execute([$type]);
+            Response::success(['updated' => $stmt->rowCount()]);
+        } catch (Exception $e) {
+            Response::error('Failed to disable channel: ' . $e->getMessage(), 500);
+        }
+    }
+
     private function validateType(string $type): bool
     {
         return in_array($type, ['ntfy', 'pushover'], true);
