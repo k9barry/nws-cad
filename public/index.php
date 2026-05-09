@@ -29,8 +29,6 @@ $dozzlePort = getenv('DOZZLE_PORT') ?: '8081';
 // Define routes (dashboard-only)
 $routes = [
     '/' => 'dashboard',
-    '/calls' => 'calls',
-    '/units' => 'units',
     '/notifications' => 'notifications',
 ];
 
@@ -85,16 +83,6 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
                     <li class="nav-item">
                         <a class="nav-link <?= $page === 'dashboard' ? 'active' : '' ?>" href="/">
                             <i class="bi bi-speedometer2"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?= $page === 'calls' || $page === 'calls-mobile' ? 'active' : '' ?>" href="/calls">
-                            <i class="bi bi-telephone"></i> Calls
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?= $page === 'units' || $page === 'units-mobile' ? 'active' : '' ?>" href="/units">
-                            <i class="bi bi-truck"></i> Units
                         </a>
                     </li>
                     <li class="nav-item">

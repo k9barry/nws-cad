@@ -246,6 +246,71 @@ final class NotificationsController
         }
     }
 
+    /** DELETE /api/notifications/log/{id} — dismiss a single send-log row */
+    public function dismissLogEntry(string $id): void
+    {
+        try {
+            if (! ctype_digit($id)) {
+                Response::error('Invalid log id', 400);
+                return;
+            }
+            $stmt = $this->db->prepare("DELETE FROM notification_send_log WHERE id = ?");
+            $stmt->execute([(int) $id]);
+            if ($stmt->rowCount() === 0) {
+                Response::error('Log entry not found', 404);
+                return;
+            }
+            Response::success(['deleted' => 1, 'id' => (int) $id]);
+        } catch (Exception $e) {
+            Response::error('Failed to dismiss log entry: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /** POST /api/notifications/channels/{type}/clear-error — clear sticky channel error banner */
+    public function clearChannelError(string $type): void
+    {
+        try {
+            if (! $this->validateType($type)) {
+                Response::error("Unknown channel type: {$type}", 404);
+                return;
+            }
+            $stmt = $this->db->prepare(
+                "UPDATE notification_channels
+                 SET last_error_at = NULL, last_error_message = NULL,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE type = ?"
+            );
+            $stmt->execute([$type]);
+            Response::success(['cleared' => $stmt->rowCount()]);
+        } catch (Exception $e) {
+            Response::error('Failed to clear channel error: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /** POST /api/notifications/log/clear-failed?channel=<id|name> — dismiss all failed rows */
+    public function clearFailed(): void
+    {
+        try {
+            $channel = $_GET['channel'] ?? $_POST['channel'] ?? null;
+            if ($channel === null || $channel === '') {
+                Response::error('channel parameter required', 400);
+                return;
+            }
+            $channelId = $this->resolveChannelId((string) $channel);
+            if ($channelId === null) {
+                Response::error('Unknown channel', 404);
+                return;
+            }
+            $stmt = $this->db->prepare(
+                "DELETE FROM notification_send_log WHERE channel_id = ? AND ok = 0"
+            );
+            $stmt->execute([$channelId]);
+            Response::success(['deleted' => $stmt->rowCount(), 'channel_id' => $channelId]);
+        } catch (Exception $e) {
+            Response::error('Failed to clear failed entries: ' . $e->getMessage(), 500);
+        }
+    }
+
     private function validateType(string $type): bool
     {
         return in_array($type, ['ntfy', 'pushover'], true);

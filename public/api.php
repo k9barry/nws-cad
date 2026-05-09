@@ -106,6 +106,9 @@ $router->get('/notifications/log',      [NotificationsController::class, 'log'])
 $router->post('/notifications/channels/{type}/enable',  [NotificationsController::class, 'enable']);
 $router->post('/notifications/channels/{type}/disable', [NotificationsController::class, 'disable']);
 $router->post('/notifications/channels/{type}/test',    [NotificationsController::class, 'test']);
+$router->post('/notifications/channels/{type}/clear-error', [NotificationsController::class, 'clearChannelError']);
+$router->delete('/notifications/log/{id}',              [NotificationsController::class, 'dismissLogEntry']);
+$router->post('/notifications/log/clear-failed',        [NotificationsController::class, 'clearFailed']);
 
 // Logs Controller Routes
 $router->get('/logs', [LogsController::class, 'index']);
