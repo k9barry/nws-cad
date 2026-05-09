@@ -164,6 +164,44 @@ span.navbar-text i.bi.bi-circle-fill.pulse::before,
     min-height: 400px;
 }
 
+/* Dashboard map+stats row fills the viewport down to (approximately) the footer.
+   Offset accounts for navbar, dashboard header, footer, and surrounding paddings.
+   Tweak --dashboard-row-offset to fine-tune. */
+:root {
+    --dashboard-row-offset: 280px;
+}
+
+.dashboard-row-fill {
+    min-height: calc(100vh - var(--dashboard-row-offset));
+}
+
+.dashboard-right-col {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Recent Calls card grows to fill remaining right-column space below stats grid;
+   the table-responsive scroll area absorbs whatever height is left. */
+.dashboard-right-col .recent-calls-card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.dashboard-right-col .recent-calls-card .card-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.recent-calls-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
 .leaflet-popup-content-wrapper {
     border-radius: 8px;
 }

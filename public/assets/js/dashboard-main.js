@@ -71,17 +71,18 @@
                     map = MapManager.initMap('calls-map');
                     console.log('[Dashboard Main] Map initialized');
 
-                    // Map container is flex-sized; nudge Leaflet to recompute
-                    // tiles after first paint and on viewport resize.
-                    requestAnimationFrame(() => MapManager.resize('calls-map'));
-
+                    // Map container is flex-sized and grows as the right column
+                    // populates with API data. Observe the container itself so
+                    // Leaflet retiles whenever its size actually changes —
+                    // covers initial paint, viewport resize, and post-load growth.
                     let mapResizeTimer = null;
-                    window.addEventListener('resize', () => {
+                    const mapResizeObserver = new ResizeObserver(() => {
                         clearTimeout(mapResizeTimer);
                         mapResizeTimer = setTimeout(() => {
                             MapManager.resize('calls-map');
                         }, 150);
                     });
+                    mapResizeObserver.observe(mapEl);
                 } else {
                     console.warn('[Dashboard Main] Map element not found');
                 }

@@ -1,5 +1,5 @@
 <!-- Map and Stats Cards Row - Top Section -->
-<div class="row mb-4">
+<div class="row mb-4 dashboard-row-fill">
     <!-- Madison County Map (40% width) -->
     <div class="col-lg-5 mb-3">
         <div class="card map-column-card">
@@ -15,7 +15,7 @@
     </div>
     
     <!-- Right Column: Statistics Cards + Recent Calls (60% width) -->
-    <div class="col-lg-7">
+    <div class="col-lg-7 dashboard-right-col">
         <!-- Statistics Cards - 2x2 Grid -->
         <div class="row mb-4" id="stats-cards">
             <div class="col-md-6 col-sm-6 mb-3">
@@ -92,7 +92,7 @@
         </div>
         
         <!-- Recent Calls Table (Below Stats Cards) -->
-        <div class="card">
+        <div class="card recent-calls-card">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">
                     <i class="bi bi-list-ul"></i> <span id="recent-calls-title">Recent Calls</span>
@@ -100,7 +100,7 @@
                 <small class="text-muted">Last updated: <span id="last-updated">Never</span></small>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                <div class="table-responsive recent-calls-scroll">
                     <table class="table table-hover mb-0">
                         <thead class="table-light sticky-top">
                             <tr>
