@@ -2,14 +2,14 @@
 <div class="row mb-4">
     <!-- Madison County Map (40% width) -->
     <div class="col-lg-5 mb-3">
-        <div class="card" style="height: 100%;">
+        <div class="card map-column-card">
             <div class="card-header bg-white">
                 <h5 class="card-title mb-0">
                     <i class="bi bi-geo-alt"></i> Madison County Map
                 </h5>
             </div>
             <div class="card-body p-0">
-                <div id="calls-map" style="height: 800px; width: 100%;"></div>
+                <div id="calls-map"></div>
             </div>
         </div>
     </div>
