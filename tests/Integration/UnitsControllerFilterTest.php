@@ -115,11 +115,13 @@ final class UnitsControllerFilterTest extends TestCase
         $insert($db, 'units', ['call_id' => $c1, 'unit_number' => '41', 'unit_type' => 'Patrol', 'assigned_datetime' => '2026-05-02 10:01:00']);
         $insert($db, 'units', ['call_id' => $c1, 'unit_number' => '42', 'unit_type' => 'Patrol', 'assigned_datetime' => '2026-05-02 10:02:00']);
 
-        // Closed EMS call with one unit
+        // Closed EMS call with one unit. status=open filter keys off close_datetime
+        // (not closed_flag) since closed_flag is only the raw record of the latest XML.
         $c2 = $insert($db, 'calls', [
             'call_id'       => 802,
             'call_number'   => 'E1',
             'create_datetime' => '2026-05-03 10:00:00',
+            'close_datetime' => '2026-05-03 12:00:00',
             'closed_flag'   => 1,
             'canceled_flag' => 0,
         ]);

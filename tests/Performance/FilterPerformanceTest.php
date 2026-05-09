@@ -36,6 +36,14 @@ final class FilterPerformanceTest extends TestCase
 
         $count = (int) $db->query('SELECT COUNT(*) FROM calls')->fetchColumn();
         if ($count >= self::ROW_COUNT) {
+            // Repair pre-existing seed rows that may pre-date the close_datetime
+            // population added when the open/closed filter switched to keying off
+            // close_datetime (see 2026-05-09-call-status-correctness spec).
+            $db->exec(
+                "UPDATE calls
+                    SET close_datetime = DATE_ADD(create_datetime, INTERVAL 30 MINUTE)
+                  WHERE closed_flag = 1 AND close_datetime IS NULL"
+            );
             return;
         }
 
@@ -48,16 +56,21 @@ final class FilterPerformanceTest extends TestCase
 
         $db->beginTransaction();
         $stmt = $db->prepare(
-            'INSERT INTO calls (call_id, call_number, create_datetime, closed_flag, canceled_flag)
-             VALUES (?, ?, ?, ?, ?)'
+            'INSERT INTO calls (call_id, call_number, create_datetime, closed_flag, canceled_flag, close_datetime)
+             VALUES (?, ?, ?, ?, ?, ?)'
         );
         for ($i = 0; $i < $toInsert; $i++) {
+            $createTs = $start + ($i * 60);
+            $isClosed = $i % 4 === 0;
+            // close_datetime tracks closed_flag — closed rows get a timestamp 30 min after create
+            $closeTs = $isClosed ? date('Y-m-d H:i:s', $createTs + 1800) : null;
             $stmt->execute([
                 $maxCallId + $count + $i + 1,
                 'PERF-' . ($count + $i),
-                date('Y-m-d H:i:s', $start + ($i * 60)),
-                $i % 4 === 0 ? 1 : 0,
+                date('Y-m-d H:i:s', $createTs),
+                $isClosed ? 1 : 0,
                 $i % 50 === 0 ? 1 : 0,
+                $closeTs,
             ]);
         }
         $db->commit();

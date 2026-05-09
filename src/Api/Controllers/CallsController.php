@@ -111,6 +111,7 @@ class CallsController
                     'created_by'      => $row['created_by'],
                     'closed_flag'     => (bool) $row['closed_flag'],
                     'canceled_flag'   => (bool) $row['canceled_flag'],
+                    'reopened_flag'   => (bool) ($row['reopened_flag'] ?? false),
                     'alarm_level'     => $row['alarm_level'] !== null ? (int) $row['alarm_level'] : null,
                     'emd_code'        => $row['emd_code'],
                     'location'        => [

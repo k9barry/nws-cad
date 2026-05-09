@@ -54,11 +54,43 @@ final class FilterSqlBuilderTest extends TestCase
         $this->assertContains('LEFT JOIN agency_contexts ON agency_contexts.call_id = calls.id', $joins);
     }
 
-    public function testStatusOpenDecodesToFlagsClause(): void
+    public function testStatusOpenKeysOffCloseDatetimeAndReopened(): void
     {
-        [$where, $params] = $this->build(['status' => 'open']);
-        $this->assertStringContainsString('calls.closed_flag = 0', $where);
+        [$where] = $this->build(['status' => 'open']);
+        // Open is canceled=0 AND (close_datetime IS NULL OR reopened_flag = 1)
         $this->assertStringContainsString('calls.canceled_flag = 0', $where);
+        $this->assertStringContainsString('calls.close_datetime IS NULL', $where);
+        $this->assertStringContainsString('calls.reopened_flag = 1', $where);
+        // Authoritative open/closed signal is no longer closed_flag
+        $this->assertStringNotContainsString('closed_flag = 0', $where);
+    }
+
+    public function testStatusClosedRequiresCloseDatetimeAndNotReopened(): void
+    {
+        [$where] = $this->build(['status' => 'closed']);
+        $this->assertStringContainsString('calls.close_datetime IS NOT NULL', $where);
+        $this->assertStringContainsString('calls.reopened_flag = 0', $where);
+        $this->assertStringContainsString('calls.canceled_flag = 0', $where);
+        $this->assertStringNotContainsString('closed_flag = 1', $where);
+    }
+
+    public function testStatusReopenedFiltersOnReopenedFlag(): void
+    {
+        [$where] = $this->build(['status' => 'reopened']);
+        $this->assertStringContainsString('calls.reopened_flag = 1', $where);
+        $this->assertStringContainsString('calls.canceled_flag = 0', $where);
+    }
+
+    public function testStatusCanceledUnchanged(): void
+    {
+        [$where] = $this->build(['status' => 'canceled']);
+        $this->assertStringContainsString('calls.canceled_flag = 1', $where);
+    }
+
+    public function testStatusInvalidValueRejected(): void
+    {
+        $this->expectException(\NwsCad\Api\Filtering\InvalidFilterException::class);
+        $this->build(['status' => 'whatever']);
     }
 
     public function testStatusMultipleOrsClauses(): void
@@ -66,7 +98,7 @@ final class FilterSqlBuilderTest extends TestCase
         [$where] = $this->build(['status' => 'open,closed']);
         // Each value contributes a parenthesized clause OR'd together
         $this->assertMatchesRegularExpression(
-            '/\(.*closed_flag = 0.*canceled_flag = 0.*\) OR \(.*closed_flag = 1.*canceled_flag = 0.*\)/s',
+            '/\(.*close_datetime IS NULL.*reopened_flag = 1.*\) OR \(.*close_datetime IS NOT NULL.*reopened_flag = 0.*\)/s',
             $where
         );
     }

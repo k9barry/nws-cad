@@ -9,7 +9,7 @@ final class FilterCriteria
 {
     private const MAX_VALUES_PER_FIELD = 50;
     private const MAX_VALUE_LENGTH = 256;
-    private const VALID_STATUSES = ['open', 'closed', 'canceled'];
+    private const VALID_STATUSES = ['open', 'closed', 'canceled', 'reopened'];
     private const VALID_DATE_FIELDS = ['created', 'closed'];
 
     /**

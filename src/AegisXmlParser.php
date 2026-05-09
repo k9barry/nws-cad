@@ -54,7 +54,17 @@ class AegisXmlParser
                 return true;
             }
             $this->logger->debug("File has not been processed before");
-            
+
+            // Skip if a newer XML for the same call has already been processed.
+            // Filenames embed a sortable timestamp ({call_number}_{YYYYMMDDhhmmss<cs>}.xml);
+            // CAD-source files occasionally arrive in reverse order, and without
+            // this check an older XML can clobber the newer XML's closed state.
+            if ($this->isFilenameStaleForCall($filename)) {
+                $this->logger->info("Skipping stale XML (newer version already processed for this call): {$filename}");
+                $this->markFileAsProcessed($filename, $filePath, 0);
+                return true;
+            }
+
             // Load XML with security measures
             $this->logger->debug("Loading XML file with XXE protection...");
             $xml = $this->loadXmlFile($filePath);
@@ -78,9 +88,13 @@ class AegisXmlParser
             // Capture snapshot of existing data before any changes
             $existingSnapshot = $this->snapshotExisting((int) $xml->CallId);
 
+            // Detect reopen: previously-closed call now showing fresh unit activity.
+            // Computed pre-insert because the insert overwrites close_datetime/units.
+            $detectedReopen = $this->detectReopen($xml, $existingSnapshot);
+
             // Parse and insert call data
             $this->logger->debug("Parsing and inserting call data...");
-            $callId = $this->insertCall($xml, $filePath);
+            $callId = $this->insertCall($xml, $filePath, $detectedReopen);
             $this->logger->debug("Call data inserted with database ID: {$callId}");
 
             // Capture snapshot of incoming data from the XML
@@ -217,9 +231,10 @@ class AegisXmlParser
      *
      * @param SimpleXMLElement $xml XML root element
      * @param string $filePath Original file path
+     * @param bool $detectedReopen True if this XML's units indicate the call was reopened after a prior close.
      * @return int Database call ID
      */
-    private function insertCall(SimpleXMLElement $xml, string $filePath): int
+    private function insertCall(SimpleXMLElement $xml, string $filePath, bool $detectedReopen = false): int
     {
         $this->logger->debug("Extracting call data from XML...");
         
@@ -257,7 +272,10 @@ class AegisXmlParser
             
             $dbCallId = (int)$existingCall['id'];
             
-            // Update the call record
+            // Update the call record. reopened_flag uses CASE so a fresh close
+            // (incoming closed_flag = 1) trumps any prior reopen, a detected reopen
+            // sets it to 1, and otherwise the existing value is preserved (so a
+            // benign post-close edit doesn't accidentally clear the reopen state).
             $sql = "UPDATE calls SET
                 call_number = :call_number,
                 call_source = :call_source,
@@ -270,37 +288,49 @@ class AegisXmlParser
                 created_by = :created_by,
                 closed_flag = :closed_flag,
                 canceled_flag = :canceled_flag,
+                reopened_flag = CASE
+                    WHEN :incoming_closed = 1 THEN 0
+                    WHEN :detected_reopen = 1 THEN 1
+                    ELSE reopened_flag
+                END,
                 alarm_level = :alarm_level,
                 emd_code = :emd_code,
                 fire_controlled_time = :fire_controlled_time,
                 xml_data = :xml_data,
                 updated_at = CURRENT_TIMESTAMP
                 WHERE id = :id";
-            
+
             $updateData = $callData;
             unset($updateData['call_id']); // Remove call_id as UPDATE SQL uses :id instead
             $updateData['id'] = $dbCallId;
-            
+            $updateData['incoming_closed'] = $callData['closed_flag'];
+            $updateData['detected_reopen'] = $detectedReopen ? 1 : 0;
+
             $stmt = $this->db->prepare($sql);
             $stmt->execute($updateData);
             $this->logger->debug("Call record updated successfully");
         } else {
-            // Insert new call
+            // Insert new call. reopened_flag is set from detectedReopen directly;
+            // for a brand-new call this is effectively always 0 (no prior close to reopen),
+            // but we honour the parameter for symmetry.
             $this->logger->debug("Call ID {$callData['call_id']} is new, inserting into database...");
             $sql = "INSERT INTO calls (
                 call_id, call_number, call_source, caller_name, caller_phone,
                 nature_of_call, additional_info, create_datetime, close_datetime,
-                created_by, closed_flag, canceled_flag, alarm_level, emd_code,
+                created_by, closed_flag, canceled_flag, reopened_flag, alarm_level, emd_code,
                 fire_controlled_time, xml_data
             ) VALUES (
                 :call_id, :call_number, :call_source, :caller_name, :caller_phone,
                 :nature_of_call, :additional_info, :create_datetime, :close_datetime,
-                :created_by, :closed_flag, :canceled_flag, :alarm_level, :emd_code,
+                :created_by, :closed_flag, :canceled_flag, :reopened_flag, :alarm_level, :emd_code,
                 :fire_controlled_time, :xml_data
             )";
 
+            $insertData = $callData;
+            $insertData['reopened_flag'] = $detectedReopen ? 1 : 0;
+
             $stmt = $this->db->prepare($sql);
-            $stmt->execute($callData);
+            $stmt->execute($insertData);
             $dbCallId = (int)$this->db->lastInsertId();
             $this->logger->debug("New call inserted with database ID: {$dbCallId}");
         }
@@ -1079,6 +1109,30 @@ class AegisXmlParser
         }
     }
 
+    /**
+     * True when a newer XML for the same call_number has already been processed.
+     * Filenames look like "{call_number}_{YYYYMMDDhhmmss<centiseconds>}.xml" — the
+     * timestamp portion is fixed-width and zero-padded, so lexicographic comparison
+     * matches chronological order. Filenames that don't match the expected pattern
+     * fall through (return false) so manual injects or future formats don't break ingest.
+     */
+    private function isFilenameStaleForCall(string $filename): bool
+    {
+        if (! preg_match('/^(\d+)_\d+\.xml$/', $filename, $m)) {
+            return false;
+        }
+        $prefix = $m[1] . '_';
+        $stmt = $this->db->prepare(
+            "SELECT MAX(filename) FROM processed_files WHERE filename LIKE ?"
+        );
+        $stmt->execute([$prefix . '%']);
+        $max = $stmt->fetchColumn();
+        if ($max === false || $max === null || $max === '') {
+            return false;
+        }
+        return strcmp($filename, (string) $max) <= 0;
+    }
+
     private function markFileAsProcessed(string $filename, string $filePath, int $recordsProcessed): void
     {
         $hash = hash_file('sha256', $filePath);
@@ -1174,7 +1228,43 @@ class AegisXmlParser
             'units'         => $list("SELECT unit_number FROM units WHERE call_id = ? ORDER BY unit_number"),
             'jurisdictions' => $list("SELECT DISTINCT jurisdiction FROM incidents WHERE call_id = ? AND jurisdiction IS NOT NULL ORDER BY jurisdiction"),
             'agencies'      => $list("SELECT DISTINCT agency_type FROM agency_contexts WHERE call_id = ? AND agency_type IS NOT NULL ORDER BY agency_type"),
+            'close_datetime' => $scalar("SELECT close_datetime FROM calls WHERE id = ?"),
         ];
+    }
+
+    /**
+     * True when an incoming XML represents a reopen of a previously-closed call:
+     * a unit assigned after the prior close timestamp with no clear time yet.
+     * Distinguishes legitimate dispatcher reopens from CAD-source ClosedFlag
+     * inconsistency (the latter carries no fresh unit activity).
+     *
+     * @param array<string,mixed>|null $existingSnapshot
+     */
+    private function detectReopen(SimpleXMLElement $xml, ?array $existingSnapshot): bool
+    {
+        if ($existingSnapshot === null) {
+            return false;
+        }
+        $existingClose = (string) ($existingSnapshot['close_datetime'] ?? '');
+        if ($existingClose === '') {
+            return false;
+        }
+        // Convert DB datetime ("YYYY-MM-DD HH:MM:SS") to ISO ("YYYY-MM-DDTHH:MM:SS")
+        // for direct string comparison against the XML's AssignedDateTime values.
+        $existingCloseIso = str_replace(' ', 'T', $existingClose);
+
+        foreach ($xml->AssignedUnits->Unit ?? [] as $u) {
+            $clear = trim((string) $u->ClearDateTime);
+            $assigned = trim((string) $u->AssignedDateTime);
+            // ClearDateTime nil yields '' after cast; AssignedDateTime is ISO 8601
+            // with optional Z suffix. Strip Z so the lexicographic compare against
+            // the DB-format-derived ISO string works consistently.
+            $assignedNorm = rtrim($assigned, 'Z');
+            if ($clear === '' && $assignedNorm !== '' && $assignedNorm > $existingCloseIso) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** @return array<string,mixed> */

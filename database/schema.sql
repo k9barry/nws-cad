@@ -24,9 +24,10 @@ CREATE TABLE IF NOT EXISTS calls (
     created_by VARCHAR(100),
     
     -- Status flags
-    closed_flag BOOLEAN DEFAULT FALSE,
+    closed_flag BOOLEAN DEFAULT FALSE COMMENT 'Raw record of latest XML root <ClosedFlag>; not authoritative for open/closed filtering, see close_datetime + reopened_flag',
     canceled_flag BOOLEAN DEFAULT FALSE,
-    
+    reopened_flag BOOLEAN DEFAULT FALSE COMMENT 'Set to 1 when a closed call receives an XML with new unit activity after the close timestamp; distinguishes legitimate reopens from CAD-source ClosedFlag inconsistency',
+
     -- Codes and levels
     alarm_level INT,
     emd_code VARCHAR(50),
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS calls (
     INDEX idx_create_datetime (create_datetime),
     INDEX idx_close_datetime (close_datetime),
     INDEX idx_closed_flag (closed_flag),
+    INDEX idx_reopened_flag (reopened_flag),
     INDEX idx_created_by (created_by)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

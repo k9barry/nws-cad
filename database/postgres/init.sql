@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS calls (
     -- Status flags
     closed_flag BOOLEAN DEFAULT FALSE,
     canceled_flag BOOLEAN DEFAULT FALSE,
-    
+    reopened_flag BOOLEAN DEFAULT FALSE,
+
     -- Codes and levels
     alarm_level INTEGER,
     emd_code VARCHAR(50),
@@ -43,7 +44,10 @@ CREATE INDEX idx_calls_call_number ON calls(call_number);
 CREATE INDEX idx_calls_create_datetime ON calls(create_datetime);
 CREATE INDEX idx_calls_close_datetime ON calls(close_datetime);
 CREATE INDEX idx_calls_closed_flag ON calls(closed_flag);
+CREATE INDEX idx_calls_reopened_flag ON calls(reopened_flag);
 CREATE INDEX idx_calls_created_by ON calls(created_by);
+COMMENT ON COLUMN calls.closed_flag IS 'Raw record of latest XML root <ClosedFlag>; not authoritative for open/closed filtering, see close_datetime + reopened_flag';
+COMMENT ON COLUMN calls.reopened_flag IS 'Set to 1 when a closed call receives an XML with new unit activity after the close timestamp; distinguishes legitimate reopens from CAD-source ClosedFlag inconsistency';
 
 -- ============================================================================
 -- AGENCY CONTEXTS

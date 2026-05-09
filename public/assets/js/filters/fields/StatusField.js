@@ -1,7 +1,7 @@
 // public/assets/js/filters/fields/StatusField.js
 (function (root) {
   'use strict';
-  const STATES = ['open', 'closed', 'canceled'];
+  const STATES = ['open', 'closed', 'reopened', 'canceled'];
   function StatusField() { this.values = []; this.buttons = {}; this.listeners = []; }
   StatusField.prototype.mount = function (rootEl, opts) {
     rootEl.innerHTML = '';

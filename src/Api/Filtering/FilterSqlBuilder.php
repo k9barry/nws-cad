@@ -149,13 +149,20 @@ final class FilterSqlBuilder
             $clauses[] = '(narratives.note LIKE :q_note OR calls.caller_name LIKE :q_caller OR incidents.incident_number LIKE :q_incident)';
         }
 
-        // Status: each selected value becomes a parenthesised clause; multiple OR'd
+        // Status: each selected value becomes a parenthesised clause; multiple OR'd.
+        // open and closed key off close_datetime (not closed_flag) because the
+        // CAD source occasionally sends post-close XMLs with ClosedFlag=false
+        // alongside a populated CloseDateTime; trusting the timestamp matches
+        // operational reality. reopened_flag, set by the parser when a closed
+        // call receives new unit activity, surfaces legitimate reopens under
+        // both open and the dedicated reopened filter.
         if ($f->status !== []) {
             $statusClauses = [];
             foreach ($f->status as $s) {
                 $statusClauses[] = match ($s) {
-                    'open'     => '(calls.closed_flag = 0 AND calls.canceled_flag = 0)',
-                    'closed'   => '(calls.closed_flag = 1 AND calls.canceled_flag = 0)',
+                    'open'     => '(calls.canceled_flag = 0 AND (calls.close_datetime IS NULL OR calls.reopened_flag = 1))',
+                    'closed'   => '(calls.canceled_flag = 0 AND calls.close_datetime IS NOT NULL AND calls.reopened_flag = 0)',
+                    'reopened' => '(calls.canceled_flag = 0 AND calls.reopened_flag = 1)',
                     'canceled' => '(calls.canceled_flag = 1)',
                 };
             }

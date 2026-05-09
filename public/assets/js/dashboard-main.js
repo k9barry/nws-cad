@@ -287,9 +287,7 @@
                     `;
                 } else {
                     tableBody.innerHTML = calls.map((call, index) => {
-                        const statusBadge = call.closed_flag 
-                            ? '<span class="badge bg-success">Closed</span>' 
-                            : '<span class="badge bg-warning text-dark">Open</span>';
+                        const statusBadge = Dashboard.getCallStateBadge(call);
                         
                         const priorityBadge = call.priority 
                             ? `<span class="badge bg-${call.priority === 'High' ? 'danger' : call.priority === 'Medium' ? 'warning' : 'secondary'}">${Dashboard.escapeHtml(call.priority)}</span>`
@@ -313,7 +311,7 @@
                             <tr class="call-row" data-call-id="${call.id}" style="cursor: pointer;">
                                 <td>${Dashboard.escapeHtml(call.call_number || call.id)}</td>
                                 <td><small>${Dashboard.formatTime(call.create_datetime)}</small></td>
-                                <td>${Dashboard.escapeHtml(call.call_types?.[0] || call.nature_of_call || 'Unknown')}</td>
+                                <td>${Dashboard.formatCallTypes(call)}</td>
                                 <td>
                                     <small>${Dashboard.escapeHtml(call.location?.address || call.location?.city || 'No address')}</small>
                                 </td>
@@ -805,7 +803,7 @@
                             <tr><th>Created By:</th><td>${Dashboard.escapeHtml(call.created_by || 'N/A')}</td></tr>
                             <tr><th>Alarm Level:</th><td>${Dashboard.escapeHtml(call.alarm_level || 'N/A')}</td></tr>
                             <tr><th>EMD Code:</th><td>${Dashboard.escapeHtml(call.emd_code || 'N/A')}</td></tr>
-                            <tr><th>Closed:</th><td>${call.closed_flag ? '<span class="badge bg-secondary">Yes</span>' : '<span class="badge bg-success">No</span>'}</td></tr>
+                            <tr><th>Status:</th><td>${Dashboard.getCallStateBadge(call)}</td></tr>
                             <tr><th>Canceled:</th><td>${call.canceled_flag ? '<span class="badge bg-warning">Yes</span>' : '<span class="badge bg-success">No</span>'}</td></tr>
                         </table>
                         
@@ -1168,6 +1166,10 @@
                 return;
             }
 
+            // UI vocabulary 'active' maps to canonical API status 'open'.
+            // Without this translation the API rejects the request (VALID_STATUSES = open|closed|canceled).
+            if (status === 'active') status = 'open';
+
             // Update the panel state
             if (status === 'all') {
                 panel.getState().merge({ status: [] });
@@ -1206,6 +1208,30 @@
             window.location.href = `/${page}`;
         };
         
+        // Heal legacy state where status=active leaked into URL/localStorage from
+        // an earlier build (API only accepts open|closed|canceled).
+        (function migrateLegacyStatus() {
+            const params = new URLSearchParams(window.location.search);
+            const raw = params.get('status');
+            if (raw && raw.split(',').indexOf('active') >= 0) {
+                const fixed = raw.split(',').map(function (s) {
+                    return s.trim() === 'active' ? 'open' : s.trim();
+                }).filter(Boolean);
+                params.set('status', fixed.join(','));
+                window.history.replaceState({}, '', window.location.pathname + '?' + params.toString());
+            }
+            const lastRaw = localStorage.getItem('filter-panel:last-state');
+            if (lastRaw) {
+                try {
+                    const last = JSON.parse(lastRaw);
+                    if (Array.isArray(last.status) && last.status.indexOf('active') >= 0) {
+                        last.status = last.status.map(function (s) { return s === 'active' ? 'open' : s; });
+                        localStorage.setItem('filter-panel:last-state', JSON.stringify(last));
+                    }
+                } catch (_) { /* ignore corrupt entry */ }
+            }
+        })();
+
         // Pre-populate URL with sensible defaults (today + open) when there's
         // no existing URL state and no saved state. This is the dispatcher's
         // most common view — start there instead of an empty filter set.
@@ -1325,12 +1351,15 @@ window.zoomToCallOnMap = async function(callId, latitude, longitude) {
         const timeEl = document.getElementById('map-modal-time');
         
         if (titleEl) titleEl.textContent = `Call #${call.call_number || callId}`;
-        if (typeEl) typeEl.textContent = call.call_types?.[0] || call.nature_of_call || 'Unknown';
+        if (typeEl) {
+            // textContent for the unescaped fallback path; use innerText only via the
+            // helper which escapes. Set via textContent of joined string for safety.
+            const types = Array.isArray(call.call_types) ? call.call_types.filter(Boolean) : [];
+            typeEl.textContent = types.length ? types.join(' / ') : (call.nature_of_call || 'Unknown');
+        }
         if (addressEl) addressEl.textContent = call.location?.address || call.location?.city || 'No address';
         if (priorityEl) priorityEl.innerHTML = Dashboard.getPriorityBadge(call.agency_contexts?.[0]?.priority || call.priority || 'Normal');
-        if (statusEl) statusEl.innerHTML = call.closed_flag 
-            ? '<span class="badge bg-success">Closed</span>' 
-            : '<span class="badge bg-warning text-dark">Open</span>';
+        if (statusEl) statusEl.innerHTML = Dashboard.getCallStateBadge(call);
         if (timeEl) timeEl.textContent = Dashboard.formatDateTime(call.create_datetime);
         
         console.log('[Dashboard Main] Modal content updated');

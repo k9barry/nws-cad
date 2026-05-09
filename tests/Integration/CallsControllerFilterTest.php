@@ -63,8 +63,36 @@ final class CallsControllerFilterTest extends TestCase
     {
         $_GET = ['status' => 'open'];
         $body = $this->callIndex();
-        // Among seeded rows, 2 are open (closed_flag=0 AND canceled_flag=0)
-        $this->assertCount(2, $body['data']['items']);
+        // Open under the new semantics: canceled_flag=0 AND (close_datetime IS NULL OR reopened_flag=1).
+        // Seeded rows include c1 (open), c4 (open), and c5 (reopened) — 3 total.
+        // c2 (closed with timestamp) and c3 (canceled) are excluded.
+        $this->assertCount(3, $body['data']['items']);
+    }
+
+    public function testFiltersByStatusClosed(): void
+    {
+        $_GET = ['status' => 'closed'];
+        $body = $this->callIndex();
+        // Closed: canceled_flag=0 AND close_datetime IS NOT NULL AND reopened_flag=0.
+        // Only c2 qualifies; c5 has close_datetime but reopened_flag=1.
+        $this->assertCount(1, $body['data']['items']);
+        $this->assertSame('P2', $body['data']['items'][0]['call_number']);
+    }
+
+    public function testFiltersByStatusReopened(): void
+    {
+        $_GET = ['status' => 'reopened'];
+        $body = $this->callIndex();
+        $this->assertCount(1, $body['data']['items']);
+        $this->assertSame('R1', $body['data']['items'][0]['call_number']);
+    }
+
+    public function testFiltersByStatusCanceled(): void
+    {
+        $_GET = ['status' => 'canceled'];
+        $body = $this->callIndex();
+        $this->assertCount(1, $body['data']['items']);
+        $this->assertSame('F1', $body['data']['items'][0]['call_number']);
     }
 
     public function testFiltersByDateRange(): void
@@ -111,10 +139,16 @@ final class CallsControllerFilterTest extends TestCase
             return (int) $db->lastInsertId();
         };
 
-        $c1 = $insert($db, ['call_id' => 901, 'call_number' => 'P1', 'create_datetime' => '2026-05-02 10:00:00', 'closed_flag' => 0, 'canceled_flag' => 0]);
-        $c2 = $insert($db, ['call_id' => 902, 'call_number' => 'P2', 'create_datetime' => '2026-05-03 10:00:00', 'closed_flag' => 1, 'canceled_flag' => 0]);
-        $c3 = $insert($db, ['call_id' => 903, 'call_number' => 'F1', 'create_datetime' => '2026-05-04 10:00:00', 'closed_flag' => 0, 'canceled_flag' => 1]);
-        $c4 = $insert($db, ['call_id' => 904, 'call_number' => 'E1', 'create_datetime' => '2026-05-05 10:00:00', 'closed_flag' => 0, 'canceled_flag' => 0]);
+        // c1: open (no close_datetime)
+        // c2: closed (close_datetime set, reopened_flag = 0)
+        // c3: canceled
+        // c4: open (no close_datetime)
+        // c5: reopened (close_datetime set AND reopened_flag = 1) — counts as "open" too
+        $c1 = $insert($db, ['call_id' => 901, 'call_number' => 'P1', 'create_datetime' => '2026-05-02 10:00:00', 'closed_flag' => 0, 'canceled_flag' => 0, 'reopened_flag' => 0, 'close_datetime' => null]);
+        $c2 = $insert($db, ['call_id' => 902, 'call_number' => 'P2', 'create_datetime' => '2026-05-03 10:00:00', 'closed_flag' => 1, 'canceled_flag' => 0, 'reopened_flag' => 0, 'close_datetime' => '2026-05-03 12:00:00']);
+        $c3 = $insert($db, ['call_id' => 903, 'call_number' => 'F1', 'create_datetime' => '2026-05-04 10:00:00', 'closed_flag' => 0, 'canceled_flag' => 1, 'reopened_flag' => 0, 'close_datetime' => null]);
+        $c4 = $insert($db, ['call_id' => 904, 'call_number' => 'E1', 'create_datetime' => '2026-05-05 10:00:00', 'closed_flag' => 0, 'canceled_flag' => 0, 'reopened_flag' => 0, 'close_datetime' => null]);
+        $c5 = $insert($db, ['call_id' => 905, 'call_number' => 'R1', 'create_datetime' => '2026-05-06 10:00:00', 'closed_flag' => 0, 'canceled_flag' => 0, 'reopened_flag' => 1, 'close_datetime' => '2026-05-06 11:00:00']);
 
         $db->prepare('INSERT INTO agency_contexts (call_id, agency_type, call_type, fdid) VALUES (?, ?, ?, ?)')
             ->execute([$c1, 'Pendleton Police', 'Police', null]);
@@ -124,6 +158,8 @@ final class CallsControllerFilterTest extends TestCase
             ->execute([$c3, 'Edgewood Fire', 'Fire', '48013']);
         $db->prepare('INSERT INTO agency_contexts (call_id, agency_type, call_type, fdid) VALUES (?, ?, ?, ?)')
             ->execute([$c4, 'Madison EMS', 'EMS', null]);
+        $db->prepare('INSERT INTO agency_contexts (call_id, agency_type, call_type, fdid) VALUES (?, ?, ?, ?)')
+            ->execute([$c5, 'Madison EMS', 'EMS', null]);
 
         $db->prepare('INSERT INTO locations (call_id, full_address, city, police_ori) VALUES (?, ?, ?, ?)')
             ->execute([$c1, '1 Main', 'Pendleton', 'IN0480000']);
@@ -133,5 +169,7 @@ final class CallsControllerFilterTest extends TestCase
             ->execute([$c3, '3 Main', 'Edgewood']);
         $db->prepare('INSERT INTO locations (call_id, full_address, city) VALUES (?, ?, ?)')
             ->execute([$c4, '4 Main', 'Madison']);
+        $db->prepare('INSERT INTO locations (call_id, full_address, city) VALUES (?, ?, ?)')
+            ->execute([$c5, '5 Main', 'Madison']);
     }
 }

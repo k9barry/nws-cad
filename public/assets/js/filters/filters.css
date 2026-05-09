@@ -109,9 +109,10 @@
   background: #e7f1ff;
   border-color: #cfe2ff;
 }
-#filter-summary .summary-chip--status-open    { color: #0f5132; background: #d1e7dd; border-color: #badbcc; }
-#filter-summary .summary-chip--status-closed  { color: #495057; background: #e9ecef; border-color: #dee2e6; }
-#filter-summary .summary-chip--status-canceled{ color: #842029; background: #f8d7da; border-color: #f5c2c7; }
+#filter-summary .summary-chip--status-open     { color: #0f5132; background: #d1e7dd; border-color: #badbcc; }
+#filter-summary .summary-chip--status-closed   { color: #495057; background: #e9ecef; border-color: #dee2e6; }
+#filter-summary .summary-chip--status-reopened { color: #842029; background: #fff3cd; border-color: #ffe69c; }
+#filter-summary .summary-chip--status-canceled { color: #842029; background: #f8d7da; border-color: #f5c2c7; }
 
 /* ------------------------------------------------------------------ */
 /* Filter panel core                                                    */
