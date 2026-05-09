@@ -384,31 +384,31 @@
             const totalEl = document.getElementById('calls-total');
             
             if (!container || !pagination) return;
-            
+
             const total = pagination.total || 0;
             const currentPage = pagination.current_page || currentCallsPage;
             const totalPages = pagination.total_pages || totalCallsPages;
             const perPage = pagination.per_page || callsPerPage;
-            
-            // Show pagination only if there's more than one page
-            if (totalPages > 1) {
-                container.style.display = 'flex';
-                
-                // Update page info
-                const start = (currentPage - 1) * perPage + 1;
-                const end = Math.min(currentPage * perPage, total);
-                
-                showingStart.textContent = start;
-                showingEnd.textContent = end;
-                totalEl.textContent = total;
-                pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
-                
-                // Update button states
-                prevBtn.disabled = currentPage <= 1;
-                nextBtn.disabled = currentPage >= totalPages;
-            } else {
-                container.style.display = 'none';
-            }
+
+            // Always keep the count text current. Previously these only updated
+            // when totalPages > 1, so the static "0-0 of 0" from the HTML stayed
+            // in the DOM whenever the result fit on one page — surfacing as
+            // "Showing 0 of 0 calls" the moment any code path made the container
+            // visible (or read the values directly).
+            const start = total === 0 ? 0 : (currentPage - 1) * perPage + 1;
+            const end   = Math.min(currentPage * perPage, total);
+            if (showingStart) showingStart.textContent = start;
+            if (showingEnd)   showingEnd.textContent   = end;
+            if (totalEl)      totalEl.textContent      = total;
+            if (pageInfo)     pageInfo.textContent     = `Page ${currentPage} of ${Math.max(totalPages, 1)}`;
+            if (prevBtn)      prevBtn.disabled         = currentPage <= 1;
+            if (nextBtn)      nextBtn.disabled         = currentPage >= totalPages;
+
+            // Show pagination controls only when there's more than one page;
+            // when there's just one (or none), we still want the result count
+            // visible to the user, so show the container whenever there are
+            // results at all.
+            container.style.display = total > 0 ? 'flex' : 'none';
         }
         
         /**

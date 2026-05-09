@@ -104,12 +104,16 @@ class StatsController
         $stmt->execute($params);
         $totalCalls = (int)$stmt->fetchColumn();
 
-        // Calls by status
+        // Calls by status. Mirrors FilterSqlBuilder's open/closed/reopened/canceled
+        // semantics: close_datetime + reopened_flag are authoritative; closed_flag
+        // is only the raw record of the latest XML and may disagree with reality
+        // when CAD sends post-close updates.
         $querySql = "
             SELECT
                 CASE
                     WHEN MAX(calls.canceled_flag) = 1 THEN 'canceled'
-                    WHEN MAX(calls.closed_flag) = 1 THEN 'closed'
+                    WHEN MAX(calls.reopened_flag) = 1 THEN 'reopened'
+                    WHEN MAX(calls.close_datetime) IS NOT NULL THEN 'closed'
                     ELSE 'open'
                 END as status,
                 COUNT(DISTINCT calls.id) as count
@@ -121,11 +125,14 @@ class StatsController
         $stmt = $this->db->prepare($querySql);
         $stmt->execute($params);
 
-        // Count by status
-        $statusCounts = ['open' => 0, 'closed' => 0, 'canceled' => 0];
+        // Count by status. 'open' for the active stat card includes both
+        // never-closed and reopened calls so it agrees with the dashboard's
+        // "open" filter value (canceled=0 AND (close_datetime IS NULL OR reopened=1)).
+        $statusCounts = ['open' => 0, 'closed' => 0, 'reopened' => 0, 'canceled' => 0];
         foreach ($stmt->fetchAll() as $row) {
             $statusCounts[$row['status']] = ($statusCounts[$row['status']] ?? 0) + 1;
         }
+        $statusCounts['open'] += $statusCounts['reopened'];
         $byStatus = $statusCounts;
 
         // Top call types from agency_contexts.
@@ -313,12 +320,13 @@ class StatsController
             $stmt->execute($params);
             $totalCalls = (int)$stmt->fetchColumn();
 
-            // Calls by status
+            // Calls by status. Same semantics as the primary index() endpoint.
             $querySql = "
                 SELECT
                     CASE
                         WHEN MAX(calls.canceled_flag) = 1 THEN 'Canceled'
-                        WHEN MAX(calls.closed_flag) = 1 THEN 'Closed'
+                        WHEN MAX(calls.reopened_flag) = 1 THEN 'Reopened'
+                        WHEN MAX(calls.close_datetime) IS NOT NULL THEN 'Closed'
                         ELSE 'Open'
                     END as status,
                     COUNT(DISTINCT calls.id) as count
@@ -434,10 +442,13 @@ class StatsController
             $stmt->execute($byDateParams);
             $byDate = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-            // Average call duration (for closed calls only)
+            // Average call duration (for closed calls only). Use close_datetime
+            // and reopened_flag to identify closed calls; closed_flag is no
+            // longer authoritative since the parser writes whatever the latest
+            // XML carries (see FilterSqlBuilder).
             $durationClauses = $whereClause !== ''
-                ? $whereClause . ' AND calls.closed_flag = 1 AND calls.close_datetime IS NOT NULL'
-                : 'WHERE calls.closed_flag = 1 AND calls.close_datetime IS NOT NULL';
+                ? $whereClause . ' AND calls.close_datetime IS NOT NULL AND calls.reopened_flag = 0'
+                : 'WHERE calls.close_datetime IS NOT NULL AND calls.reopened_flag = 0';
 
             $timestampDiff = DbHelper::timestampDiff('MINUTE', 'calls.create_datetime', 'calls.close_datetime');
             $querySql = "
