@@ -47,46 +47,76 @@ class CallsController
             $allowedSort = ['create_datetime', 'close_datetime', 'call_number'];
             $sortField   = in_array($sorting['sort'], $allowedSort, true) ? $sorting['sort'] : 'create_datetime';
 
-            // We always pull location columns for the response DTO (map markers, table
-            // address column, "zoom to map" button), so declare locations as already-joined
-            // to keep FilterSqlBuilder from emitting a duplicate JOIN when a location-
-            // targeting filter (city/beat/area/ori/location) is active.
+            // FilterSqlBuilder will add `LEFT JOIN locations` only when a filter
+            // actually targets a location column (city/beat/area/ori/location).
+            // The detail query below adds it unconditionally to populate the
+            // response DTO; for COUNT and the page-of-IDs query we only want it
+            // when the filter forced it, otherwise we'd scan the JOIN result for
+            // no reason.
             $builder = new \NwsCad\Api\Filtering\FilterSqlBuilder();
             $sql     = $builder->build(
                 $criteria,
-                new \NwsCad\Api\Filtering\FilterContext('calls', ['calls', 'locations'])
+                new \NwsCad\Api\Filtering\FilterContext('calls', ['calls'])
             );
 
             $locationsJoin = 'LEFT JOIN locations ON locations.call_id = calls.id';
 
-            // Count
+            // Count: only joins from filters that actually filter rows. The
+            // locations join is excluded here unless a location-targeting filter
+            // requested it (FilterSqlBuilder will include it in $sql->joins in that
+            // case via the FilterContext already-joined hint), which keeps COUNT
+            // from inflating from the LEFT JOIN.
             $countSql  = 'SELECT COUNT(DISTINCT calls.id) FROM calls '
-                . $locationsJoin . ' '
                 . implode(' ', $sql->joins) . ' '
                 . $sql->whereClause;
             $countStmt = $this->db->prepare($countSql);
             $countStmt->execute($sql->params);
             $total = (int) $countStmt->fetchColumn();
 
-            // Page
-            $offset  = ($pagination['page'] - 1) * $pagination['per_page'];
-            $listSql = 'SELECT DISTINCT calls.*, '
-                . 'locations.full_address, locations.city, locations.state, '
-                . 'locations.latitude_y, locations.longitude_x '
-                . 'FROM calls '
-                . $locationsJoin . ' '
+            // Page — two-step query for performance. The single-step
+            // SELECT DISTINCT calls.*, locations.* ... ORDER BY ... LIMIT
+            // forces MySQL into a temp table + filesort over the entire JOIN
+            // result before applying LIMIT (full table scan on calls). Splitting
+            // into (1) get the page of IDs from the indexed calls table and
+            // (2) fetch detail rows by primary key keeps the index range scan
+            // efficient and the JOIN bounded to per_page rows.
+            // GROUP BY (rather than DISTINCT) so ORDER BY can reference
+            // calls.create_datetime without violating only_full_group_by — the
+            // grouping is by primary key, so create_datetime is functionally
+            // dependent and MySQL's "Functional Dependencies" rule allows the
+            // ORDER BY. Filter joins (agency_contexts, units, incidents) can
+            // produce duplicate calls.id rows; GROUP BY collapses them.
+            $offset = ($pagination['page'] - 1) * $pagination['per_page'];
+            $idSql  = 'SELECT calls.id FROM calls '
                 . implode(' ', $sql->joins) . ' '
                 . $sql->whereClause
-                . " ORDER BY calls.{$sortField} {$sorting['order']}"
+                . ' GROUP BY calls.id'
+                . " ORDER BY calls.{$sortField} {$sorting['order']}, calls.id {$sorting['order']}"
                 . ' LIMIT :limit OFFSET :offset';
-            $stmt = $this->db->prepare($listSql);
+            $idStmt = $this->db->prepare($idSql);
             foreach ($sql->params as $k => $v) {
-                $stmt->bindValue(':' . $k, $v);
+                $idStmt->bindValue(':' . $k, $v);
             }
-            $stmt->bindValue(':limit', $pagination['per_page'], PDO::PARAM_INT);
-            $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-            $stmt->execute();
-            $rows = $stmt->fetchAll();
+            $idStmt->bindValue(':limit', $pagination['per_page'], PDO::PARAM_INT);
+            $idStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+            $idStmt->execute();
+            $ids = array_map('intval', $idStmt->fetchAll(PDO::FETCH_COLUMN));
+
+            if ($ids === []) {
+                $rows = [];
+            } else {
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                $listSql = 'SELECT calls.*, '
+                    . 'locations.full_address, locations.city, locations.state, '
+                    . 'locations.latitude_y, locations.longitude_x '
+                    . 'FROM calls '
+                    . $locationsJoin
+                    . " WHERE calls.id IN ({$placeholders})"
+                    . " ORDER BY calls.{$sortField} {$sorting['order']}, calls.id {$sorting['order']}";
+                $stmt = $this->db->prepare($listSql);
+                $stmt->execute($ids);
+                $rows = $stmt->fetchAll();
+            }
 
             $related = !empty($rows)
                 ? $this->getRelatedDataBatch(array_column($rows, 'id'))
