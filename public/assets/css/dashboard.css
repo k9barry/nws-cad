@@ -180,6 +180,17 @@ span.navbar-text i.bi.bi-circle-fill.pulse::before,
 .dashboard-row-fill {
     flex: 1;
     min-height: 0;
+    margin-bottom: 0;
+}
+
+/* Tighten outer spacing on the dashboard so the row reaches close to the footer. */
+body:has(.dashboard-row-fill) > main {
+    padding-top: 1rem;
+    padding-bottom: 0.5rem;
+}
+
+body:has(.dashboard-row-fill) > footer {
+    margin-top: 0;
 }
 
 .dashboard-right-col {
