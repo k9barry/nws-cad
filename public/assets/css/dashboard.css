@@ -18,6 +18,18 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     background-color: #f5f7fa;
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Sticky-footer pattern: <main> grows to fill space between navbar and footer
+   so dashboard-row-fill can flex-grow into a definite height instead of
+   guessing a viewport offset. */
+body > main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 /* Navbar */
@@ -164,15 +176,10 @@ span.navbar-text i.bi.bi-circle-fill.pulse::before,
     min-height: 400px;
 }
 
-/* Dashboard map+stats row fills the viewport down to (approximately) the footer.
-   Offset accounts for navbar, dashboard header, footer, and surrounding paddings.
-   Tweak --dashboard-row-offset to fine-tune. */
-:root {
-    --dashboard-row-offset: 280px;
-}
-
+/* Dashboard map+stats row grows to fill the flex-sized <main>. */
 .dashboard-row-fill {
-    min-height: calc(100vh - var(--dashboard-row-offset));
+    flex: 1;
+    min-height: 0;
 }
 
 .dashboard-right-col {
