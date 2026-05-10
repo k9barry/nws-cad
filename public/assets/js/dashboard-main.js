@@ -763,6 +763,7 @@
                     loadCharts()
                 ]);
                 setDashboardLivePill('live');
+                updateFilterSummary();
                 console.log('[Dashboard Main] === Refresh complete ===');
             } catch (error) {
                 setDashboardLivePill('error');
