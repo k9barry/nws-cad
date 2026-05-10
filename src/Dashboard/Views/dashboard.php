@@ -1,25 +1,22 @@
 <!-- Main Dashboard View - Modular Structure -->
 
-<!-- Dashboard Header with Filter Controls (Right-aligned) -->
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center">
-            <h1 class="display-6 mb-0">
-                <i class="bi bi-speedometer2"></i> Dashboard Control Center
-            </h1>
-            <div class="d-flex align-items-center gap-3">
-                <div>
-                    <i class="bi bi-funnel me-2"></i>
-                    <span class="text-muted">Active Filters: </span>
-                    <span id="filter-summary" class="fw-bold">Today, Open</span>
-                </div>
-                <button type="button" class="btn btn-outline-primary btn-sm"
-                        data-bs-toggle="offcanvas" data-bs-target="#filter-drawer"
-                        aria-controls="filter-drawer">
-                    <i class="bi bi-sliders"></i> Filters
-                </button>
-            </div>
-        </div>
+<!-- Dashboard Header (gradient banner) -->
+<div class="dashboard-banner d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div>
+        <h2><i class="bi bi-speedometer2"></i> Dashboard Control Center</h2>
+        <div class="subtitle">Live call data &middot; refreshes every <span id="dashboard-poll-secs">30</span>s</div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span class="live-pill" id="dashboard-live-pill">
+            <span class="dot"></span>
+            <span id="dashboard-live-text">Live</span>
+        </span>
+        <span class="pill-badge is-info" id="filter-summary-badge">Today, Open</span>
+        <button type="button" class="btn btn-sm btn-light"
+                data-bs-toggle="offcanvas" data-bs-target="#filter-drawer"
+                aria-controls="filter-drawer">
+            <i class="bi bi-sliders"></i> Filters
+        </button>
     </div>
 </div>
 

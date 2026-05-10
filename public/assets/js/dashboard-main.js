@@ -95,7 +95,7 @@
          * Update filter summary display
          */
         function updateFilterSummary() {
-            const summaryEl = document.getElementById('filter-summary');
+            const summaryEl = document.getElementById('filter-summary-badge');
             if (!summaryEl || !panel) return;
 
             const vals = panel.getState().snapshot();
