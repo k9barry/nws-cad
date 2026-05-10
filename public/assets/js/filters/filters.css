@@ -86,13 +86,13 @@
 }
 
 /* Active filters summary text in header */
-#filter-summary {
+#filter-summary-badge {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 0.35rem;
   align-items: center;
 }
-#filter-summary .summary-chip {
+#filter-summary-badge .summary-chip {
   display: inline-flex;
   align-items: center;
   padding: 0.15rem 0.6rem;
@@ -104,15 +104,15 @@
   border-radius: 999px;
   white-space: nowrap;
 }
-#filter-summary .summary-chip--accent {
+#filter-summary-badge .summary-chip--accent {
   color: #0a58ca;
   background: #e7f1ff;
   border-color: #cfe2ff;
 }
-#filter-summary .summary-chip--status-open     { color: #0f5132; background: #d1e7dd; border-color: #badbcc; }
-#filter-summary .summary-chip--status-closed   { color: #495057; background: #e9ecef; border-color: #dee2e6; }
-#filter-summary .summary-chip--status-reopened { color: #842029; background: #fff3cd; border-color: #ffe69c; }
-#filter-summary .summary-chip--status-canceled { color: #842029; background: #f8d7da; border-color: #f5c2c7; }
+#filter-summary-badge .summary-chip--status-open     { color: #0f5132; background: #d1e7dd; border-color: #badbcc; }
+#filter-summary-badge .summary-chip--status-closed   { color: #495057; background: #e9ecef; border-color: #dee2e6; }
+#filter-summary-badge .summary-chip--status-reopened { color: #842029; background: #fff3cd; border-color: #ffe69c; }
+#filter-summary-badge .summary-chip--status-canceled { color: #842029; background: #f8d7da; border-color: #f5c2c7; }
 
 /* ------------------------------------------------------------------ */
 /* Filter panel core                                                    */
