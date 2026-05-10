@@ -146,6 +146,27 @@
 
             // Update count badge on the Filters button
             updateFilterCountBadge(chips.length);
+
+            // Mirror the summary text into per-stat-card pills. Active Calls
+            // is special-cased: when its numeric value > 0, show a green
+            // "Live" pill instead.
+            const summaryText = summaryEl ? summaryEl.textContent : '';
+            ['stat-total-pill', 'stat-closed-pill', 'stat-analytics-pill'].forEach(function (id) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = summaryText;
+            });
+            const activePill = document.getElementById('stat-active-pill');
+            if (activePill) {
+                const activeValEl = document.getElementById('stat-active-calls');
+                const activeVal = activeValEl ? parseInt(activeValEl.textContent, 10) : NaN;
+                if (Number.isFinite(activeVal) && activeVal > 0) {
+                    activePill.textContent = 'Live';
+                    activePill.classList.add('is-active');
+                } else {
+                    activePill.textContent = summaryText;
+                    activePill.classList.remove('is-active');
+                }
+            }
         }
 
         function updateFilterCountBadge(count) {
