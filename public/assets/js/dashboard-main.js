@@ -321,11 +321,16 @@
                     `;
                 } else {
                     tableBody.innerHTML = calls.map((call, index) => {
-                        const statusBadge = Dashboard.getCallStateBadge(call);
-                        
-                        const priorityBadge = call.priority 
-                            ? `<span class="badge bg-${call.priority === 'High' ? 'danger' : call.priority === 'Medium' ? 'warning' : 'secondary'}">${Dashboard.escapeHtml(call.priority)}</span>`
-                            : '<span class="badge bg-secondary">Normal</span>';
+                        const callState = Dashboard.getCallState(call); // 'open' | 'closed' | 'reopened' | 'canceled'
+                        const stateLabel = callState.charAt(0).toUpperCase() + callState.slice(1);
+                        const stateClass = (callState === 'closed' || callState === 'canceled') ? 'is-closed' : 'is-active';
+                        const statusBadge = `<span class="pill-badge ${stateClass}">${Dashboard.escapeHtml(stateLabel)}</span>`;
+
+                        const priorityKey = (call.priority || 'Normal');
+                        const priorityClass = priorityKey === 'High'
+                            ? 'is-priority-1'
+                            : (priorityKey === 'Medium' ? 'is-priority-2' : 'is-priority-3');
+                        const priorityBadge = `<span class="pill-badge ${priorityClass}">${Dashboard.escapeHtml(priorityKey)}</span>`;
                         
                         // Check if call has valid coordinates for zoom
                         const lat = call.location?.coordinates?.lat;
