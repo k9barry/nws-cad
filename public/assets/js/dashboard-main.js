@@ -65,6 +65,23 @@
         // Initialize map
         let map = null;
         const previousCallIds = new Set();
+
+        function setDashboardLivePill(state) {
+            const pill = document.getElementById('dashboard-live-pill');
+            const text = document.getElementById('dashboard-live-text');
+            if (!pill || !text) return;
+            pill.classList.remove('is-paused', 'is-error');
+            if (state === 'error') {
+                pill.classList.add('is-error');
+                text.textContent = 'Connection error';
+            } else if (state === 'paused') {
+                pill.classList.add('is-paused');
+                text.textContent = 'Paused';
+            } else {
+                text.textContent = 'Live';
+            }
+        }
+
         if (managers.MapManager) {
             try {
                 const mapEl = document.getElementById('calls-map');
@@ -745,8 +762,10 @@
                     loadCallsMap(),
                     loadCharts()
                 ]);
+                setDashboardLivePill('live');
                 console.log('[Dashboard Main] === Refresh complete ===');
             } catch (error) {
+                setDashboardLivePill('error');
                 console.error('[Dashboard Main] Refresh error:', error);
             }
         }
