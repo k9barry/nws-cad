@@ -574,3 +574,125 @@ footer a:hover {
     animation: fadeIn 0.3s ease-in;
 }
 Timestamp: Wed Jan 28 01:35:28 UTC 2026
+
+/* === Dashboard prettify components (mirrors notifications page palette) === */
+.dashboard-banner {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%);
+    color: #fff;
+    border-radius: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
+}
+.dashboard-banner h2 { margin: 0; font-weight: 600; }
+.dashboard-banner .subtitle { opacity: 0.85; font-size: 0.9rem; margin-top: 0.25rem; }
+.dashboard-banner .btn-light {
+    background: rgba(255, 255, 255, 0.95);
+    border: none;
+}
+
+/* Live status pill — same shape as .notif-live-pill but reusable */
+.live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 999px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #fff;
+}
+.live-pill .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+    animation: live-pulse 1.6s infinite;
+}
+.live-pill.is-paused .dot { background: #94a3b8; animation: none; box-shadow: none; }
+.live-pill.is-error  .dot { background: #f87171; animation: none; box-shadow: none; }
+@keyframes live-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7); }
+    70%  { box-shadow: 0 0 0 10px rgba(52, 211, 153, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
+
+/* Reusable pill-shaped status / priority / context badge */
+.pill-badge {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: #e2e8f0;
+    color: #475569;
+}
+.pill-badge.is-info       { background: rgba(255, 255, 255, 0.22); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3); }
+.pill-badge.is-priority-1 { background: #fee2e2; color: #991b1b; }
+.pill-badge.is-priority-2 { background: #ffedd5; color: #9a3412; }
+.pill-badge.is-priority-3 { background: #e0f2fe; color: #075985; }
+.pill-badge.is-active     { background: #d1fae5; color: #065f46; }
+.pill-badge.is-closed     { background: #e2e8f0; color: #475569; }
+
+/* Gradient card header strip — applied to map + Recent Calls cards */
+.gradient-card-header {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+    color: #fff;
+    border-bottom: none !important;
+    border-radius: 12px 12px 0 0 !important;
+}
+.gradient-card-header .card-title,
+.gradient-card-header h5,
+.gradient-card-header small { color: #fff !important; }
+.gradient-card-header .text-muted { color: rgba(255, 255, 255, 0.75) !important; }
+
+/* Modernized stat cards — gradient icon tile + top accent strip */
+.stat-card-v2 {
+    border: none;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.stat-card-v2::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+}
+.stat-card-v2:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+}
+.stat-card-v2 .stat-icon {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+.stat-card-v2 h2 { font-size: 2rem; font-weight: 700; }
+.stat-card-v2 h6 { font-size: 0.8rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+
+.stat-card-v2.is-total::before    { background: linear-gradient(90deg, #2563eb, #4f46e5); }
+.stat-card-v2.is-total    .stat-icon { background: linear-gradient(135deg, #2563eb, #4f46e5); }
+.stat-card-v2.is-active::before   { background: linear-gradient(90deg, #ef4444, #db2777); }
+.stat-card-v2.is-active   .stat-icon { background: linear-gradient(135deg, #ef4444, #db2777); }
+.stat-card-v2.is-closed::before   { background: linear-gradient(90deg, #475569, #1e293b); }
+.stat-card-v2.is-closed   .stat-icon { background: linear-gradient(135deg, #475569, #1e293b); }
+.stat-card-v2.is-analytics::before{ background: linear-gradient(90deg, #f59e0b, #db2777); }
+.stat-card-v2.is-analytics .stat-icon { background: linear-gradient(135deg, #f59e0b, #db2777); }
+
+/* Recent Calls row flash on insert */
+.recent-calls-card tbody tr.row-new {
+    animation: row-flash 1.2s ease;
+}
+@keyframes row-flash {
+    0%   { background-color: #fef9c3; }
+    100% { background-color: transparent; }
+}
