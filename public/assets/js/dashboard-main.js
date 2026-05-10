@@ -64,6 +64,7 @@
         
         // Initialize map
         let map = null;
+        const previousCallIds = new Set();
         if (managers.MapManager) {
             try {
                 const mapEl = document.getElementById('calls-map');
@@ -382,6 +383,17 @@
                             </tr>
                         `;
                     }).join('');
+                    // Mark rows whose ID wasn't in the previous render so they flash.
+                    const currentIds = new Set();
+                    calls.forEach(function (c) { currentIds.add(String(c.id)); });
+                    tableBody.querySelectorAll('tr.call-row').forEach(function (tr) {
+                        const id = tr.getAttribute('data-call-id');
+                        if (id && !previousCallIds.has(id)) {
+                            tr.classList.add('row-new');
+                        }
+                    });
+                    previousCallIds.clear();
+                    currentIds.forEach(function (id) { previousCallIds.add(id); });
                 }
                 
                 console.log('[Dashboard Main] Calls table rendered:', calls.length);
