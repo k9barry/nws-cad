@@ -19,7 +19,7 @@
         <!-- Statistics Cards - 2x2 Grid -->
         <div class="row mb-4" id="stats-cards">
             <div class="col-md-6 col-sm-6 mb-3">
-                <div class="card stat-card border-primary clickable-stat" data-bs-toggle="modal" data-bs-target="#filters-modal" style="cursor: pointer;">
+                <div class="card stat-card-v2 is-total clickable-stat" data-bs-toggle="modal" data-bs-target="#filters-modal" style="cursor: pointer;">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
@@ -27,8 +27,9 @@
                                 <h2 class="mb-0" id="stat-total-calls">
                                     <span class="spinner-border spinner-border-sm"></span>
                                 </h2>
+                                <span class="pill-badge mt-1 d-inline-block" id="stat-total-pill">&nbsp;</span>
                             </div>
-                            <div class="stat-icon bg-primary">
+                            <div class="stat-icon">
                                 <i class="bi bi-funnel"></i>
                             </div>
                         </div>
@@ -37,7 +38,7 @@
             </div>
             
             <div class="col-md-6 col-sm-6 mb-3">
-                <div class="card stat-card border-danger clickable-stat" onclick="filterDashboard('active')" style="cursor: pointer;">
+                <div class="card stat-card-v2 is-active clickable-stat" onclick="filterDashboard('active')" style="cursor: pointer;">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
@@ -45,8 +46,9 @@
                                 <h2 class="mb-0 text-danger" id="stat-active-calls">
                                     <span class="spinner-border spinner-border-sm"></span>
                                 </h2>
+                                <span class="pill-badge mt-1 d-inline-block" id="stat-active-pill">&nbsp;</span>
                             </div>
-                            <div class="stat-icon bg-danger">
+                            <div class="stat-icon">
                                 <i class="bi bi-telephone-fill"></i>
                             </div>
                         </div>
@@ -55,7 +57,7 @@
             </div>
             
             <div class="col-md-6 col-sm-6 mb-3">
-                <div class="card stat-card border-secondary clickable-stat" onclick="filterDashboard('closed')" style="cursor: pointer;">
+                <div class="card stat-card-v2 is-closed clickable-stat" onclick="filterDashboard('closed')" style="cursor: pointer;">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
@@ -63,8 +65,9 @@
                                 <h2 class="mb-0" id="stat-closed-calls">
                                     <span class="spinner-border spinner-border-sm"></span>
                                 </h2>
+                                <span class="pill-badge mt-1 d-inline-block" id="stat-closed-pill">&nbsp;</span>
                             </div>
-                            <div class="stat-icon bg-secondary">
+                            <div class="stat-icon">
                                 <i class="bi bi-check-circle"></i>
                             </div>
                         </div>
@@ -73,7 +76,7 @@
             </div>
             
             <div class="col-md-6 col-sm-6 mb-3">
-                <div class="card stat-card border-warning clickable-stat" data-bs-toggle="modal" data-bs-target="#analytics-modal" style="cursor: pointer;">
+                <div class="card stat-card-v2 is-analytics clickable-stat" data-bs-toggle="modal" data-bs-target="#analytics-modal" style="cursor: pointer;">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
@@ -81,8 +84,9 @@
                                 <h2 class="mb-0" style="font-size: 1.2rem;">
                                     <i class="bi bi-graph-up"></i> View Charts
                                 </h2>
+                                <span class="pill-badge mt-1 d-inline-block" id="stat-analytics-pill">&nbsp;</span>
                             </div>
-                            <div class="stat-icon bg-warning">
+                            <div class="stat-icon">
                                 <i class="bi bi-bar-chart-fill"></i>
                             </div>
                         </div>
