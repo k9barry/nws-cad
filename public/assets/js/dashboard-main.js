@@ -495,6 +495,11 @@
                         if (mapElement) {
                             console.log('[Dashboard Main] Showing', callsWithLoc.length, 'calls on map');
                             MapManager.showCalls('calls-map', callsWithLoc);
+                            const markerCountEl = document.getElementById('map-marker-count');
+                            if (markerCountEl) {
+                                const n = callsWithLoc.length;
+                                markerCountEl.textContent = n + ' marker' + (n === 1 ? '' : 's');
+                            }
                             console.log('[Dashboard Main] Map updated and centered on calls');
                         } else {
                             console.warn('[Dashboard Main] calls-map element not found');

@@ -3,10 +3,11 @@
     <!-- Madison County Map (40% width) -->
     <div class="col-lg-5 mb-3">
         <div class="card map-column-card">
-            <div class="card-header bg-white">
+            <div class="card-header gradient-card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">
                     <i class="bi bi-geo-alt"></i> Madison County Map
                 </h5>
+                <span class="pill-badge is-info" id="map-marker-count">0 markers</span>
             </div>
             <div class="card-body p-0">
                 <div id="calls-map"></div>
@@ -97,11 +98,11 @@
         
         <!-- Recent Calls Table (Below Stats Cards) -->
         <div class="card recent-calls-card">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <div class="card-header gradient-card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">
                     <i class="bi bi-list-ul"></i> <span id="recent-calls-title">Recent Calls</span>
                 </h5>
-                <small class="text-muted">Last updated: <span id="last-updated">Never</span></small>
+                <small>Last updated: <span id="last-updated">Never</span></small>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive recent-calls-scroll">
