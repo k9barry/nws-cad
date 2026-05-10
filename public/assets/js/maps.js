@@ -11,7 +11,7 @@ const MapManager = {
      * Initialize a map
      * Default center: Madison County, Indiana (40.1184° N, 85.6900° W)
      */
-    initMap(containerId, center = null, zoom = 10.5) {
+    initMap(containerId, center = null, zoom = 11.5) {
         // Use configured center or default to Madison County, Indiana
         center = center || window.MAP_DEFAULT_CENTER || [40.1184, -85.6900];
         if (this.maps[containerId]) {
@@ -29,7 +29,7 @@ const MapManager = {
         const map = L.map(containerId, {
             maxBounds: madisonCountyBounds,
             maxBoundsViscosity: 1.0,  // Makes bounds "hard" - prevents dragging outside
-            minZoom: 10.5,             // Minimum zoom level (fractional)
+            minZoom: 11,               // Minimum zoom level (fractional)
             maxZoom: 21,               // Allow zooming in close for street detail
             zoomSnap: 0.5,             // Allow half-level zoom increments
             zoomDelta: 0.5             // Zoom by 0.5 levels when using controls
@@ -229,7 +229,7 @@ const MapManager = {
             console.log('[MapManager] Bounds:', bounds);
             
             if (bounds.isValid()) {
-                this.maps[containerId].fitBounds(bounds, { padding: [50, 50] });
+                this.maps[containerId].fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
                 console.log('[MapManager] Map fitted to bounds successfully');
             } else {
                 console.error('[MapManager] Invalid bounds');

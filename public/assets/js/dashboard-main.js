@@ -341,7 +341,9 @@
                     tableBody.innerHTML = calls.map((call, index) => {
                         const callState = Dashboard.getCallState(call); // 'open' | 'closed' | 'reopened' | 'canceled'
                         const stateLabel = callState.charAt(0).toUpperCase() + callState.slice(1);
-                        const stateClass = (callState === 'closed' || callState === 'canceled') ? 'is-closed' : 'is-active';
+                        const stateClass = callState === 'reopened'
+                            ? 'is-reopened'
+                            : ((callState === 'closed' || callState === 'canceled') ? 'is-closed' : 'is-active');
                         const statusBadge = `<span class="pill-badge ${stateClass}">${Dashboard.escapeHtml(stateLabel)}</span>`;
 
                         const priorityKey = (call.priority || 'Normal');

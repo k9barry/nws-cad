@@ -635,6 +635,7 @@ Timestamp: Wed Jan 28 01:35:28 UTC 2026
 .pill-badge.is-priority-2 { background: #ffedd5; color: #9a3412; }
 .pill-badge.is-priority-3 { background: #e0f2fe; color: #075985; }
 .pill-badge.is-active     { background: #d1fae5; color: #065f46; }
+.pill-badge.is-reopened   { background: #fef3c7; color: #92400e; }
 .pill-badge.is-closed     { background: #e2e8f0; color: #475569; }
 
 /* Gradient card header strip — applied to map + Recent Calls cards */
