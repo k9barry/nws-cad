@@ -591,7 +591,7 @@ Timestamp: Wed Jan 28 01:35:28 UTC 2026
     border: none;
 }
 
-/* Live status pill — same shape as .notif-live-pill but reusable */
+/* Live status pill — reusable across dashboard, notifications, and analytics */
 .live-pill {
     display: inline-flex;
     align-items: center;
@@ -697,14 +697,16 @@ Timestamp: Wed Jan 28 01:35:28 UTC 2026
 .stat-card-v2.is-success::before  { background: linear-gradient(90deg, #10b981, #059669); }
 .stat-card-v2.is-success  .stat-icon { background: linear-gradient(135deg, #10b981, #059669); }
 
-/* Analytics modal — gradient header & body backdrop to match dashboard */
+/* Analytics modal — same gradient header palette as .dashboard-banner */
 .analytics-modal-header {
     background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%) !important;
     color: #fff !important;
     border-bottom: none !important;
+    padding: 1rem 1.5rem;
     box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
 }
-.analytics-modal-header .modal-title { color: #fff; font-weight: 600; }
+.analytics-modal-header .modal-title { color: #fff; font-weight: 600; margin: 0; }
+.analytics-modal-header .subtitle { opacity: 0.85; font-size: 0.85rem; margin-top: 0.15rem; }
 .analytics-modal-header .btn-close { filter: brightness(0) invert(1); opacity: 0.85; }
 .analytics-modal-header .btn-close:hover { opacity: 1; }
 #analytics-modal .modal-body { background: #f8fafc; }

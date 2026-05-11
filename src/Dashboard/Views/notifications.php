@@ -5,49 +5,16 @@ declare(strict_types=1);
 /** @var bool $isMobile */
 ?>
 <style>
-/* === Notifications page palette & polish === */
-.notif-header {
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%);
-    color: #fff;
-    border-radius: 0.75rem;
-    padding: 1.25rem 1.5rem;
-    margin-bottom: 1rem;
-    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
-}
-.notif-header h2 { margin: 0; font-weight: 600; }
-.notif-header .subtitle { opacity: 0.85; font-size: 0.9rem; margin-top: 0.25rem; }
-.notif-live-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    background: rgba(255,255,255,0.18);
-    border: 1px solid rgba(255,255,255,0.3);
-    border-radius: 999px;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.8rem;
-    font-weight: 500;
-}
-.notif-live-pill .dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #34d399;
-    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
-    animation: notif-pulse 1.6s infinite;
-}
-.notif-live-pill.is-paused .dot { background: #94a3b8; animation: none; box-shadow: none; }
-.notif-live-pill.is-error .dot { background: #f87171; animation: none; box-shadow: none; }
-@keyframes notif-pulse {
-    0%   { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7); }
-    70%  { box-shadow: 0 0 0 10px rgba(52, 211, 153, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
-}
+/* === Notifications page polish (banner/live-pill come from dashboard.css) === */
 
-/* Channel cards */
+/* Channel cards — gradient header strip mirrors the dashboard's stat cards */
 .channel-card {
     border: none;
     border-radius: 0.75rem;
     overflow: hidden;
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
+    height: 100%;
 }
 .channel-card:hover {
     transform: translateY(-2px);
@@ -55,10 +22,11 @@ declare(strict_types=1);
 }
 .channel-card .card-header {
     border-bottom: none;
-    padding: 0.85rem 1.1rem;
+    padding: 0.65rem 0.95rem;
     color: #fff;
     background: linear-gradient(135deg, #475569, #1e293b);
 }
+.channel-card .card-body { padding: 0.75rem 0.95rem; }
 .channel-card[data-type="ntfy"] .card-header {
     background: linear-gradient(135deg, #2563eb, #4f46e5);
 }
@@ -92,9 +60,13 @@ declare(strict_types=1);
 .channel-state-badge.is-off { background: #e2e8f0; color: #475569; }
 
 /* Log entries */
+.channel-log {
+    max-height: 320px;
+    overflow-y: auto;
+}
 .channel-log .list-group-item {
     border-left: 4px solid transparent;
-    padding: 0.55rem 0.75rem;
+    padding: 0.5rem 0.65rem;
     transition: background 0.15s ease;
 }
 .channel-log .list-group-item.row-success {
@@ -154,13 +126,13 @@ declare(strict_types=1);
 .clear-failed-btn { font-size: 0.75rem; }
 </style>
 
-<div class="notif-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+<div class="dashboard-banner d-flex justify-content-between align-items-center flex-wrap gap-2">
     <div>
         <h2><i class="bi bi-bell-fill"></i> Notifications</h2>
         <div class="subtitle">Live channel status &middot; updates every <span id="notif-poll-secs">5</span>s</div>
     </div>
     <div class="d-flex align-items-center gap-2">
-        <span class="notif-live-pill" id="notif-live-pill">
+        <span class="live-pill" id="notif-live-pill">
             <span class="dot"></span>
             <span id="notif-live-text">Live</span>
         </span>

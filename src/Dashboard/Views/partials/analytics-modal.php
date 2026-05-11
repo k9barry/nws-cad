@@ -7,9 +7,7 @@
                     <h5 class="modal-title" id="analyticsModalLabel">
                         <i class="bi bi-graph-up"></i> Analytics &amp; Reports
                     </h5>
-                    <div class="subtitle" style="opacity: 0.85; font-size: 0.85rem; margin-top: 0.15rem;">
-                        Insights across calls, units, and response performance
-                    </div>
+                    <div class="subtitle">Insights across calls, units, and response performance</div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
