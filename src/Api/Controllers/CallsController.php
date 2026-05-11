@@ -122,10 +122,18 @@ class CallsController
                 ? $this->getRelatedDataBatch(array_column($rows, 'id'))
                 : [];
 
-            $items = array_map(function (array $row) use ($related) {
+            // Compute the stale-open cutoff once and reuse across all mapped
+            // rows. is_stale is true iff the row WOULD be open or reopened
+            // without the guardrail but its create_datetime predates the
+            // cutoff. Client-side badges read this to render the call as
+            // closed even though close_datetime is NULL.
+            $staleCutoff = \NwsCad\Api\Filtering\FilterSqlBuilder::staleCutoff();
+
+            $items = array_map(function (array $row) use ($related, $staleCutoff) {
                 $id  = (int) $row['id'];
                 $lat = $row['latitude_y']  ?? null;
                 $lng = $row['longitude_x'] ?? null;
+                $isStale = \NwsCad\Api\Filtering\FilterSqlBuilder::isStaleRow($row, $staleCutoff);
                 return [
                     'id'              => $id,
                     'call_id'         => (int) $row['call_id'],
@@ -142,6 +150,7 @@ class CallsController
                     'closed_flag'     => (bool) $row['closed_flag'],
                     'canceled_flag'   => (bool) $row['canceled_flag'],
                     'reopened_flag'   => (bool) ($row['reopened_flag'] ?? false),
+                    'is_stale'        => $isStale,
                     'alarm_level'     => $row['alarm_level'] !== null ? (int) $row['alarm_level'] : null,
                     'emd_code'        => $row['emd_code'],
                     'location'        => [
@@ -263,6 +272,8 @@ class CallsController
                 'created_by' => $call['created_by'],
                 'closed_flag' => (bool)$call['closed_flag'],
                 'canceled_flag' => (bool)$call['canceled_flag'],
+                'reopened_flag' => (bool)($call['reopened_flag'] ?? false),
+                'is_stale' => \NwsCad\Api\Filtering\FilterSqlBuilder::isStaleRow($call),
                 'alarm_level' => $call['alarm_level'] ? (int)$call['alarm_level'] : null,
                 'emd_code' => $call['emd_code'],
                 'location' => [

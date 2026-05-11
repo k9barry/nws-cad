@@ -75,6 +75,13 @@ class Config
             'notifications' => [
                 'delta_seconds' => (int) $this->env('NOTIFICATION_DELTA_SECONDS', '900'),
             ],
+            'calls' => [
+                // Guardrail: after this many hours since create_datetime, an
+                // otherwise-open call is reclassified as closed everywhere we
+                // derive status in SQL (FilterSqlBuilder, StatsController) and
+                // surfaced to JS via is_stale on call rows.
+                'stale_open_hours' => (int) $this->env('STALE_OPEN_CALL_HOURS', '72'),
+            ],
         ];
     }
 

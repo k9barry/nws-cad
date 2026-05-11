@@ -95,9 +95,52 @@ final class CallsControllerFilterTest extends TestCase
         $this->assertSame('F1', $body['data']['items'][0]['call_number']);
     }
 
+    public function testStaleOpenCallSurfacesUnderClosedFilterWithIsStale(): void
+    {
+        // Plant one extra row that's older than the 72h guardrail and never
+        // got a close_datetime. The server-side filter should put it in
+        // status=closed and the response should carry is_stale=true so the
+        // client-side badge can render correctly.
+        $db = Database::getConnection();
+        $db->prepare("INSERT INTO calls (call_id, call_number, create_datetime, closed_flag, canceled_flag, reopened_flag, close_datetime)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)")
+            ->execute([999, 'STALE1', (new \DateTimeImmutable('-100 hours'))->format('Y-m-d H:i:s'),
+                       0, 0, 0, null]);
+
+        $_GET = ['status' => 'closed'];
+        $body = $this->callIndex();
+        $callNumbers = array_column($body['data']['items'], 'call_number');
+        $this->assertContains('STALE1', $callNumbers, 'stale-open row must surface under status=closed');
+
+        $stale = current(array_filter(
+            $body['data']['items'],
+            fn($r) => $r['call_number'] === 'STALE1'
+        ));
+        $this->assertTrue($stale['is_stale'], 'stale row must carry is_stale=true so the JS badge demotes it');
+
+        $real = current(array_filter(
+            $body['data']['items'],
+            fn($r) => $r['call_number'] === 'P2'
+        ));
+        $this->assertFalse($real['is_stale'], 'legitimately-closed row must NOT be marked is_stale');
+    }
+
+    public function testIsStaleFalseForFreshOpenCall(): void
+    {
+        $_GET = ['call_id' => 'P1']; // c1 — fresh open call (2h old)
+        $body = $this->callIndex();
+        $this->assertCount(1, $body['data']['items']);
+        $this->assertFalse(
+            $body['data']['items'][0]['is_stale'],
+            'fresh open call (within 72h) must have is_stale=false'
+        );
+    }
+
     public function testFiltersByDateRange(): void
     {
-        $_GET = ['from' => '2026-05-01', 'to' => '2026-05-08'];
+        $today = (new \DateTimeImmutable('today'))->format('Y-m-d');
+        $yesterday = (new \DateTimeImmutable('yesterday'))->format('Y-m-d');
+        $_GET = ['from' => $yesterday, 'to' => $today];
         $body = $this->callIndex();
         $this->assertGreaterThan(0, count($body['data']['items']));
     }
@@ -131,7 +174,10 @@ final class CallsControllerFilterTest extends TestCase
         $db->exec('DELETE FROM locations');
         $db->exec('DELETE FROM calls');
 
-        // Two Police calls (one open, one closed), one Fire call (canceled), one EMS call (open)
+        // Two Police calls (one open, one closed), one Fire call (canceled), one EMS call (open).
+        // Timestamps are NOW-relative so the 72h stale-open guardrail in
+        // FilterSqlBuilder doesn't reclassify "open"-seeded rows as stale-closed
+        // when this test suite is run far from any single calendar date.
         $insert = static function (\PDO $db, array $cols): int {
             $names = implode(',', array_keys($cols));
             $ph    = ':' . implode(',:', array_keys($cols));
@@ -139,16 +185,19 @@ final class CallsControllerFilterTest extends TestCase
             return (int) $db->lastInsertId();
         };
 
-        // c1: open (no close_datetime)
-        // c2: closed (close_datetime set, reopened_flag = 0)
-        // c3: canceled
-        // c4: open (no close_datetime)
-        // c5: reopened (close_datetime set AND reopened_flag = 1) — counts as "open" too
-        $c1 = $insert($db, ['call_id' => 901, 'call_number' => 'P1', 'create_datetime' => '2026-05-02 10:00:00', 'closed_flag' => 0, 'canceled_flag' => 0, 'reopened_flag' => 0, 'close_datetime' => null]);
-        $c2 = $insert($db, ['call_id' => 902, 'call_number' => 'P2', 'create_datetime' => '2026-05-03 10:00:00', 'closed_flag' => 1, 'canceled_flag' => 0, 'reopened_flag' => 0, 'close_datetime' => '2026-05-03 12:00:00']);
-        $c3 = $insert($db, ['call_id' => 903, 'call_number' => 'F1', 'create_datetime' => '2026-05-04 10:00:00', 'closed_flag' => 0, 'canceled_flag' => 1, 'reopened_flag' => 0, 'close_datetime' => null]);
-        $c4 = $insert($db, ['call_id' => 904, 'call_number' => 'E1', 'create_datetime' => '2026-05-05 10:00:00', 'closed_flag' => 0, 'canceled_flag' => 0, 'reopened_flag' => 0, 'close_datetime' => null]);
-        $c5 = $insert($db, ['call_id' => 905, 'call_number' => 'R1', 'create_datetime' => '2026-05-06 10:00:00', 'closed_flag' => 0, 'canceled_flag' => 0, 'reopened_flag' => 1, 'close_datetime' => '2026-05-06 11:00:00']);
+        $t = static fn(string $rel): string =>
+            (new \DateTimeImmutable($rel))->format('Y-m-d H:i:s');
+
+        // c1: open  (no close_datetime,        2h old — well within 72h window)
+        // c2: closed (close_datetime set,      2h old, reopened_flag = 0)
+        // c3: canceled                          (2h old)
+        // c4: open  (no close_datetime,        3h old)
+        // c5: reopened (close_datetime set AND reopened_flag = 1, 3h old) — counts as "open" too
+        $c1 = $insert($db, ['call_id' => 901, 'call_number' => 'P1', 'create_datetime' => $t('-2 hours'),  'closed_flag' => 0, 'canceled_flag' => 0, 'reopened_flag' => 0, 'close_datetime' => null]);
+        $c2 = $insert($db, ['call_id' => 902, 'call_number' => 'P2', 'create_datetime' => $t('-2 hours'),  'closed_flag' => 1, 'canceled_flag' => 0, 'reopened_flag' => 0, 'close_datetime' => $t('-1 hour')]);
+        $c3 = $insert($db, ['call_id' => 903, 'call_number' => 'F1', 'create_datetime' => $t('-2 hours'),  'closed_flag' => 0, 'canceled_flag' => 1, 'reopened_flag' => 0, 'close_datetime' => null]);
+        $c4 = $insert($db, ['call_id' => 904, 'call_number' => 'E1', 'create_datetime' => $t('-3 hours'),  'closed_flag' => 0, 'canceled_flag' => 0, 'reopened_flag' => 0, 'close_datetime' => null]);
+        $c5 = $insert($db, ['call_id' => 905, 'call_number' => 'R1', 'create_datetime' => $t('-3 hours'),  'closed_flag' => 0, 'canceled_flag' => 0, 'reopened_flag' => 1, 'close_datetime' => $t('-2 hours')]);
 
         $db->prepare('INSERT INTO agency_contexts (call_id, agency_type, call_type, fdid) VALUES (?, ?, ?, ?)')
             ->execute([$c1, 'Pendleton Police', 'Police', null]);

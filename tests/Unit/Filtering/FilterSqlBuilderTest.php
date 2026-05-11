@@ -17,6 +17,8 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Api\Filtering\FilterRegistry
  * @uses \NwsCad\Api\Filtering\InvalidFilterException
  * @uses \NwsCad\Api\Filtering\SqlFragment
+ * @uses \NwsCad\Config
+ * @uses \NwsCad\Logging\SecretRegistry
  */
 final class FilterSqlBuilderTest extends TestCase
 {
@@ -58,9 +60,11 @@ final class FilterSqlBuilderTest extends TestCase
     {
         [$where] = $this->build(['status' => 'open']);
         // Open is canceled=0 AND (close_datetime IS NULL OR reopened_flag = 1)
+        // AND not stale (create_datetime within the 72h guardrail window).
         $this->assertStringContainsString('calls.canceled_flag = 0', $where);
         $this->assertStringContainsString('calls.close_datetime IS NULL', $where);
         $this->assertStringContainsString('calls.reopened_flag = 1', $where);
+        $this->assertStringContainsString('calls.create_datetime >= :stale_cutoff', $where);
         // Authoritative open/closed signal is no longer closed_flag
         $this->assertStringNotContainsString('closed_flag = 0', $where);
     }
@@ -68,23 +72,52 @@ final class FilterSqlBuilderTest extends TestCase
     public function testStatusClosedRequiresCloseDatetimeAndNotReopened(): void
     {
         [$where] = $this->build(['status' => 'closed']);
+        // closed = legitimately closed OR stale (older than guardrail window).
         $this->assertStringContainsString('calls.close_datetime IS NOT NULL', $where);
         $this->assertStringContainsString('calls.reopened_flag = 0', $where);
         $this->assertStringContainsString('calls.canceled_flag = 0', $where);
+        $this->assertStringContainsString('calls.create_datetime < :stale_cutoff', $where);
         $this->assertStringNotContainsString('closed_flag = 1', $where);
     }
 
     public function testStatusReopenedFiltersOnReopenedFlag(): void
     {
         [$where] = $this->build(['status' => 'reopened']);
+        // reopened is "open with a reopen": must still be within the guardrail window.
         $this->assertStringContainsString('calls.reopened_flag = 1', $where);
         $this->assertStringContainsString('calls.canceled_flag = 0', $where);
+        $this->assertStringContainsString('calls.create_datetime >= :stale_cutoff', $where);
     }
 
     public function testStatusCanceledUnchanged(): void
     {
         [$where] = $this->build(['status' => 'canceled']);
         $this->assertStringContainsString('calls.canceled_flag = 1', $where);
+    }
+
+    public function testStatusBindsStaleCutoffParamForOpen(): void
+    {
+        [, $params] = $this->build(['status' => 'open']);
+        $this->assertArrayHasKey('stale_cutoff', $params);
+        // Format is ISO Y-m-d H:i:s so MySQL/Postgres both parse it without
+        // INTERVAL-syntax differences.
+        $this->assertMatchesRegularExpression(
+            '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/',
+            $params['stale_cutoff']
+        );
+    }
+
+    public function testStatusCanceledOnlyDoesNotBindStaleCutoff(): void
+    {
+        [, $params] = $this->build(['status' => 'canceled']);
+        // canceled has no stale concept — it never references create_datetime.
+        $this->assertArrayNotHasKey('stale_cutoff', $params);
+    }
+
+    public function testNoStatusFilterDoesNotBindStaleCutoff(): void
+    {
+        [, $params] = $this->build(['call_type' => 'Police']);
+        $this->assertArrayNotHasKey('stale_cutoff', $params);
     }
 
     public function testStatusInvalidValueRejected(): void
@@ -101,6 +134,9 @@ final class FilterSqlBuilderTest extends TestCase
             '/\(.*close_datetime IS NULL.*reopened_flag = 1.*\) OR \(.*close_datetime IS NOT NULL.*reopened_flag = 0.*\)/s',
             $where
         );
+        // And the stale guardrail predicate appears on both sides
+        $this->assertStringContainsString('calls.create_datetime >= :stale_cutoff', $where);
+        $this->assertStringContainsString('calls.create_datetime < :stale_cutoff', $where);
     }
 
     public function testDateRangeBindsFromAndTo(): void

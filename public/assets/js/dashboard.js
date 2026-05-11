@@ -512,11 +512,16 @@ const Dashboard = {
      * Api\Filtering\FilterSqlBuilder so the badge agrees with the filter that
      * decides which calls are visible.
      *
+     * is_stale (set server-side when create_datetime predates the 72h guardrail
+     * cutoff) wins over reopened/open so a stale row badges as closed, matching
+     * the filter that put it in the closed bucket in the first place.
+     *
      * @param {Object} call - API calls list item
      * @returns {'open'|'closed'|'reopened'|'canceled'}
      */
     getCallState(call) {
         if (call.canceled_flag) return 'canceled';
+        if (call.is_stale) return 'closed';
         if (call.reopened_flag) return 'reopened';
         if (call.close_datetime) return 'closed';
         return 'open';

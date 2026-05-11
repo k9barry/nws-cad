@@ -100,11 +100,16 @@ final class UnitsControllerFilterTest extends TestCase
             return (int) $db->lastInsertId();
         };
 
+        // NOW-relative timestamps so the 72h stale-open guardrail doesn't
+        // reclassify the seeded "open" call as stale-closed.
+        $t = static fn(string $rel): string =>
+            (new \DateTimeImmutable($rel))->format('Y-m-d H:i:s');
+
         // Open Pendleton Police call with two units
         $c1 = $insert($db, 'calls', [
             'call_id'       => 801,
             'call_number'   => 'P1',
-            'create_datetime' => '2026-05-02 10:00:00',
+            'create_datetime' => $t('-2 hours'),
             'closed_flag'   => 0,
             'canceled_flag' => 0,
         ]);
@@ -112,16 +117,16 @@ final class UnitsControllerFilterTest extends TestCase
             ->execute([$c1, 'Pendleton Police', 'Police']);
         $db->prepare('INSERT INTO locations (call_id, full_address, city) VALUES (?, ?, ?)')
             ->execute([$c1, '1 Main St', 'Pendleton']);
-        $insert($db, 'units', ['call_id' => $c1, 'unit_number' => '41', 'unit_type' => 'Patrol', 'assigned_datetime' => '2026-05-02 10:01:00']);
-        $insert($db, 'units', ['call_id' => $c1, 'unit_number' => '42', 'unit_type' => 'Patrol', 'assigned_datetime' => '2026-05-02 10:02:00']);
+        $insert($db, 'units', ['call_id' => $c1, 'unit_number' => '41', 'unit_type' => 'Patrol', 'assigned_datetime' => $t('-2 hours')]);
+        $insert($db, 'units', ['call_id' => $c1, 'unit_number' => '42', 'unit_type' => 'Patrol', 'assigned_datetime' => $t('-2 hours')]);
 
         // Closed EMS call with one unit. status=open filter keys off close_datetime
         // (not closed_flag) since closed_flag is only the raw record of the latest XML.
         $c2 = $insert($db, 'calls', [
             'call_id'       => 802,
             'call_number'   => 'E1',
-            'create_datetime' => '2026-05-03 10:00:00',
-            'close_datetime' => '2026-05-03 12:00:00',
+            'create_datetime' => $t('-2 hours'),
+            'close_datetime' => $t('-1 hour'),
             'closed_flag'   => 1,
             'canceled_flag' => 0,
         ]);
@@ -129,6 +134,6 @@ final class UnitsControllerFilterTest extends TestCase
             ->execute([$c2, 'Madison EMS', 'EMS']);
         $db->prepare('INSERT INTO locations (call_id, full_address, city) VALUES (?, ?, ?)')
             ->execute([$c2, '5 Oak Ave', 'Madison']);
-        $insert($db, 'units', ['call_id' => $c2, 'unit_number' => '43', 'unit_type' => 'Ambulance', 'assigned_datetime' => '2026-05-03 10:01:00']);
+        $insert($db, 'units', ['call_id' => $c2, 'unit_number' => '43', 'unit_type' => 'Ambulance', 'assigned_datetime' => $t('-2 hours')]);
     }
 }

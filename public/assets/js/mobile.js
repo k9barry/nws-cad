@@ -264,9 +264,9 @@ const MobileDashboard = {
         const priority = Array.isArray(call.priorities) ? call.priorities[0] : '';
         const locationText = call.location?.address || call.location?.city || 'No location';
         
-        // Use closed_flag like desktop
-        const statusBadge = call.closed_flag 
-            ? '<span class="badge bg-success">Closed</span>' 
+        // closed_flag OR is_stale (72h guardrail set server-side) both demote to Closed.
+        const statusBadge = (call.closed_flag || call.is_stale)
+            ? '<span class="badge bg-success">Closed</span>'
             : '<span class="badge bg-warning text-dark">Open</span>';
         
         const callId = parseInt(call.id, 10);
@@ -444,7 +444,7 @@ const MobileDashboard = {
                 new Date(b.created_datetime) - new Date(a.created_datetime)
             );
             latestPriority = sortedContexts[0].priority || 'N/A';
-            latestStatus = sortedContexts[0].status || (call.closed_flag ? 'Closed' : 'Open');
+            latestStatus = sortedContexts[0].status || ((call.closed_flag || call.is_stale) ? 'Closed' : 'Open');
             callType = sortedContexts[0].call_type || call.nature_of_call || 'Unknown';
         }
         
@@ -554,7 +554,7 @@ const MobileDashboard = {
                 <div class="mobile-detail-row">
                     <span class="mobile-detail-label">Status</span>
                     <span class="mobile-detail-value">
-                        <span class="badge ${call.closed_flag ? 'bg-success' : 'bg-warning text-dark'}">${this.escapeHtml(status)}</span>
+                        <span class="badge ${(call.closed_flag || call.is_stale) ? 'bg-success' : 'bg-warning text-dark'}">${this.escapeHtml(status)}</span>
                     </span>
                 </div>
                 <div class="mobile-detail-row">
@@ -1295,7 +1295,7 @@ const MobileMaps = {
                     || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
                 
                 const callType = Array.isArray(call.call_types) ? call.call_types[0] : 'Unknown';
-                const statusBadge = call.closed_flag ? 'Closed' : 'Open';
+                const statusBadge = (call.closed_flag || call.is_stale) ? 'Closed' : 'Open';
                 const locationText = call.location?.address || 'No location';
                 const callNumber = call.call_number || call.call_id;
                 const callId = parseInt(call.id, 10);
@@ -1310,7 +1310,7 @@ const MobileMaps = {
                             <i class="bi bi-geo-alt"></i> ${MobileDashboard.escapeHtml(locationText)}
                         </div>
                         <div style="margin-bottom: 8px;">
-                            <span class="badge ${call.closed_flag ? 'bg-success' : 'bg-warning text-dark'}">${statusBadge}</span>
+                            <span class="badge ${(call.closed_flag || call.is_stale) ? 'bg-success' : 'bg-warning text-dark'}">${statusBadge}</span>
                         </div>
                         <button 
                             class="btn btn-primary btn-sm w-100" 

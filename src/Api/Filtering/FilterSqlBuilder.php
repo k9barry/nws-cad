@@ -3,8 +3,52 @@ declare(strict_types=1);
 
 namespace NwsCad\Api\Filtering;
 
+use DateTimeImmutable;
+use NwsCad\Config;
+
 final class FilterSqlBuilder
 {
+    /**
+     * Stale-open guardrail cutoff. A call older than this is reclassified as
+     * `closed` even if its raw row has `close_datetime IS NULL`. Returned as
+     * an ISO `Y-m-d H:i:s` string so it binds cleanly under both MySQL and
+     * PostgreSQL without per-driver INTERVAL syntax.
+     *
+     * Shared with StatsController so the SQL CASE expressions and WHERE
+     * clauses there use the same cutoff as the status filter here.
+     */
+    public static function staleCutoff(): string
+    {
+        $hours = (int) Config::getInstance()->get('calls.stale_open_hours', 72);
+        if ($hours <= 0) {
+            $hours = 72;
+        }
+        return (new DateTimeImmutable("-{$hours} hours"))->format('Y-m-d H:i:s');
+    }
+
+    /**
+     * Mirror of the SQL stale-open predicate for one already-fetched call row.
+     * True iff the row WOULD be classified `open` or `reopened` (canceled=0
+     * and either no close_datetime or reopened_flag=1) but its create_datetime
+     * is older than the guardrail cutoff. Controllers surface this as the
+     * `is_stale` field so client-side badges agree with the server filter.
+     */
+    public static function isStaleRow(array $row, ?string $staleCutoff = null): bool
+    {
+        $cutoff = $staleCutoff ?? self::staleCutoff();
+        if ((int) ($row['canceled_flag'] ?? 0) === 1) {
+            return false;
+        }
+        $create = (string) ($row['create_datetime'] ?? '');
+        if ($create === '' || $create >= $cutoff) {
+            return false;
+        }
+        $hasClose = ($row['close_datetime'] ?? null) !== null;
+        $reopened = (int) ($row['reopened_flag'] ?? 0) === 1;
+        return !$hasClose || $reopened;
+    }
+
+
     public function build(FilterCriteria $f, FilterContext $ctx): SqlFragment
     {
         $clauses = [];
@@ -156,17 +200,28 @@ final class FilterSqlBuilder
         // operational reality. reopened_flag, set by the parser when a closed
         // call receives new unit activity, surfaces legitimate reopens under
         // both open and the dedicated reopened filter.
+        //
+        // Stale-open guardrail: a call that would otherwise be `open` or
+        // `reopened` but whose create_datetime predates :stale_cutoff is
+        // reclassified as `closed` here so old, never-formally-closed CAD
+        // records stop polluting the open queues. See StaleCutoff::staleCutoff().
         if ($f->status !== []) {
             $statusClauses = [];
             foreach ($f->status as $s) {
                 $statusClauses[] = match ($s) {
-                    'open'     => '(calls.canceled_flag = 0 AND (calls.close_datetime IS NULL OR calls.reopened_flag = 1))',
-                    'closed'   => '(calls.canceled_flag = 0 AND calls.close_datetime IS NOT NULL AND calls.reopened_flag = 0)',
-                    'reopened' => '(calls.canceled_flag = 0 AND calls.reopened_flag = 1)',
+                    'open'     => '(calls.canceled_flag = 0 AND (calls.close_datetime IS NULL OR calls.reopened_flag = 1) AND calls.create_datetime >= :stale_cutoff)',
+                    'closed'   => '(calls.canceled_flag = 0 AND ((calls.close_datetime IS NOT NULL AND calls.reopened_flag = 0) OR calls.create_datetime < :stale_cutoff))',
+                    'reopened' => '(calls.canceled_flag = 0 AND calls.reopened_flag = 1 AND calls.create_datetime >= :stale_cutoff)',
                     'canceled' => '(calls.canceled_flag = 1)',
                 };
             }
             $clauses[] = '(' . implode(' OR ', $statusClauses) . ')';
+
+            // Bind the stale cutoff only when at least one selected status
+            // arm references it. A `canceled`-only filter doesn't need it.
+            if (array_intersect($f->status, ['open', 'closed', 'reopened']) !== []) {
+                $params['stale_cutoff'] = self::staleCutoff();
+            }
         }
 
         return new SqlFragment(

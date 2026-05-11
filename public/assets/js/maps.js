@@ -167,7 +167,7 @@ const MapManager = {
         // Extract first values from arrays if available
         const callType = call.call_types?.[0] || call.call_type || call.nature_of_call || 'N/A';
         const priority = call.priorities?.[0] || call.priority || 'Normal';
-        const status = call.statuses?.[0] || call.status || (call.closed_flag ? 'Closed' : 'Active');
+        const status = call.statuses?.[0] || call.status || ((call.closed_flag || call.is_stale) ? 'Closed' : 'Active');
         const time = call.create_datetime || call.received_time || call.created_at || 'N/A';
         
         return `

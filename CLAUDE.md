@@ -161,6 +161,7 @@ After `AegisXmlParser::processFile()` commits, it dispatches a `CallProcessedEve
 | `WATCHER_INTERVAL` (seconds) | File-watcher poll interval |
 | `LOG_LEVEL`, `APP_ENV` | Logging and environment selection |
 | `NOTIFICATION_DELTA_SECONDS` (default 900) | Delta-time gate for the notification dispatcher |
+| `STALE_OPEN_CALL_HOURS` (default 72) | Guardrail: a call open this many hours since `create_datetime` is reclassified as closed in SQL status filters, stats counts, and dashboard badges (via `is_stale` on API rows). Raw rows are not mutated. |
 | `NTFY_AUTH_TOKEN`, `NTFY_BASE_URL` | Required when an `ntfy` channel is enabled |
 | `PUSHOVER_TOKEN`, `PUSHOVER_USER`, `PUSHOVER_BASE_URL` | Required when a `pushover` channel is enabled |
 

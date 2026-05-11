@@ -108,10 +108,17 @@ class StatsController
         // semantics: close_datetime + reopened_flag are authoritative; closed_flag
         // is only the raw record of the latest XML and may disagree with reality
         // when CAD sends post-close updates.
+        //
+        // Stale-open guardrail: a non-canceled, non-formally-closed call whose
+        // create_datetime predates :stale_cutoff is reclassified as `closed`
+        // so old, never-closed CAD records stop inflating the open count.
+        $staleCutoff = FilterSqlBuilder::staleCutoff();
+        $statusParams = $params + ['stale_cutoff' => $staleCutoff];
         $querySql = "
             SELECT
                 CASE
                     WHEN MAX(calls.canceled_flag) = 1 THEN 'canceled'
+                    WHEN MAX(calls.create_datetime) < :stale_cutoff THEN 'closed'
                     WHEN MAX(calls.reopened_flag) = 1 THEN 'reopened'
                     WHEN MAX(calls.close_datetime) IS NOT NULL THEN 'closed'
                     ELSE 'open'
@@ -123,7 +130,7 @@ class StatsController
             GROUP BY calls.id
         ";
         $stmt = $this->db->prepare($querySql);
-        $stmt->execute($params);
+        $stmt->execute($statusParams);
 
         // Count by status. 'open' for the active stat card includes both
         // never-closed and reopened calls so it agrees with the dashboard's
@@ -320,11 +327,15 @@ class StatsController
             $stmt->execute($params);
             $totalCalls = (int)$stmt->fetchColumn();
 
-            // Calls by status. Same semantics as the primary index() endpoint.
+            // Calls by status. Same semantics as the primary index() endpoint,
+            // including the 72h stale-open guardrail.
+            $staleCutoff = FilterSqlBuilder::staleCutoff();
+            $statusParams = $params + ['stale_cutoff' => $staleCutoff];
             $querySql = "
                 SELECT
                     CASE
                         WHEN MAX(calls.canceled_flag) = 1 THEN 'Canceled'
+                        WHEN MAX(calls.create_datetime) < :stale_cutoff THEN 'Closed'
                         WHEN MAX(calls.reopened_flag) = 1 THEN 'Reopened'
                         WHEN MAX(calls.close_datetime) IS NOT NULL THEN 'Closed'
                         ELSE 'Open'
@@ -336,7 +347,7 @@ class StatsController
                 GROUP BY calls.id
             ";
             $stmt = $this->db->prepare($querySql);
-            $stmt->execute($params);
+            $stmt->execute($statusParams);
 
             $statusCounts = ['Open' => 0, 'Closed' => 0, 'Canceled' => 0];
             foreach ($stmt->fetchAll() as $row) {
@@ -442,10 +453,15 @@ class StatsController
             $stmt->execute($byDateParams);
             $byDate = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-            // Average call duration (for closed calls only). Use close_datetime
-            // and reopened_flag to identify closed calls; closed_flag is no
-            // longer authoritative since the parser writes whatever the latest
-            // XML carries (see FilterSqlBuilder).
+            // Average call duration (for real CAD-closed calls only). Use
+            // close_datetime and reopened_flag to identify real closes;
+            // closed_flag is no longer authoritative since the parser writes
+            // whatever the latest XML carries (see FilterSqlBuilder).
+            //
+            // Stale-open guardrail intentionally does NOT factor in here:
+            // those calls have no real close_datetime, so their duration is
+            // undefined. Averaging them against the cutoff (NOW-72h) would
+            // skew the metric with a synthetic ceiling.
             $durationClauses = $whereClause !== ''
                 ? $whereClause . ' AND calls.close_datetime IS NOT NULL AND calls.reopened_flag = 0'
                 : 'WHERE calls.close_datetime IS NOT NULL AND calls.reopened_flag = 0';
