@@ -1,6 +1,85 @@
-<!-- Map and Stats Cards Row - Top Section -->
+<!-- Statistics Cards Row - 4 across at the top -->
+<div class="row mb-0" id="stats-cards">
+    <div class="col-lg-3 col-md-6 col-sm-6 mb-2">
+        <div class="card stat-card-v2 is-total clickable-stat" data-bs-toggle="modal" data-bs-target="#filters-modal" style="cursor: pointer;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Total Calls</h6>
+                        <h2 class="mb-0" id="stat-total-calls">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
+                        <span class="summary-chips mt-1" id="stat-total-pill"></span>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-funnel"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6 col-sm-6 mb-2">
+        <div class="card stat-card-v2 is-active clickable-stat" onclick="filterDashboard('active')" style="cursor: pointer;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Active Calls</h6>
+                        <h2 class="mb-0 text-danger" id="stat-active-calls">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
+                        <span class="summary-chips mt-1" id="stat-active-pill"></span>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-telephone-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6 col-sm-6 mb-2">
+        <div class="card stat-card-v2 is-closed clickable-stat" onclick="filterDashboard('closed')" style="cursor: pointer;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Closed Calls</h6>
+                        <h2 class="mb-0" id="stat-closed-calls">
+                            <span class="spinner-border spinner-border-sm"></span>
+                        </h2>
+                        <span class="summary-chips mt-1" id="stat-closed-pill"></span>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6 col-sm-6 mb-2">
+        <div class="card stat-card-v2 is-analytics clickable-stat" data-bs-toggle="modal" data-bs-target="#analytics-modal" style="cursor: pointer;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">Analytics</h6>
+                        <h2 class="mb-0" style="font-size: 1.2rem;">
+                            <i class="bi bi-graph-up"></i> View Charts
+                        </h2>
+                        <span class="summary-chips mt-1" id="stat-analytics-pill"></span>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-bar-chart-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Map (left) and Recent Calls (right) Row -->
 <div class="row mb-4 dashboard-row-fill">
-    <!-- Madison County Map (40% width) -->
+    <!-- Madison County Map (left column) -->
     <div class="col-lg-5 mb-3">
         <div class="card map-column-card">
             <div class="card-header gradient-card-header d-flex justify-content-between align-items-center">
@@ -14,89 +93,9 @@
             </div>
         </div>
     </div>
-    
-    <!-- Right Column: Statistics Cards + Recent Calls (60% width) -->
+
+    <!-- Recent Calls (right column) -->
     <div class="col-lg-7 dashboard-right-col">
-        <!-- Statistics Cards - 2x2 Grid -->
-        <div class="row mb-4" id="stats-cards">
-            <div class="col-md-6 col-sm-6 mb-3">
-                <div class="card stat-card-v2 is-total clickable-stat" data-bs-toggle="modal" data-bs-target="#filters-modal" style="cursor: pointer;">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-muted mb-1">Total Calls</h6>
-                                <h2 class="mb-0" id="stat-total-calls">
-                                    <span class="spinner-border spinner-border-sm"></span>
-                                </h2>
-                                <span class="pill-badge mt-1 d-inline-block" id="stat-total-pill">&nbsp;</span>
-                            </div>
-                            <div class="stat-icon">
-                                <i class="bi bi-funnel"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-6 col-sm-6 mb-3">
-                <div class="card stat-card-v2 is-active clickable-stat" onclick="filterDashboard('active')" style="cursor: pointer;">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-muted mb-1">Active Calls</h6>
-                                <h2 class="mb-0 text-danger" id="stat-active-calls">
-                                    <span class="spinner-border spinner-border-sm"></span>
-                                </h2>
-                                <span class="pill-badge mt-1 d-inline-block" id="stat-active-pill">&nbsp;</span>
-                            </div>
-                            <div class="stat-icon">
-                                <i class="bi bi-telephone-fill"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-6 col-sm-6 mb-3">
-                <div class="card stat-card-v2 is-closed clickable-stat" onclick="filterDashboard('closed')" style="cursor: pointer;">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-muted mb-1">Closed Calls</h6>
-                                <h2 class="mb-0" id="stat-closed-calls">
-                                    <span class="spinner-border spinner-border-sm"></span>
-                                </h2>
-                                <span class="pill-badge mt-1 d-inline-block" id="stat-closed-pill">&nbsp;</span>
-                            </div>
-                            <div class="stat-icon">
-                                <i class="bi bi-check-circle"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-6 col-sm-6 mb-3">
-                <div class="card stat-card-v2 is-analytics clickable-stat" data-bs-toggle="modal" data-bs-target="#analytics-modal" style="cursor: pointer;">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-muted mb-1">Analytics</h6>
-                                <h2 class="mb-0" style="font-size: 1.2rem;">
-                                    <i class="bi bi-graph-up"></i> View Charts
-                                </h2>
-                                <span class="pill-badge mt-1 d-inline-block" id="stat-analytics-pill">&nbsp;</span>
-                            </div>
-                            <div class="stat-icon">
-                                <i class="bi bi-bar-chart-fill"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Recent Calls Table (Below Stats Cards) -->
         <div class="card recent-calls-card">
             <div class="card-header gradient-card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">
@@ -109,20 +108,19 @@
                     <table class="table table-hover mb-0">
                         <thead class="table-light sticky-top">
                             <tr>
-                                <th style="width: 8%;">Call ID</th>
-                                <th style="width: 12%;">Received</th>
-                                <th style="width: 18%;">Call Type</th>
-                                <th style="width: 15%;">Location</th>
+                                <th style="width: 9%;">Call ID</th>
+                                <th style="width: 13%;">Received</th>
+                                <th style="width: 20%;">Call Type</th>
+                                <th style="width: 19%;">Location</th>
                                 <th style="width: 10%;">Priority</th>
                                 <th style="width: 10%;">Status</th>
                                 <th style="width: 9%;">Units</th>
-                                <th style="width: 9%;">Map</th>
-                                <th style="width: 9%;">Action</th>
+                                <th style="width: 10%;">Map</th>
                             </tr>
                         </thead>
                         <tbody id="recent-calls-body">
                             <tr>
-                                <td colspan="9" class="text-center py-4">
+                                <td colspan="8" class="text-center py-4">
                                     <div class="spinner-border text-primary" role="status">
                                         <span class="visually-hidden">Loading...</span>
                                     </div>

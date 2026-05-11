@@ -97,12 +97,10 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
                     </li>
                 </ul>
                 <div class="d-flex align-items-center">
-                    <span class="navbar-text me-3" id="live-indicator">
-                        <i class="bi bi-circle-fill text-secondary"></i> Connecting...
+                    <span class="live-pill" id="dashboard-live-pill">
+                        <span class="dot"></span>
+                        <span id="dashboard-live-text">Live</span>
                     </span>
-                    <button class="btn btn-outline-light btn-sm" onclick="window.print()">
-                        <i class="bi bi-printer"></i> Print
-                    </button>
                 </div>
             </div>
         </div>
@@ -148,7 +146,7 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
         window.APP_CONFIG = {
             apiBaseUrl: baseUrl + '/api',
             currentPage: '<?= $page ?>',
-            refreshInterval: 30000 // 30 seconds
+            refreshInterval: 5000 // 5 seconds
         };
         
         console.log('[NWS CAD] Configuration loaded:', {

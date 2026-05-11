@@ -154,37 +154,38 @@
             });
 
             // Render
-            summaryEl.innerHTML = '';
-            chips.forEach(function (c) {
-                const span = document.createElement('span');
-                span.className = 'summary-chip summary-chip--' + c.kind;
-                span.textContent = c.label;
-                summaryEl.appendChild(span);
-            });
+            renderChips(summaryEl, chips);
 
             // Update count badge on the Filters button
             updateFilterCountBadge(chips.length);
 
-            // Mirror the summary text into per-stat-card pills. Active Calls
-            // is special-cased: when its numeric value > 0, show a green
-            // "Live" pill instead.
-            const summaryText = summaryEl ? summaryEl.textContent : '';
+            // Mirror the same chips into per-stat-card pills. Active Calls
+            // is special-cased: when its numeric value > 0, show a single
+            // green "Live" chip instead of the filter summary.
             ['stat-total-pill', 'stat-closed-pill', 'stat-analytics-pill'].forEach(function (id) {
                 const el = document.getElementById(id);
-                if (el) el.textContent = summaryText;
+                if (el) renderChips(el, chips);
             });
             const activePill = document.getElementById('stat-active-pill');
             if (activePill) {
                 const activeValEl = document.getElementById('stat-active-calls');
                 const activeVal = activeValEl ? parseInt(activeValEl.textContent, 10) : NaN;
                 if (Number.isFinite(activeVal) && activeVal > 0) {
-                    activePill.textContent = 'Live';
-                    activePill.classList.add('is-active');
+                    renderChips(activePill, [{ label: 'Live', kind: 'live' }]);
                 } else {
-                    activePill.textContent = summaryText;
-                    activePill.classList.remove('is-active');
+                    renderChips(activePill, chips);
                 }
             }
+        }
+
+        function renderChips(el, chips) {
+            el.innerHTML = '';
+            chips.forEach(function (c) {
+                const span = document.createElement('span');
+                span.className = 'summary-chip summary-chip--' + c.kind;
+                span.textContent = c.label;
+                el.appendChild(span);
+            });
         }
 
         function updateFilterCountBadge(count) {
@@ -331,7 +332,7 @@
                 if (calls.length === 0) {
                     tableBody.innerHTML = `
                         <tr>
-                            <td colspan="9" class="text-center py-4">
+                            <td colspan="8" class="text-center py-4">
                                 <i class="bi bi-inbox fs-1 text-muted"></i>
                                 <p class="text-muted mt-2">No calls found</p>
                             </td>
@@ -352,10 +353,13 @@
                             : (priorityKey === 'Medium' ? 'is-priority-2' : 'is-priority-3');
                         const priorityBadge = `<span class="pill-badge ${priorityClass}">${Dashboard.escapeHtml(priorityKey)}</span>`;
                         
-                        // Check if call has valid coordinates for zoom
-                        const lat = call.location?.coordinates?.lat;
-                        const lng = call.location?.coordinates?.lng;
-                        const hasCoordinates = lat && lng && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng));
+                        // Check if call has valid coordinates for zoom (reject -361 sentinel and other out-of-range)
+                        const rawLat = parseFloat(call.location?.coordinates?.lat);
+                        const rawLng = parseFloat(call.location?.coordinates?.lng);
+                        const hasCoordinates = Number.isFinite(rawLat) && Number.isFinite(rawLng)
+                            && rawLat >= -90 && rawLat <= 90 && rawLng >= -180 && rawLng <= 180;
+                        const lat = hasCoordinates ? rawLat : null;
+                        const lng = hasCoordinates ? rawLng : null;
                         
                         if (index === 0) {
                             console.log('[Dashboard Main] First call coordinates:', {
@@ -384,19 +388,13 @@
                                     </button>
                                 </td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-success zoom-call-btn" 
+                                    <button class="btn btn-sm btn-outline-success zoom-call-btn"
                                             data-call-id="${call.id}"
                                             data-lat="${lat || ''}"
                                             data-lng="${lng || ''}"
                                             ${hasCoordinates ? '' : 'disabled'}
                                             title="${hasCoordinates ? 'View location on map' : 'No coordinates available'}">
                                         <i class="bi bi-map"></i>
-                                    </button>
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary view-call-btn"
-                                            data-call-id="${call.id}">
-                                        <i class="bi bi-eye"></i>
                                     </button>
                                 </td>
                             </tr>
@@ -429,7 +427,7 @@
                 if (tableBody) {
                     tableBody.innerHTML = `
                         <tr>
-                            <td colspan="9" class="text-center text-danger py-4">
+                            <td colspan="8" class="text-center text-danger py-4">
                                 <i class="bi bi-exclamation-triangle"></i> Failed to load calls
                             </td>
                         </tr>
@@ -515,11 +513,18 @@
                 
                 if (result.success && result.data?.items) {
                     const callsWithLoc = result.data.items
-                        .filter(c => c.location?.coordinates?.lat && c.location?.coordinates?.lng)
-                        .map(c => ({
+                        .map(c => {
+                            const lat = parseFloat(c.location?.coordinates?.lat);
+                            const lng = parseFloat(c.location?.coordinates?.lng);
+                            return { c, lat, lng };
+                        })
+                        // Aegis emits -361,-361 as a "no GPS" sentinel; reject anything outside legal ranges
+                        .filter(({ lat, lng }) => Number.isFinite(lat) && Number.isFinite(lng)
+                            && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180)
+                        .map(({ c, lat, lng }) => ({
                             ...c,
-                            latitude: parseFloat(c.location.coordinates.lat),
-                            longitude: parseFloat(c.location.coordinates.lng),
+                            latitude: lat,
+                            longitude: lng,
                             address: c.location?.address || c.location?.city
                         }));
                     
@@ -690,12 +695,11 @@
             
             // Now check if target IS a button or CONTAINS a button
             let zoomBtn = target.classList?.contains('zoom-call-btn') ? target : target.querySelector('.zoom-call-btn');
-            let viewBtn = target.classList?.contains('view-call-btn') ? target : target.querySelector('.view-call-btn');
             let unitsBtn = target.classList?.contains('units-btn') ? target : target.querySelector('.units-btn');
             const row = target.closest('.call-row');
-            
+
             console.log('[Dashboard Main] Click target:', target.tagName, target.className);
-            console.log('[Dashboard Main] Found buttons:', { zoomBtn: !!zoomBtn, viewBtn: !!viewBtn, unitsBtn: !!unitsBtn });
+            console.log('[Dashboard Main] Found buttons:', { zoomBtn: !!zoomBtn, unitsBtn: !!unitsBtn });
             if (zoomBtn) {
                 console.log('[Dashboard Main] Zoom button details:', {
                     disabled: zoomBtn.disabled,
@@ -719,17 +723,7 @@
                 console.log('[Dashboard Main] Zoom button clicked:', { callId, lat, lng });
                 zoomToCallOnMap(callId, lat, lng);
                 return; // STOP HERE - don't process row click
-                
-            } else if (viewBtn) {
-                // View button clicked
-                event.stopPropagation();
-                event.preventDefault();
-                
-                const callId = parseInt(viewBtn.dataset.callId);
-                console.log('[Dashboard Main] View button clicked:', callId);
-                viewCallDetails(callId);
-                return; // STOP HERE
-                
+
             } else if (unitsBtn && !unitsBtn.disabled) {
                 // Units button clicked
                 event.stopPropagation();

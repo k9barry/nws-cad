@@ -2,17 +2,22 @@
 <div class="modal fade" id="analytics-modal" tabindex="-1" aria-labelledby="analyticsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-fullscreen">
         <div class="modal-content">
-            <div class="modal-header bg-warning">
-                <h5 class="modal-title" id="analyticsModalLabel">
-                    <i class="bi bi-graph-up"></i> Analytics & Reports
-                </h5>
+            <div class="modal-header analytics-modal-header">
+                <div>
+                    <h5 class="modal-title" id="analyticsModalLabel">
+                        <i class="bi bi-graph-up"></i> Analytics &amp; Reports
+                    </h5>
+                    <div class="subtitle" style="opacity: 0.85; font-size: 0.85rem; margin-top: 0.15rem;">
+                        Insights across calls, units, and response performance
+                    </div>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <!-- Analytics Statistics Cards -->
                 <div class="row mb-4" id="analytics-stats-cards">
                     <div class="col-md-3 col-sm-6 mb-3">
-                        <div class="card stat-card border-primary">
+                        <div class="card stat-card-v2 is-total">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
@@ -21,16 +26,16 @@
                                             <span class="spinner-border spinner-border-sm"></span>
                                         </h2>
                                     </div>
-                                    <div class="stat-icon bg-primary">
+                                    <div class="stat-icon">
                                         <i class="bi bi-telephone-fill"></i>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="col-md-3 col-sm-6 mb-3">
-                        <div class="card stat-card border-info">
+                        <div class="card stat-card-v2 is-info">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
@@ -39,16 +44,16 @@
                                             <span class="spinner-border spinner-border-sm"></span>
                                         </h2>
                                     </div>
-                                    <div class="stat-icon bg-info">
+                                    <div class="stat-icon">
                                         <i class="bi bi-clock-history"></i>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="col-md-3 col-sm-6 mb-3">
-                        <div class="card stat-card border-success">
+                        <div class="card stat-card-v2 is-success">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
@@ -57,16 +62,16 @@
                                             <span class="spinner-border spinner-border-sm"></span>
                                         </h2>
                                     </div>
-                                    <div class="stat-icon bg-success">
+                                    <div class="stat-icon">
                                         <i class="bi bi-truck"></i>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="col-md-3 col-sm-6 mb-3">
-                        <div class="card stat-card border-warning">
+                        <div class="card stat-card-v2 is-analytics">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
@@ -75,7 +80,7 @@
                                             <span class="spinner-border spinner-border-sm"></span>
                                         </h2>
                                     </div>
-                                    <div class="stat-icon bg-warning">
+                                    <div class="stat-icon">
                                         <i class="bi bi-star-fill"></i>
                                     </div>
                                 </div>
@@ -83,12 +88,12 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Charts Row 1 -->
                 <div class="row mb-4">
                     <div class="col-lg-8 mb-3">
                         <div class="card">
-                            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <div class="card-header gradient-card-header d-flex justify-content-between align-items-center">
                                 <h5 class="card-title mb-0">
                                     <i class="bi bi-graph-up"></i> Incidents by Jurisdiction
                                 </h5>
@@ -98,10 +103,10 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="col-lg-4 mb-3">
                         <div class="card">
-                            <div class="card-header bg-white">
+                            <div class="card-header gradient-card-header">
                                 <h5 class="card-title mb-0">
                                     <i class="bi bi-pie-chart"></i> Call Distribution
                                 </h5>
@@ -112,12 +117,12 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Charts Row 2 -->
                 <div class="row mb-4">
                     <div class="col-lg-6 mb-3">
                         <div class="card">
-                            <div class="card-header bg-white">
+                            <div class="card-header gradient-card-header">
                                 <h5 class="card-title mb-0">
                                     <i class="bi bi-clock"></i> Response Time Analysis
                                 </h5>
@@ -127,10 +132,10 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="col-lg-6 mb-3">
                         <div class="card">
-                            <div class="card-header bg-white">
+                            <div class="card-header gradient-card-header">
                                 <h5 class="card-title mb-0">
                                     <i class="bi bi-building"></i> Calls by Agency
                                 </h5>

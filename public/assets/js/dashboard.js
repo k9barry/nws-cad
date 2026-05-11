@@ -556,7 +556,7 @@ const Dashboard = {
      * Setup auto-refresh for a function
      */
     setupAutoRefresh(refreshFunction, interval = null) {
-        interval = interval || this.config.refreshInterval || 30000;
+        interval = interval || this.config.refreshInterval || 5000;
         
         console.log('[Dashboard] setupAutoRefresh called for:', refreshFunction.name, 'interval:', interval);
         
@@ -601,21 +601,16 @@ const Dashboard = {
      * Update live indicator status
      */
     updateLiveIndicator(isLive) {
-        const indicator = document.getElementById('live-indicator');
-        if (!indicator) {
-            console.error('[Dashboard] Live indicator element not found!');
-            return;
-        }
-        
+        const pill = document.getElementById('dashboard-live-pill');
+        const text = document.getElementById('dashboard-live-text');
+        if (!pill || !text) return;
+        pill.classList.remove('is-paused', 'is-error');
         if (isLive) {
-            // Bright green badge with white text
-            indicator.innerHTML = '<span style="background: #00ff00; color: white; border-radius: 50%; padding: 4px 8px; font-size: 0.75em; display: inline-block; line-height: 1; font-weight: 500; box-shadow: 0 0 8px rgba(0, 255, 0, 0.5);" class="pulse">●</span> <span style="color: white;">Live</span>';
+            text.textContent = 'Live';
         } else {
-            // Gray badge when paused
-            indicator.innerHTML = '<span style="background: #6c757d; color: white; border-radius: 50%; padding: 4px 8px; font-size: 0.75em; display: inline-block; line-height: 1; font-weight: 500;">●</span> <span style="color: rgba(255,255,255,0.7);">Paused</span>';
+            pill.classList.add('is-paused');
+            text.textContent = 'Paused';
         }
-        
-        console.log('[Dashboard] Live indicator updated:', isLive ? 'Live (green badge pulsing)' : 'Paused (gray badge)');
     }
 };
 

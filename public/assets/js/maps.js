@@ -29,7 +29,7 @@ const MapManager = {
         const map = L.map(containerId, {
             maxBounds: madisonCountyBounds,
             maxBoundsViscosity: 1.0,  // Makes bounds "hard" - prevents dragging outside
-            minZoom: 11,               // Minimum zoom level (fractional)
+            minZoom: 10.5,             // Low enough for fitBounds to zoom out and fit markers spread across Madison County
             maxZoom: 21,               // Allow zooming in close for street detail
             zoomSnap: 0.5,             // Allow half-level zoom increments
             zoomDelta: 0.5             // Zoom by 0.5 levels when using controls
@@ -62,17 +62,19 @@ const MapManager = {
      */
     addCallMarker(containerId, call) {
         console.log('[MapManager] Adding call marker:', {containerId, callId: call.id, lat: call.latitude, lng: call.longitude});
-        
-        if (!this.maps[containerId] || !call.latitude || !call.longitude) {
-            console.warn('[MapManager] Cannot add marker - missing map or coordinates');
+
+        if (!this.maps[containerId]) {
+            console.warn('[MapManager] Cannot add marker - map not initialized');
             return;
         }
-        
+
         const lat = parseFloat(call.latitude);
         const lon = parseFloat(call.longitude);
-        
-        if (isNaN(lat) || isNaN(lon)) {
-            console.error('[MapManager] Invalid coordinates:', lat, lon);
+
+        // Aegis uses -361,-361 as a sentinel for unmappable calls; any out-of-range value would poison fitBounds
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)
+            || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+            console.warn('[MapManager] Skipping marker with invalid coordinates:', lat, lon);
             return;
         }
         
@@ -101,14 +103,16 @@ const MapManager = {
      * Add a unit marker to the map
      */
     addUnitMarker(containerId, unit) {
-        if (!this.maps[containerId] || !unit.latitude || !unit.longitude) {
+        if (!this.maps[containerId]) {
             return;
         }
-        
+
         const lat = parseFloat(unit.latitude);
         const lon = parseFloat(unit.longitude);
-        
-        if (isNaN(lat) || isNaN(lon)) {
+
+        // Same -361 sentinel guard as addCallMarker
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)
+            || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
             return;
         }
         

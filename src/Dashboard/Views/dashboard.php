@@ -4,13 +4,9 @@
 <div class="dashboard-banner d-flex justify-content-between align-items-center flex-wrap gap-2">
     <div>
         <h2><i class="bi bi-speedometer2"></i> Dashboard Control Center</h2>
-        <div class="subtitle">Live call data &middot; refreshes every <span id="dashboard-poll-secs">30</span>s</div>
+        <div class="subtitle">Live call data &middot; refreshes every <span id="dashboard-poll-secs">5</span>s</div>
     </div>
     <div class="d-flex align-items-center gap-2">
-        <span class="live-pill" id="dashboard-live-pill">
-            <span class="dot"></span>
-            <span id="dashboard-live-text">Live</span>
-        </span>
         <span class="pill-badge is-info" id="filter-summary-badge">Today, Open</span>
         <button type="button" class="btn btn-sm btn-light"
                 data-bs-toggle="offcanvas" data-bs-target="#filter-drawer"

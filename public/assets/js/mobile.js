@@ -1290,8 +1290,9 @@ const MobileMaps = {
             calls.forEach(call => {
                 const lat = parseFloat(call.location?.coordinates?.lat);
                 const lng = parseFloat(call.location?.coordinates?.lng);
-                
-                if (isNaN(lat) || isNaN(lng)) return;
+                // Aegis emits -361,-361 for unmappable calls; reject out-of-range so they don't poison fitBounds
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)
+                    || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
                 
                 const callType = Array.isArray(call.call_types) ? call.call_types[0] : 'Unknown';
                 const statusBadge = call.closed_flag ? 'Closed' : 'Open';
