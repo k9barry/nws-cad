@@ -162,7 +162,12 @@
             // Mirror the same chips into per-stat-card pills. Active Calls
             // is special-cased: when its numeric value > 0, show a single
             // green "Live" chip instead of the filter summary.
-            ['stat-total-pill', 'stat-closed-pill', 'stat-analytics-pill'].forEach(function (id) {
+            [
+                'stat-total-pill', 'stat-closed-pill', 'stat-analytics-pill',
+                'analytics-modal-filter-chips',
+                'analytics-stat-total-pill', 'analytics-stat-response-pill',
+                'analytics-stat-units-pill', 'analytics-stat-toptype-pill',
+            ].forEach(function (id) {
                 const el = document.getElementById(id);
                 if (el) renderChips(el, chips);
             });
@@ -1304,10 +1309,11 @@
             }
         })();
 
-        // Pre-populate URL with sensible defaults (today + open) when there's
-        // no existing URL state and no saved state. This is the dispatcher's
-        // most common view — start there instead of an empty filter set.
-        if (!window.location.search && !localStorage.getItem('filter-panel:last-state')) {
+        // Pre-populate URL with sensible defaults (today + open) on any fresh
+        // page load (no existing URL state). This is the dispatcher's most
+        // common view — always start there instead of an empty filter set or
+        // a stale saved state.
+        if (!window.location.search) {
             const url = new URL(window.location);
             url.searchParams.set('preset', 'today');
             url.searchParams.set('status', 'open');

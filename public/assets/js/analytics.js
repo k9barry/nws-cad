@@ -18,37 +18,10 @@
     }
 
     /**
-     * Display active filters banner based on URL params
-     */
-    function displayActiveFilters() {
-        const banner = document.getElementById('active-filters-card');
-        const display = document.getElementById('active-filters-display');
-
-        if (!banner || !display) return;
-
-        const params = new URLSearchParams(getCurrentQs());
-        const entries = Array.from(params.entries()).filter(([k]) => k !== 'preset');
-        const filterCount = entries.length;
-
-        if (filterCount > 0) {
-            const filterText = entries
-                .map(([key, value]) => `${key.replace('_', ' ')}: ${value}`)
-                .slice(0, 3)
-                .join(', ');
-
-            display.textContent = filterText + (filterCount > 3 ? '...' : '');
-            banner.style.display = 'block';
-        } else {
-            banner.style.display = 'none';
-        }
-    }
-
-    /**
      * Handle filter changes
      */
     async function onFilterChange() {
         console.log('[Analytics] Filters changed, qs:', getCurrentQs());
-        displayActiveFilters();
         await loadAnalytics();
     }
 
@@ -60,8 +33,6 @@
         }
 
         console.log('[Analytics] Initializing analytics page...');
-
-        displayActiveFilters();
 
         // Load initial data
         await loadAnalytics();

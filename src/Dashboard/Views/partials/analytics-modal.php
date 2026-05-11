@@ -3,13 +3,21 @@
     <div class="modal-dialog modal-fullscreen">
         <div class="modal-content">
             <div class="modal-header analytics-modal-header">
-                <div>
+                <div class="analytics-modal-title-block">
                     <h5 class="modal-title" id="analyticsModalLabel">
                         <i class="bi bi-graph-up"></i> Analytics &amp; Reports
                     </h5>
                     <div class="subtitle">Insights across calls, units, and response performance</div>
                 </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <div class="analytics-modal-actions">
+                    <span class="summary-chips" id="analytics-modal-filter-chips" aria-label="Active filters"></span>
+                    <button type="button" class="btn btn-sm btn-light analytics-modal-filter-btn"
+                            data-bs-toggle="offcanvas" data-bs-target="#filter-drawer"
+                            aria-controls="filter-drawer">
+                        <i class="bi bi-sliders"></i> Filters
+                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
             </div>
             <div class="modal-body">
                 <!-- Analytics Statistics Cards -->
@@ -23,6 +31,7 @@
                                         <h2 class="mb-0" id="analytics-stat-total">
                                             <span class="spinner-border spinner-border-sm"></span>
                                         </h2>
+                                        <span class="summary-chips mt-1" id="analytics-stat-total-pill"></span>
                                     </div>
                                     <div class="stat-icon">
                                         <i class="bi bi-telephone-fill"></i>
@@ -41,6 +50,7 @@
                                         <h2 class="mb-0" id="analytics-stat-response">
                                             <span class="spinner-border spinner-border-sm"></span>
                                         </h2>
+                                        <span class="summary-chips mt-1" id="analytics-stat-response-pill"></span>
                                     </div>
                                     <div class="stat-icon">
                                         <i class="bi bi-clock-history"></i>
@@ -59,6 +69,7 @@
                                         <h2 class="mb-0" id="analytics-stat-units">
                                             <span class="spinner-border spinner-border-sm"></span>
                                         </h2>
+                                        <span class="summary-chips mt-1" id="analytics-stat-units-pill"></span>
                                     </div>
                                     <div class="stat-icon">
                                         <i class="bi bi-truck"></i>
@@ -77,6 +88,7 @@
                                         <h2 class="mb-0" id="analytics-stat-toptype" style="font-size: 0.9rem;">
                                             <span class="spinner-border spinner-border-sm"></span>
                                         </h2>
+                                        <span class="summary-chips mt-1" id="analytics-stat-toptype-pill"></span>
                                     </div>
                                     <div class="stat-icon">
                                         <i class="bi bi-star-fill"></i>

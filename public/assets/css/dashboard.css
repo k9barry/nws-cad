@@ -704,13 +704,41 @@ Timestamp: Wed Jan 28 01:35:28 UTC 2026
     border-bottom: none !important;
     padding: 1rem 1.5rem;
     box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
+    gap: 0.75rem;
+    flex-wrap: wrap;
 }
 .analytics-modal-header .modal-title { color: #fff; font-weight: 600; margin: 0; }
 .analytics-modal-header .subtitle { opacity: 0.85; font-size: 0.85rem; margin-top: 0.15rem; }
 .analytics-modal-header .btn-close { filter: brightness(0) invert(1); opacity: 0.85; }
 .analytics-modal-header .btn-close:hover { opacity: 1; }
+.analytics-modal-title-block { margin-right: auto; }
+.analytics-modal-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+.analytics-modal-actions .summary-chips { max-width: 38rem; }
+.analytics-modal-actions .summary-chip {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+.analytics-modal-actions .summary-chip--accent {
+    background: rgba(255, 255, 255, 0.28);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.45);
+}
 #analytics-modal .modal-body { background: #f8fafc; }
 #analytics-modal .card { border: none; border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08); }
+
+/* Filter drawer must float above the fullscreen analytics modal so the user
+   can change filters without closing analytics. Default Bootstrap z-index
+   stack puts modal (1055) above offcanvas (1045); bump the drawer + its
+   backdrop above the modal. */
+#filter-drawer { z-index: 1080; }
+.offcanvas-backdrop { z-index: 1075; }
 
 /* Recent Calls row flash on insert */
 .recent-calls-card tbody tr.row-new {
