@@ -7,6 +7,28 @@ declare(strict_types=1);
 <style>
 /* === Notifications page polish (banner/live-pill come from dashboard.css) === */
 
+/* Stretch <main> to fill the viewport on the notifications page so the
+   channel cards reach all the way down to the footer. */
+body:has(#notifications-channels-container) {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+body:has(#notifications-channels-container) > main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+#notifications-channels-container {
+    flex: 1;
+    align-items: stretch;
+    min-height: 0;
+}
+#notifications-channels-container > [class*="col-"] {
+    display: flex;
+}
+
 /* Channel cards — gradient header strip mirrors the dashboard's stat cards */
 .channel-card {
     border: none;
@@ -14,7 +36,9 @@ declare(strict_types=1);
     overflow: hidden;
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
-    height: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 .channel-card:hover {
     transform: translateY(-2px);
@@ -26,7 +50,13 @@ declare(strict_types=1);
     color: #fff;
     background: linear-gradient(135deg, #475569, #1e293b);
 }
-.channel-card .card-body { padding: 0.75rem 0.95rem; }
+.channel-card .card-body {
+    padding: 0.75rem 0.95rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
 .channel-card[data-type="ntfy"] .card-header {
     background: linear-gradient(135deg, #2563eb, #4f46e5);
 }
@@ -59,9 +89,10 @@ declare(strict_types=1);
 .channel-state-badge.is-on  { background: #d1fae5; color: #065f46; }
 .channel-state-badge.is-off { background: #e2e8f0; color: #475569; }
 
-/* Log entries */
+/* Log entries — flex-grow inside the card body and scroll internally */
 .channel-log {
-    max-height: 320px;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
 }
 .channel-log .list-group-item {
