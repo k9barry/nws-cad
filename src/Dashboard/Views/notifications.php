@@ -8,7 +8,9 @@ declare(strict_types=1);
 /* === Notifications page polish (banner/live-pill come from dashboard.css) === */
 
 /* Stretch <main> to fill the viewport on the notifications page so the
-   channel cards reach all the way down to the footer. */
+   channel cards reach all the way down to the footer. Override the
+   page-default footer mt-5 and main's bottom padding here so the cards
+   land flush against the footer instead of leaving a ~72px dead band. */
 body:has(#notifications-channels-container) {
     display: flex;
     flex-direction: column;
@@ -19,6 +21,10 @@ body:has(#notifications-channels-container) > main {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    padding-bottom: 0;
+}
+body:has(#notifications-channels-container) > footer {
+    margin-top: 0;
 }
 #notifications-channels-container {
     flex: 1;
