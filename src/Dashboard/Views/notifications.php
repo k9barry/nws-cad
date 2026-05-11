@@ -7,10 +7,19 @@ declare(strict_types=1);
 <style>
 /* === Notifications page polish (banner/live-pill come from dashboard.css) === */
 
-/* Stretch <main> to fill the viewport on the notifications page so the
-   channel cards reach all the way down to the footer. Override the
-   page-default footer mt-5 and main's bottom padding here so the cards
-   land flush against the footer instead of leaving a ~72px dead band. */
+/* Lock the notifications page to exactly one viewport tall so the
+   channel cards fill all available space without overflowing.
+   - min-height: 100vh on body alone wasn't enough: it's only a floor,
+     so the cards' natural content (10 log entries each) pushed body
+     past 100vh and forced a scrollbar.
+   - The footer's page-default .mt-5 and main's .py-4 bottom padding
+     use !important (Bootstrap utilities), so the overrides do too. */
+@media (min-width: 768px) {
+    body:has(#notifications-channels-container) {
+        height: 100vh;
+        overflow: hidden;
+    }
+}
 body:has(#notifications-channels-container) {
     display: flex;
     flex-direction: column;
@@ -21,10 +30,10 @@ body:has(#notifications-channels-container) > main {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    padding-bottom: 0;
+    padding-bottom: 0 !important;
 }
 body:has(#notifications-channels-container) > footer {
-    margin-top: 0;
+    margin-top: 0 !important;
 }
 #notifications-channels-container {
     flex: 1;
