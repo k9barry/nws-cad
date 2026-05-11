@@ -25,6 +25,13 @@ body:has(#notifications-channels-container) > main {
     align-items: stretch;
     min-height: 0;
 }
+/* Bootstrap rows are flex-wrap: wrap; with a single line, the wrap'd line's
+   cross-axis size collapses to its tallest item rather than stretching to
+   the row's full height (per CSS Align spec). Switch to nowrap above sm
+   where the two cols sit side-by-side so .channel-card can stretch. */
+@media (min-width: 768px) {
+    #notifications-channels-container { flex-wrap: nowrap; }
+}
 #notifications-channels-container > [class*="col-"] {
     display: flex;
 }
