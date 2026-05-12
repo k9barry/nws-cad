@@ -254,7 +254,13 @@ class NotificationsApiTest extends TestCase
         $channelId = (int) self::$db->lastInsertId();
 
         $stub = new class implements \NwsCad\Notifications\NotificationChannel {
-            public static function type(): string { return 'ntfy'; }
+            public static function descriptor(): \NwsCad\Notifications\ChannelDescriptor {
+                return new \NwsCad\Notifications\ChannelDescriptor(
+                    type: 'stub', label: 'stub', baseUrlEnv: 'X',
+                    requiredEnvs: [], defaultConfig: [],
+                    factory: static fn (array $r, \NwsCad\Config $c) => throw new \LogicException('test stub'),
+                );
+            }
             public function send(\NwsCad\Notifications\IncidentDto $i, \NwsCad\Notifications\NotificationContext $c): array {
                 return [\NwsCad\Notifications\SendResult::ok(200, 12, 'test')];
             }
@@ -292,7 +298,13 @@ class NotificationsApiTest extends TestCase
             VALUES ('ntfy_primary', 'ntfy', 1, 'u', '{}')");
 
         $stub = new class implements \NwsCad\Notifications\NotificationChannel {
-            public static function type(): string { return 'ntfy'; }
+            public static function descriptor(): \NwsCad\Notifications\ChannelDescriptor {
+                return new \NwsCad\Notifications\ChannelDescriptor(
+                    type: 'stub', label: 'stub', baseUrlEnv: 'X',
+                    requiredEnvs: [], defaultConfig: [],
+                    factory: static fn (array $r, \NwsCad\Config $c) => throw new \LogicException('test stub'),
+                );
+            }
             public function send(\NwsCad\Notifications\IncidentDto $i, \NwsCad\Notifications\NotificationContext $c): array {
                 return [\NwsCad\Notifications\SendResult::fail(503, 9, 'Service Unavailable', 'test')];
             }
