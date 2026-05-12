@@ -8,6 +8,7 @@ use NwsCad\Notifications\ChannelDescriptor;
 use NwsCad\Notifications\ChannelRegistry;
 use NwsCad\Notifications\Channels\NtfyChannel;
 use NwsCad\Notifications\Channels\PushoverChannel;
+use NwsCad\Notifications\Channels\WebhookChannel;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
@@ -17,6 +18,7 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(ChannelDescriptor::class)]
 #[UsesClass(NtfyChannel::class)]
 #[UsesClass(PushoverChannel::class)]
+#[UsesClass(WebhookChannel::class)]
 final class RegisterChannelsBootTest extends TestCase
 {
     protected function setUp(): void
@@ -29,12 +31,12 @@ final class RegisterChannelsBootTest extends TestCase
         ChannelRegistry::clear();
     }
 
-    public function testIncludePopulatesRegistryWithNtfyAndPushover(): void
+    public function testIncludePopulatesRegistry(): void
     {
         require __DIR__ . '/../../../src/Notifications/registerChannels.php';
 
         $this->assertEqualsCanonicalizing(
-            ['ntfy', 'pushover'],
+            ['ntfy', 'pushover', 'webhook'],
             ChannelRegistry::types(),
             'registerChannels.php must register the built-in channel types',
         );
