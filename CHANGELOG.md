@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.11] - 2026-05-12
+
+### Changes
+- feat(security): LogsController admin allowlist gates production access (#32) (388e20e)
+
 ## [1.1.10] - 2026-05-12
 
 ### Changes
