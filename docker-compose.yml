@@ -62,7 +62,7 @@ services:
         TZ: ${TZ:-UTC}
     container_name: nws-cad-api
     ports:
-      - "127.0.0.1:8080:8080"
+      - "${API_PORT:-8080}:8080"
     volumes:
       - ./public:/var/www/public
       - ./src:/var/www/src
