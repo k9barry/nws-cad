@@ -16,10 +16,12 @@ use NwsCad\Notifications\ChannelFactory;
 use NwsCad\Notifications\ChannelRepository;
 use NwsCad\Notifications\EventDispatcher;
 use NwsCad\Notifications\IncidentDto;
-use NwsCad\Notifications\NotificationDispatcher;
+use NwsCad\Notifications\Outbox\OutboxProcessor;
+use NwsCad\Notifications\Outbox\OutboxRepository;
+use NwsCad\Notifications\Outbox\OutboxWriter;
+use NwsCad\Notifications\Outbox\WorkerId;
 use NwsCad\Notifications\Events\CallProcessedEvent;
 
-// Initialize logger once
 $logger = Logger::getInstance();
 $config = Config::getInstance();
 require_once __DIR__ . '/Notifications/registerChannels.php';
@@ -28,10 +30,10 @@ try {
     $logLevel = strtoupper($config->get('app.log_level', 'INFO'));
     $logger->info("Starting NWS CAD File Watcher Service");
     $logger->info("Log level: {$logLevel}");
-    $logger->debug("Debug logging is enabled - detailed step-by-step information will be shown");
-    $logger->debug("Using Aegis CAD XML Parser for New World Systems format");
-    
-    $deltaSeconds = (int) Config::getInstance()->get('notifications.delta_seconds', 900);
+
+    $deltaSeconds = (int) $config->get('notifications.delta_seconds', 900);
+    $batchSize    = (int) ($_ENV['OUTBOX_BATCH_SIZE'] ?? getenv('OUTBOX_BATCH_SIZE') ?: 10);
+    $maxAttempts  = (int) ($_ENV['OUTBOX_MAX_ATTEMPTS'] ?? getenv('OUTBOX_MAX_ATTEMPTS') ?: 5);
 
     $incidentLoader = function (int $dbCallId): IncidentDto {
         $db = Database::getConnection();
@@ -60,23 +62,30 @@ try {
         return IncidentDto::fromRow($row);
     };
 
-    $channelFactoryInstance = new ChannelFactory($config);
-    $channelFactory = [$channelFactoryInstance, 'create'];
-
-    $notificationDispatcher = new NotificationDispatcher(
-        channelRepo: new ChannelRepository(),
-        incidentLoader: $incidentLoader,
-        channelFactory: $channelFactory,
-        deltaSeconds: $deltaSeconds,
+    $outboxRepo      = new OutboxRepository();
+    $channelRepo     = new ChannelRepository();
+    $channelFactory  = new ChannelFactory($config);
+    $outboxWriter    = new OutboxWriter($outboxRepo, $channelRepo, $deltaSeconds);
+    $outboxProcessor = new OutboxProcessor(
+        $outboxRepo,
+        $channelFactory,
+        $channelRepo,
+        $incidentLoader,
+        batchSize:    $batchSize,
+        maxAttempts:  $maxAttempts,
+        workerId:     WorkerId::current(),
     );
 
-    EventDispatcher::subscribe(function (CallProcessedEvent $e) use ($notificationDispatcher): void {
-        $notificationDispatcher->handle($e);
+    EventDispatcher::subscribe(static function (CallProcessedEvent $e) use ($outboxWriter): void {
+        $outboxWriter->handle($e);
     });
 
     $watcher = new FileWatcher();
+    $watcher->setOnTick(static function () use ($outboxProcessor): void {
+        $outboxProcessor->tick();
+    });
     $watcher->start();
-    
+
 } catch (Exception $e) {
     $logger->error("Fatal error: " . $e->getMessage());
     $logger->error("Stack trace: " . $e->getTraceAsString());
