@@ -512,6 +512,7 @@ CREATE TABLE IF NOT EXISTS notification_channels (
     config_json TEXT NOT NULL,
     last_error_at TIMESTAMP NULL,
     last_error_message TEXT NULL,
+    last_updated_actor VARCHAR(64) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -528,6 +529,7 @@ CREATE TABLE IF NOT EXISTS notification_send_log (
     http_status INTEGER NULL,
     duration_ms INTEGER NOT NULL,
     error TEXT NULL,
+    actor VARCHAR(64) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

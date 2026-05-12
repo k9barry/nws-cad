@@ -456,6 +456,7 @@ CREATE TABLE IF NOT EXISTS notification_channels (
     config_json TEXT NOT NULL,
     last_error_at TIMESTAMP NULL,
     last_error_message TEXT NULL,
+    last_updated_actor VARCHAR(64) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
@@ -473,6 +474,7 @@ CREATE TABLE IF NOT EXISTS notification_send_log (
     http_status INT NULL,
     duration_ms INT NOT NULL,
     error TEXT NULL,
+    actor VARCHAR(64) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (channel_id) REFERENCES notification_channels(id) ON DELETE CASCADE,
