@@ -23,6 +23,13 @@ class FileWatcher
     private $logger;
     private bool $running = true;
     private string $heartbeatPath;
+    /** @var (callable():void)|null */
+    private $onTick = null;
+
+    public function setOnTick(?callable $cb): void
+    {
+        $this->onTick = $cb;
+    }
 
     /**
      * Constructor - Initialize file watcher
@@ -112,7 +119,15 @@ class FileWatcher
                 $this->touchHeartbeat();
                 $this->logger->debug("=== Check #{$checkCount} - Starting folder scan ===");
                 $this->checkForNewFiles();
-                
+
+                if ($this->onTick !== null) {
+                    try {
+                        ($this->onTick)();
+                    } catch (\Throwable $t) {
+                        $this->logger->error("onTick callback failed: " . $t->getMessage());
+                    }
+                }
+
                 // Process signals if available
                 if (function_exists('pcntl_signal_dispatch')) {
                     pcntl_signal_dispatch();
