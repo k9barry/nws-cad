@@ -37,6 +37,16 @@ class DirectAccessForgeryTest extends TestCase
         unset($GLOBALS['__identity']);
         $this->initialObLevel = ob_get_level();
         ob_start();
+
+        // Pin trusted CIDRs to loopback so this test exercises the deny path
+        // regardless of the developer's .env (some LAN deployments widen the
+        // default to 0.0.0.0/0 for direct access).
+        $_ENV['TRUSTED_PROXY_CIDRS'] = '127.0.0.1/32,::1/128';
+        putenv('TRUSTED_PROXY_CIDRS=127.0.0.1/32,::1/128');
+        $refl = new \ReflectionClass(Config::class);
+        $prop = $refl->getProperty('instance');
+        $prop->setAccessible(true);
+        $prop->setValue(null, null);
     }
 
     protected function tearDown(): void

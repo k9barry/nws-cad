@@ -53,6 +53,9 @@ final class WebhookEndToEndTest extends TestCase
 
     protected function setUp(): void
     {
+        if (! function_exists('socket_create_listen')) {
+            $this->markTestSkipped('ext-sockets not available — needed for capture-server fixture');
+        }
         cleanTestDatabase();
         ChannelRegistry::clear();
     }

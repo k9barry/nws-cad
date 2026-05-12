@@ -27,6 +27,16 @@ class BootstrapTrustGuardTest extends TestCase
         Response::resetForTesting();
         $this->initialObLevel = ob_get_level();
         ob_start();
+
+        // Pin trusted CIDRs to loopback for the test regardless of the
+        // developer's .env (which may permit broader ranges for direct-LAN
+        // deployments). Reset the singleton so the new value sticks.
+        $_ENV['TRUSTED_PROXY_CIDRS'] = '127.0.0.1/32,::1/128';
+        putenv('TRUSTED_PROXY_CIDRS=127.0.0.1/32,::1/128');
+        $refl = new \ReflectionClass(Config::class);
+        $prop = $refl->getProperty('instance');
+        $prop->setAccessible(true);
+        $prop->setValue(null, null);
     }
 
     protected function tearDown(): void

@@ -11,6 +11,13 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(HttpPost::class)]
 final class HttpPostJsonTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        if (! function_exists('socket_create_listen')) {
+            $this->markTestSkipped('ext-sockets not available — needed for ephemeral local server');
+        }
+    }
+
     public function testPostJsonHits200OnLocalServer(): void
     {
         $server = $this->startEchoServer();
