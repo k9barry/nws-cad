@@ -96,6 +96,7 @@ function cleanTestDatabase(): void
     try {
         $pdo = getTestDbConnection();
         $tables = [
+            'notification_outbox',
             'notification_send_log',
             'notification_channels',
             'unit_dispositions', 'unit_logs', 'unit_personnel', 'units',

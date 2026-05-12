@@ -33,13 +33,56 @@ AegisXmlParser ──commit──► CallProcessedEvent
                   EventDispatcher
                             │
                             ▼
-                  NotificationDispatcher
-                ┌───────────┼───────────┐
-                ▼           ▼           ▼
-          NtfyChannel  PushoverChannel  …
+                    OutboxWriter
                             │
-                            ▼
-                notification_send_log
+                            ▼      (per enabled channel)
+                notification_outbox  ◄────────────┐
+                            │                    │
+                FileWatcher loop ──tick──► OutboxProcessor
+                            │                    │
+                ┌───────────┼───────────┐        │
+                ▼           ▼           ▼        │
+          NtfyChannel  PushoverChannel  …        │
+                            │                    │
+                            ▼                    │
+                notification_send_log            │
+                                                 │
+                            retry on failure ────┘
+```
+
+## Outbox flow (since 2026-05-12)
+
+After `AegisXmlParser::processFile()` commits, it dispatches a `CallProcessedEvent`. The `OutboxWriter` subscriber filters Closed intents and the delta-time gate, then inserts one row into `notification_outbox` per enabled channel. Each row carries the intent, the topic-resolution mode (`resend_all`), the `added_topics_json` list, and the call's `create_datetime`.
+
+The watcher's main loop calls `OutboxProcessor::tick()` once per iteration after the file scan. Each tick:
+
+1. Prunes `status='done'` rows older than 7 days
+2. Resets `status='in_flight'` rows whose `claimed_by` does not match the current worker (recovers orphans from a previous process)
+3. Claims up to `OUTBOX_BATCH_SIZE` (default 10) pending rows whose `next_attempt_at` is null or in the past
+4. For each claimed row: loads the `IncidentDto`, resolves topics, invokes the channel's `send()`, records each `SendResult` in `notification_send_log`, and marks the outbox row `done` (any success) or schedules a retry (all failures)
+5. Retries use backoff `[30s, 2m, 10m, 30m, 2h]` indexed by `attempts - 1`; after `OUTBOX_MAX_ATTEMPTS` (default 5), the row is marked `failed`
+
+Operators inspect the queue with:
+
+```sql
+SELECT id, db_call_id, channel_id, intent, status, attempts, next_attempt_at, last_error, updated_at
+FROM notification_outbox
+WHERE status IN ('pending', 'in_flight', 'failed')
+ORDER BY id DESC;
+```
+
+A `failed` row is retained indefinitely for operator review. To clear failures after fixing the underlying issue:
+
+```sql
+DELETE FROM notification_outbox WHERE status = 'failed' AND id = <id>;
+```
+
+Or to retry, set it back to pending:
+
+```sql
+UPDATE notification_outbox
+SET status='pending', attempts=0, next_attempt_at=NULL, last_error=NULL
+WHERE id=<id>;
 ```
 
 ## Intent rules
