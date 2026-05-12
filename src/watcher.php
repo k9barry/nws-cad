@@ -22,6 +22,7 @@ use NwsCad\Notifications\Events\CallProcessedEvent;
 // Initialize logger once
 $logger = Logger::getInstance();
 $config = Config::getInstance();
+require_once __DIR__ . '/Notifications/registerChannels.php';
 
 try {
     $logLevel = strtoupper($config->get('app.log_level', 'INFO'));

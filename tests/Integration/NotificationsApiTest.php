@@ -18,11 +18,15 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Logging\RedactingProcessor
  * @uses \NwsCad\Logging\SecretRegistry
  * @uses \NwsCad\Notifications\ChannelFactory
+ * @uses \NwsCad\Notifications\ChannelRegistry
+ * @uses \NwsCad\Notifications\ChannelDescriptor
  * @uses \NwsCad\Notifications\ChannelRepository
  * @uses \NwsCad\Notifications\IncidentDto
  * @uses \NwsCad\Notifications\NotificationContext
  * @uses \NwsCad\Notifications\SendResult
  * @uses \NwsCad\Notifications\Events\Intent
+ * @uses \NwsCad\Notifications\Channels\NtfyChannel
+ * @uses \NwsCad\Notifications\Channels\PushoverChannel
  * @uses \NwsCad\Security\UrlValidator
  * @uses \NwsCad\Security\Identity
  * @uses \NwsCad\Security\InputValidator
@@ -48,10 +52,17 @@ class NotificationsApiTest extends TestCase
         // testing mode short-circuits subsequent calls within a request, so
         // without a reset every test after the first would silently no-op.
         Response::resetForTesting();
+
+        // Populate the registry so validateType() works for ntfy/pushover.
+        // Tests that probe unknown types may clear/re-register as needed.
+        \NwsCad\Notifications\ChannelRegistry::clear();
+        \NwsCad\Notifications\ChannelRegistry::register(\NwsCad\Notifications\Channels\NtfyChannel::descriptor());
+        \NwsCad\Notifications\ChannelRegistry::register(\NwsCad\Notifications\Channels\PushoverChannel::descriptor());
     }
 
     protected function tearDown(): void
     {
+        \NwsCad\Notifications\ChannelRegistry::clear();
         unset($GLOBALS['__identity']);
         unset($_SERVER['HTTP_X_AUTH_USER']);
         parent::tearDown();
@@ -243,7 +254,13 @@ class NotificationsApiTest extends TestCase
         $channelId = (int) self::$db->lastInsertId();
 
         $stub = new class implements \NwsCad\Notifications\NotificationChannel {
-            public static function type(): string { return 'ntfy'; }
+            public static function descriptor(): \NwsCad\Notifications\ChannelDescriptor {
+                return new \NwsCad\Notifications\ChannelDescriptor(
+                    type: 'stub', label: 'stub', baseUrlEnv: 'X',
+                    requiredEnvs: [], defaultConfig: [],
+                    factory: static fn (array $r, \NwsCad\Config $c) => throw new \LogicException('test stub'),
+                );
+            }
             public function send(\NwsCad\Notifications\IncidentDto $i, \NwsCad\Notifications\NotificationContext $c): array {
                 return [\NwsCad\Notifications\SendResult::ok(200, 12, 'test')];
             }
@@ -281,7 +298,13 @@ class NotificationsApiTest extends TestCase
             VALUES ('ntfy_primary', 'ntfy', 1, 'u', '{}')");
 
         $stub = new class implements \NwsCad\Notifications\NotificationChannel {
-            public static function type(): string { return 'ntfy'; }
+            public static function descriptor(): \NwsCad\Notifications\ChannelDescriptor {
+                return new \NwsCad\Notifications\ChannelDescriptor(
+                    type: 'stub', label: 'stub', baseUrlEnv: 'X',
+                    requiredEnvs: [], defaultConfig: [],
+                    factory: static fn (array $r, \NwsCad\Config $c) => throw new \LogicException('test stub'),
+                );
+            }
             public function send(\NwsCad\Notifications\IncidentDto $i, \NwsCad\Notifications\NotificationContext $c): array {
                 return [\NwsCad\Notifications\SendResult::fail(503, 9, 'Service Unavailable', 'test')];
             }
@@ -370,5 +393,22 @@ class NotificationsApiTest extends TestCase
             "SELECT last_updated_actor FROM notification_channels WHERE name = 'ntfy_primary'"
         )->fetch();
         $this->assertSame('k9barry', $row['last_updated_actor']);
+    }
+
+    public function testEnableUnknownTypeReturnsAvailableTypes(): void
+    {
+        // Registry already has ntfy + pushover from setUp(); just verify the
+        // error response includes the available_types list.
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->enable('badtype');
+        $body = (string) ob_get_clean();
+
+        $response = json_decode($body, true);
+        $this->assertSame(400, http_response_code());
+        $this->assertFalse($response['success']);
+        $this->assertSame(['ntfy', 'pushover'], $response['errors']['available_types']);
     }
 }

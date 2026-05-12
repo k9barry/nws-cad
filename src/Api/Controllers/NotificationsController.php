@@ -8,6 +8,7 @@ use NwsCad\Api\Response;
 use NwsCad\Config;
 use NwsCad\Database;
 use NwsCad\Notifications\ChannelFactory;
+use NwsCad\Notifications\ChannelRegistry;
 use NwsCad\Notifications\ChannelRepository;
 use NwsCad\Notifications\IncidentDto;
 use NwsCad\Notifications\Events\Intent;
@@ -99,7 +100,9 @@ final class NotificationsController
     {
         try {
             if (! $this->validateType($type)) {
-                Response::error("Unknown channel type: {$type}", 404);
+                Response::error("Unknown channel type: {$type}", 400, [
+                    'available_types' => ChannelRegistry::types(),
+                ]);
                 return;
             }
 
@@ -129,9 +132,8 @@ final class NotificationsController
                     Response::error("Missing env var: {$envKey}", 422);
                     return;
                 }
-                $defaultConfig = $type === 'ntfy'
-                    ? '{"auth_token_env":"NTFY_AUTH_TOKEN","alarm_priority_map":{"1":3,"2":4,"3":5}}'
-                    : '{"token_env":"PUSHOVER_TOKEN","user_env":"PUSHOVER_USER"}';
+                $descriptor    = ChannelRegistry::get($type);
+                $defaultConfig = json_encode($descriptor->defaultConfig);
 
                 $ins = $this->db->prepare(
                     "INSERT INTO notification_channels (name, type, enabled, base_url, config_json, last_updated_actor)
@@ -165,7 +167,9 @@ final class NotificationsController
     {
         try {
             if (! $this->validateType($type)) {
-                Response::error("Unknown channel type: {$type}", 404);
+                Response::error("Unknown channel type: {$type}", 400, [
+                    'available_types' => ChannelRegistry::types(),
+                ]);
                 return;
             }
             $actor = \NwsCad\Security\Identity::current()->user;
@@ -186,7 +190,9 @@ final class NotificationsController
     {
         try {
             if (! $this->validateType($type)) {
-                Response::error("Unknown channel type: {$type}", 404);
+                Response::error("Unknown channel type: {$type}", 400, [
+                    'available_types' => ChannelRegistry::types(),
+                ]);
                 return;
             }
 
@@ -300,7 +306,9 @@ final class NotificationsController
     {
         try {
             if (! $this->validateType($type)) {
-                Response::error("Unknown channel type: {$type}", 404);
+                Response::error("Unknown channel type: {$type}", 400, [
+                    'available_types' => ChannelRegistry::types(),
+                ]);
                 return;
             }
             $actor = \NwsCad\Security\Identity::current()->user;
@@ -343,7 +351,7 @@ final class NotificationsController
 
     private function validateType(string $type): bool
     {
-        return in_array($type, ['ntfy', 'pushover'], true);
+        return ChannelRegistry::has($type);
     }
 
     private function resolveChannelId(string $channel): ?int

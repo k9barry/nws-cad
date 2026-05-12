@@ -6,77 +6,57 @@ namespace NwsCad\Tests\Unit\Notifications;
 
 use InvalidArgumentException;
 use NwsCad\Config;
+use NwsCad\Notifications\ChannelDescriptor;
 use NwsCad\Notifications\ChannelFactory;
-use NwsCad\Notifications\Channels\NtfyChannel;
-use NwsCad\Notifications\Channels\PushoverChannel;
+use NwsCad\Notifications\ChannelRegistry;
+use NwsCad\Notifications\NotificationChannel;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @covers \NwsCad\Notifications\ChannelFactory
- * @uses \NwsCad\Config
- * @uses \NwsCad\Notifications\Channels\NtfyChannel
- * @uses \NwsCad\Notifications\Channels\PushoverChannel
- * @uses \NwsCad\Logging\SecretRegistry
- */
-class ChannelFactoryTest extends TestCase
+#[CoversClass(ChannelFactory::class)]
+#[UsesClass(ChannelRegistry::class)]
+#[UsesClass(ChannelDescriptor::class)]
+#[UsesClass(Config::class)]
+final class ChannelFactoryTest extends TestCase
 {
     protected function setUp(): void
     {
-        $_ENV['NTFY_AUTH_TOKEN']  = 'ntfy-token';
-        $_ENV['PUSHOVER_TOKEN']   = 'pushover-token';
-        $_ENV['PUSHOVER_USER']    = 'pushover-user';
+        ChannelRegistry::clear();
     }
 
     protected function tearDown(): void
     {
-        unset($_ENV['NTFY_AUTH_TOKEN'], $_ENV['PUSHOVER_TOKEN'], $_ENV['PUSHOVER_USER']);
-        putenv('NTFY_AUTH_TOKEN');
-        putenv('PUSHOVER_TOKEN');
-        putenv('PUSHOVER_USER');
+        ChannelRegistry::clear();
     }
 
-    public function testCreatesNtfyChannel(): void
+    public function testUnknownTypeThrows(): void
     {
         $factory = new ChannelFactory(Config::getInstance());
-        $channel = $factory->create([
-            'type'        => 'ntfy',
-            'base_url'    => 'https://ntfy.example',
-            'config_json' => '{"auth_token_env":"NTFY_AUTH_TOKEN"}',
-        ]);
-        $this->assertInstanceOf(NtfyChannel::class, $channel);
-    }
 
-    public function testCreatesPushoverChannel(): void
-    {
-        $factory = new ChannelFactory(Config::getInstance());
-        $channel = $factory->create([
-            'type'        => 'pushover',
-            'base_url'    => 'https://api.pushover.net',
-            'config_json' => '{"token_env":"PUSHOVER_TOKEN","user_env":"PUSHOVER_USER"}',
-        ]);
-        $this->assertInstanceOf(PushoverChannel::class, $channel);
-    }
-
-    public function testThrowsOnUnknownType(): void
-    {
-        $factory = new ChannelFactory(Config::getInstance());
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown channel type: webhook');
-        $factory->create([
-            'type'        => 'webhook',
-            'base_url'    => 'https://x',
+        $this->expectExceptionMessage('Unknown channel type: bogus');
+
+        $factory->create(['type' => 'bogus', 'base_url' => '', 'config_json' => '']);
+    }
+
+    public function testRegistryDispatchInvokesDescriptorFactory(): void
+    {
+        $stub = $this->createStub(NotificationChannel::class);
+
+        ChannelRegistry::register(new ChannelDescriptor(
+            type: 'demo', label: 'Demo', baseUrlEnv: 'DEMO_URL',
+            requiredEnvs: [], defaultConfig: [],
+            factory: static fn (array $row, Config $cfg): NotificationChannel => $stub,
+        ));
+
+        $factory = new ChannelFactory(Config::getInstance());
+        $result  = $factory->create([
+            'type'        => 'demo',
+            'base_url'    => 'http://example.test',
             'config_json' => '{}',
         ]);
-    }
 
-    public function testHandlesEmptyConfigJson(): void
-    {
-        $factory = new ChannelFactory(Config::getInstance());
-        $channel = $factory->create([
-            'type'        => 'ntfy',
-            'base_url'    => 'https://ntfy.example',
-            'config_json' => '',
-        ]);
-        $this->assertInstanceOf(NtfyChannel::class, $channel);
+        $this->assertSame($stub, $result);
     }
 }

@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/Notifications/registerChannels.php';
 
 use NwsCad\Database;
 
@@ -11,21 +12,26 @@ $args = $_SERVER['argv'] ?? [];
 array_shift($args);
 $cmd = $args[0] ?? 'help';
 
+$availableTypes = implode('|', \NwsCad\Notifications\ChannelRegistry::types());
+$envBlock = '';
+foreach (\NwsCad\Notifications\ChannelRegistry::all() as $descriptor) {
+    $envBlock .= "  {$descriptor->type}: " . implode(', ', $descriptor->requiredEnvs) . "\n";
+}
+
 function help(): never
 {
+    global $availableTypes, $envBlock;
     echo <<<TXT
 Usage: php bin/notifications.php <command>
 
 Commands:
   list                                 Show all channels with status.
-  enable <type> [--base-url=URL]       Enable (or create) a channel of the given type ('ntfy'|'pushover').
+  enable <type> [--base-url=URL]       Enable (or create) a channel of the given type ('{$availableTypes}').
   disable <type>                       Disable all channels of the given type.
   test <type>                          Send a synthetic notification through the first enabled channel of <type>.
 
 Secrets are read from environment (.env). Required env vars per type:
-  ntfy:     NTFY_AUTH_TOKEN
-  pushover: PUSHOVER_TOKEN, PUSHOVER_USER
-
+{$envBlock}
 TXT;
     exit(0);
 }
@@ -48,8 +54,8 @@ switch ($cmd) {
 
     case 'enable':
         $type = $args[1] ?? null;
-        if (! in_array($type, ['ntfy', 'pushover'], true)) {
-            fwrite(STDERR, "enable requires <type> = ntfy | pushover\n");
+        if (! \NwsCad\Notifications\ChannelRegistry::has($type)) {
+            fwrite(STDERR, "Unknown channel type: {$type}. Available: " . implode(', ', \NwsCad\Notifications\ChannelRegistry::types()) . "\n");
             exit(1);
         }
         $baseUrl = '';
@@ -59,7 +65,7 @@ switch ($cmd) {
             }
         }
         if ($baseUrl === '') {
-            $envKey = $type === 'ntfy' ? 'NTFY_BASE_URL' : 'PUSHOVER_BASE_URL';
+            $envKey = \NwsCad\Notifications\ChannelRegistry::get($type)->baseUrlEnv;
             $baseUrl = $_ENV[$envKey] ?? getenv($envKey) ?: '';
             if ($baseUrl === '') {
                 fwrite(STDERR, "Provide --base-url=URL or set {$envKey} in environment.\n");
@@ -76,9 +82,7 @@ switch ($cmd) {
             exit(1);
         }
 
-        $defaultConfig = $type === 'ntfy'
-            ? '{"auth_token_env":"NTFY_AUTH_TOKEN","alarm_priority_map":{"1":3,"2":4,"3":5}}'
-            : '{"token_env":"PUSHOVER_TOKEN","user_env":"PUSHOVER_USER"}';
+        $defaultConfig = json_encode(\NwsCad\Notifications\ChannelRegistry::get($type)->defaultConfig);
 
         $db = Database::getConnection();
         $name = "{$type}_primary";
@@ -98,8 +102,8 @@ switch ($cmd) {
 
     case 'disable':
         $type = $args[1] ?? null;
-        if (! in_array($type, ['ntfy', 'pushover'], true)) {
-            fwrite(STDERR, "disable requires <type>\n");
+        if (! \NwsCad\Notifications\ChannelRegistry::has($type)) {
+            fwrite(STDERR, "Unknown channel type: {$type}. Available: " . implode(', ', \NwsCad\Notifications\ChannelRegistry::types()) . "\n");
             exit(1);
         }
         $db = Database::getConnection();

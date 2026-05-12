@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace NwsCad\Notifications\Channels;
 
+use NwsCad\Config;
 use NwsCad\Logger;
+use NwsCad\Notifications\ChannelDescriptor;
 use NwsCad\Notifications\IncidentDto;
 use NwsCad\Notifications\NotificationChannel;
 use NwsCad\Notifications\NotificationContext;
@@ -29,9 +31,25 @@ final class PushoverChannel implements NotificationChannel
         }
     }
 
-    public static function type(): string
+    public static function descriptor(): ChannelDescriptor
     {
-        return 'pushover';
+        return new ChannelDescriptor(
+            type:          'pushover',
+            label:         'Pushover',
+            baseUrlEnv:    'PUSHOVER_BASE_URL',
+            requiredEnvs:  ['PUSHOVER_TOKEN', 'PUSHOVER_USER'],
+            defaultConfig: ['token_env' => 'PUSHOVER_TOKEN', 'user_env' => 'PUSHOVER_USER'],
+            factory: static function (array $row, Config $cfg): NotificationChannel {
+                $raw    = $row['config_json'] ?? '';
+                $config = $raw !== '' ? (json_decode($raw, true) ?: []) : [];
+                return new self(
+                    baseUrl: (string) $row['base_url'],
+                    token:   $cfg->secret($config['token_env'] ?? 'PUSHOVER_TOKEN'),
+                    user:    $cfg->secret($config['user_env']  ?? 'PUSHOVER_USER'),
+                    config:  $config,
+                );
+            },
+        );
     }
 
     public function send(IncidentDto $incident, NotificationContext $context): array
