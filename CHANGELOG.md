@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.12] - 2026-05-12
+
+### Changes
+- feat(security): CSP nonces for inline scripts (drop script-src unsafe-inline) (#33) (941e68c)
+
 ## [1.1.11] - 2026-05-12
 
 ### Changes
