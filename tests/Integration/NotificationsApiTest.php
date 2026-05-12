@@ -18,6 +18,7 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Logging\RedactingProcessor
  * @uses \NwsCad\Logging\SecretRegistry
  * @uses \NwsCad\Notifications\ChannelFactory
+ * @uses \NwsCad\Notifications\ChannelFactoryInterface
  * @uses \NwsCad\Notifications\ChannelRegistry
  * @uses \NwsCad\Notifications\ChannelDescriptor
  * @uses \NwsCad\Notifications\ChannelRepository
@@ -173,15 +174,16 @@ class NotificationsApiTest extends TestCase
         )->fetchColumn());
     }
 
-    public function testEnableReturns404ForUnknownType(): void
+    public function testEnableReturns400ForUnknownType(): void
     {
         $controller = new NotificationsController();
         ob_start();
-        $controller->enable('webhook');
+        $controller->enable('bogus');
         $payload = json_decode((string) ob_get_clean(), true);
 
         $this->assertFalse($payload['success']);
         $this->assertStringContainsString('Unknown channel type', $payload['error']);
+        $this->assertSame(400, http_response_code());
     }
 
     public function testDisableSetsEnabledToZero(): void
@@ -212,14 +214,15 @@ class NotificationsApiTest extends TestCase
         $this->assertSame(0, (int) $payload['data']['updated']);
     }
 
-    public function testDisableReturns404ForUnknownType(): void
+    public function testDisableReturns400ForUnknownType(): void
     {
         $controller = new NotificationsController();
         ob_start();
-        $controller->disable('webhook');
+        $controller->disable('bogus');
         $payload = json_decode((string) ob_get_clean(), true);
 
         $this->assertFalse($payload['success']);
+        $this->assertSame(400, http_response_code());
     }
 
     public function testTestReturns422WhenChannelMissing(): void
@@ -266,10 +269,8 @@ class NotificationsApiTest extends TestCase
             }
         };
 
-        $factory = new class($stub) extends \NwsCad\Notifications\ChannelFactory {
-            public function __construct(private $stub) {
-                parent::__construct(\NwsCad\Config::getInstance());
-            }
+        $factory = new class($stub) implements \NwsCad\Notifications\ChannelFactoryInterface {
+            public function __construct(private \NwsCad\Notifications\NotificationChannel $stub) {}
             public function create(array $row): \NwsCad\Notifications\NotificationChannel { return $this->stub; }
         };
 
@@ -309,10 +310,8 @@ class NotificationsApiTest extends TestCase
                 return [\NwsCad\Notifications\SendResult::fail(503, 9, 'Service Unavailable', 'test')];
             }
         };
-        $factory = new class($stub) extends \NwsCad\Notifications\ChannelFactory {
-            public function __construct(private $stub) {
-                parent::__construct(\NwsCad\Config::getInstance());
-            }
+        $factory = new class($stub) implements \NwsCad\Notifications\ChannelFactoryInterface {
+            public function __construct(private \NwsCad\Notifications\NotificationChannel $stub) {}
             public function create(array $row): \NwsCad\Notifications\NotificationChannel { return $this->stub; }
         };
 
@@ -332,14 +331,15 @@ class NotificationsApiTest extends TestCase
         $this->assertSame(0, (int) $logged);
     }
 
-    public function testTestReturns404ForUnknownType(): void
+    public function testTestReturns400ForUnknownType(): void
     {
         $controller = new NotificationsController();
         ob_start();
-        $controller->test('webhook');
+        $controller->test('bogus');
         $payload = json_decode((string) ob_get_clean(), true);
 
         $this->assertFalse($payload['success']);
+        $this->assertSame(400, http_response_code());
     }
 
     public function testEnableRejectsHttpUrl(): void

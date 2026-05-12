@@ -8,6 +8,7 @@ use NwsCad\Api\Response;
 use NwsCad\Config;
 use NwsCad\Database;
 use NwsCad\Notifications\ChannelFactory;
+use NwsCad\Notifications\ChannelFactoryInterface;
 use NwsCad\Notifications\ChannelRegistry;
 use NwsCad\Notifications\ChannelRepository;
 use NwsCad\Notifications\IncidentDto;
@@ -20,10 +21,10 @@ use Exception;
 final class NotificationsController
 {
     private PDO $db;
-    private ChannelFactory $factory;
+    private ChannelFactoryInterface $factory;
     private ChannelRepository $repo;
 
-    public function __construct(?ChannelFactory $factory = null, ?ChannelRepository $repo = null)
+    public function __construct(?ChannelFactoryInterface $factory = null, ?ChannelRepository $repo = null)
     {
         $this->db = Database::getConnection();
         $this->factory = $factory ?? new ChannelFactory(Config::getInstance());

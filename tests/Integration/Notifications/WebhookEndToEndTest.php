@@ -7,6 +7,7 @@ namespace NwsCad\Tests\Integration\Notifications;
 use DateTimeImmutable;
 use NwsCad\Notifications\ChannelDescriptor;
 use NwsCad\Notifications\ChannelFactory;
+use NwsCad\Notifications\ChannelFactoryInterface;
 use NwsCad\Notifications\ChannelRegistry;
 use NwsCad\Notifications\Channels\WebhookChannel;
 use NwsCad\Notifications\Events\CallProcessedEvent;
@@ -23,6 +24,7 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(ChannelRegistry::class)]
 #[UsesClass(ChannelDescriptor::class)]
 #[UsesClass(ChannelFactory::class)]
+#[UsesClass(ChannelFactoryInterface::class)]
 #[UsesClass(NotificationDispatcher::class)]
 #[UsesClass(IncidentDto::class)]
 #[UsesClass(SendResult::class)]

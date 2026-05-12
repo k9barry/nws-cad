@@ -101,7 +101,8 @@ final class PushoverChannel implements NotificationChannel
                     'attempt' => $i + 1,
                     'body' => substr($lastError, 0, 500),
                 ]);
-                break;
+                $duration = (int) ((microtime(true) - $start) * 1000);
+                return [SendResult::fail($resp['status'], $duration, $lastError)];
             }
 
             if ($i < count(self::BACKOFF_MS) - 1) {

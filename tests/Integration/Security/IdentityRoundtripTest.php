@@ -22,6 +22,7 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Logging\SecretRegistry
  * @uses \NwsCad\Notifications\ChannelDescriptor
  * @uses \NwsCad\Notifications\ChannelFactory
+ * @uses \NwsCad\Notifications\ChannelFactoryInterface
  * @uses \NwsCad\Notifications\ChannelRegistry
  * @uses \NwsCad\Notifications\ChannelRepository
  * @uses \NwsCad\Notifications\Channels\NtfyChannel
