@@ -101,10 +101,12 @@ $router->delete('/notifications/log/{id}',              [NotificationsController
 $router->post('/notifications/log/clear-failed',        [NotificationsController::class, 'clearFailed']);
 
 // Outbox Controller Routes (operator admin for notification_outbox queue)
-$router->get('/notifications/outbox',                [OutboxController::class, 'index']);
-$router->post('/notifications/outbox/{id}/retry',    [OutboxController::class, 'retry']);
-$router->delete('/notifications/outbox/{id}',        [OutboxController::class, 'dismiss']);
-$router->post('/notifications/outbox/clear',         [OutboxController::class, 'clear']);
+$router->get('/notifications/outbox',                  [OutboxController::class, 'index']);
+$router->get('/notifications/outbox/{id}',             [OutboxController::class, 'show']);
+$router->post('/notifications/outbox/{id}/retry',      [OutboxController::class, 'retry']);
+$router->post('/notifications/outbox/{id}/schedule',   [OutboxController::class, 'schedule']);
+$router->delete('/notifications/outbox/{id}',          [OutboxController::class, 'dismiss']);
+$router->post('/notifications/outbox/clear',           [OutboxController::class, 'clear']);
 
 // Logs Controller Routes
 $router->get('/logs', [LogsController::class, 'index']);

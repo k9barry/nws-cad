@@ -481,7 +481,7 @@
             // when there's just one (or none), we still want the result count
             // visible to the user, so show the container whenever there are
             // results at all.
-            container.style.display = total > 0 ? 'flex' : 'none';
+            container.classList.toggle('d-none', total <= 0);
         }
         
         /**

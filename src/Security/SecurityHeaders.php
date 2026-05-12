@@ -62,11 +62,13 @@ class SecurityHeaders
     /**
      * Set Content-Security-Policy header
      *
-     * The default policy uses a per-request nonce for inline scripts (no
-     * 'unsafe-inline' in script-src). 'unsafe-eval' remains for compatibility
-     * with libraries like Chart.js and Leaflet.js that compile expressions at
-     * runtime. Style attribute hardening (style-src nonces or hashes) is a
-     * separate follow-up.
+     * Both script-src and style-src use the same per-request nonce — no
+     * 'unsafe-inline' in either directive. 'unsafe-eval' remains for
+     * compatibility with libraries like Chart.js and Leaflet.js that compile
+     * expressions at runtime. JS-driven CSSOM property writes
+     * (e.g. element.style.display = 'none') are not gated by style-src per
+     * CSP3, so those continue to work; only literal <style> blocks and
+     * style="" attributes in served HTML are blocked.
      *
      * @param string|null $policy Custom CSP policy (default: nonce-based for dashboard compatibility)
      * @return void
@@ -78,7 +80,7 @@ class SecurityHeaders
             $policy = implode('; ', [
                 "default-src 'self'",
                 "script-src 'self' 'nonce-{$nonce}' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://*.cloudflare.com",
-                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://fonts.googleapis.com",
+                "style-src 'self' 'nonce-{$nonce}' https://cdn.jsdelivr.net https://unpkg.com https://fonts.googleapis.com",
                 "img-src 'self' data: https://cdn.jsdelivr.net https://*.tile.openstreetmap.org",
                 "font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com",
                 "connect-src 'self'",

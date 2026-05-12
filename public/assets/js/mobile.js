@@ -154,23 +154,23 @@ const MobileDashboard = {
     showCallsList() {
         const callsView = document.getElementById('mobile-calls-view');
         const mapView = document.getElementById('mobile-map-view');
-        
-        if (callsView) callsView.style.display = 'block';
-        if (mapView) mapView.style.display = 'none';
-        
+
+        if (callsView) callsView.classList.remove('d-none');
+        if (mapView) mapView.classList.add('d-none');
+
         this.loadCallsList();
     },
-    
+
     /**
      * Show map view
      */
     showMap() {
         const callsView = document.getElementById('mobile-calls-view');
         const mapView = document.getElementById('mobile-map-view');
-        
-        if (callsView) callsView.style.display = 'none';
-        if (mapView) mapView.style.display = 'block';
-        
+
+        if (callsView) callsView.classList.add('d-none');
+        if (mapView) mapView.classList.remove('d-none');
+
         // Initialize or refresh map
         if (typeof MobileMaps !== 'undefined' && MobileMaps.initMap) {
             MobileMaps.initMap();
