@@ -28,6 +28,16 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(SendResult::class)]
 final class WebhookEndToEndTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        ChannelRegistry::clear();
+    }
+
+    protected function tearDown(): void
+    {
+        ChannelRegistry::clear();
+    }
+
     public function testDispatcherDeliversToWebhookOnce(): void
     {
         ChannelRegistry::clear();
