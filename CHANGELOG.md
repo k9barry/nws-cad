@@ -339,6 +339,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `ChannelRegistry` and `ChannelDescriptor` for plug-in channel registration. Adding a new channel type now requires one class with a `descriptor()` static method plus one line in `src/Notifications/registerChannels.php`.
+- `WebhookChannel` — generic HTTP POST channel with JSON-template payload configuration. Covers Slack, Discord, Mattermost, Home Assistant, and similar incoming-webhook integrations via per-row `config_json` templates with `{string}` and `"${array}"` placeholder substitution.
+- `HttpPost::postJson()` helper for JSON-body HTTP POST.
 - Unified filter system across desktop dashboard, mobile dashboard, and new `/calls` and `/units` list pages.
 - New filter vocabulary: call_type, incident_type, nature_of_call (LIKE), agency, ORI, FDID, beat, area, city, location, call_id, unit #, status (open/closed/canceled), and date range with presets.
 - New `Api\Filtering\` namespace (`FilterCriteria`, `FilterSqlBuilder`, `FilterRegistry`, `FilterContext`, `FilterOptionsCache`, `DateRange`, `InvalidFilterException`).
@@ -349,16 +352,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vendored frontend libraries: Choices.js v10 and Flatpickr v4 under `public/assets/vendor/`.
 - Notifications dashboard UI: enable/disable channels and dispatch synthetic test sends from `/notifications` without dropping into the shell. Backed by three new endpoints (`POST /api/notifications/channels/{type}/{enable|disable|test}`) and a shared `Notifications\ChannelFactory` for channel construction.
 
+### Changed
+- `ChannelFactory::create()` now dispatches via `ChannelRegistry` instead of a hardcoded `match` on channel type.
+- `NotificationsController` and `bin/notifications.php` query the registry for validation, help text, and default `config_json` on first enable.
+- The `/api/notifications/{type}/enable|disable|test|clear` endpoints now return HTTP 400 (was 404) for unknown channel types, with the available types listed in `errors.available_types`.
+- Consolidated v1.1.0 database migration scripts into init.sql files (migrations already reflected in init schemas)
+- Removed redundant `database/mysql/migration_v1.1.0.sql` and `database/postgres/migration_v1.1.0.sql`
+- Removed orphaned `data/dbeaver` directory references (no DBeaver service in docker-compose.yml)
+
 ### Removed
+- Unused `NotificationChannel::type()` interface method (`descriptor()->type` replaces it).
 - Legacy `public/assets/js/filter-manager.js` (replaced by `FilterPanel`).
 - Mobile filter logic in `mobile.js` (replaced by `FilterPanel` compact mode).
 - `Api\Request::filters()` (superseded by `FilterCriteria`).
 - `partials/filter-modal.php` and `partials-mobile/filters-modal.php` (replaced by `partials/filter-panel.php`).
-
-### Changed
-- Consolidated v1.1.0 database migration scripts into init.sql files (migrations already reflected in init schemas)
-- Removed redundant `database/mysql/migration_v1.1.0.sql` and `database/postgres/migration_v1.1.0.sql`
-- Removed orphaned `data/dbeaver` directory references (no DBeaver service in docker-compose.yml)
 
 ### Security (2026-02-15)
 - 🔒 **Critical XSS Fixes** - Comprehensive cross-site scripting prevention across all JavaScript

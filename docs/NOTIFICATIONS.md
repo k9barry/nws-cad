@@ -105,6 +105,90 @@ Every send attempt that produces a permanent outcome writes a `notification_send
 | Inspect channel state in DB   | `SELECT * FROM notification_channels;`                                        |
 | Inspect recent sends in DB    | `SELECT * FROM notification_send_log ORDER BY id DESC LIMIT 20;`              |
 
+## Webhook channel
+
+The `webhook` channel emits one HTTP POST per `CallProcessedEvent`. The payload is a JSON object built from a per-row template stored in `notification_channels.config_json`. Covers Slack, Discord, Mattermost, Home Assistant, and similar incoming-webhook integrations via configuration alone — no PHP changes are needed to add a new platform.
+
+### Enable a webhook channel
+
+CLI:
+
+```bash
+php bin/notifications.php enable webhook --base-url=https://hooks.slack.com/services/...
+```
+
+API equivalent:
+
+```http
+POST /api/notifications/webhook/enable
+Content-Type: application/json
+
+{ "base_url": "https://hooks.slack.com/services/..." }
+```
+
+The channel is created with a sensible default `template`, but you will usually want to edit `config_json` afterward to customize it for your platform.
+
+### Template syntax
+
+Two kinds of placeholder are supported:
+
+- `{name}` — **string substitution**. The placeholder is replaced inline within any string-valued leaf of the template. Available tokens: `{intent}`, `{call_id}`, `{call_number}`, `{call_type}`, `{full_address}`, `{create_datetime}`, `{alarm_level}`, `{narrative}`, `{agency_type}`, `{jurisdiction}`, `{units}`, `{topics}` (comma-joined).
+- `"${name}"` — **raw JSON array**. Must appear as the entire string value of a JSON field (surrounding quotes included). After substitution the quoted placeholder becomes a real JSON array literal. Available tokens: `${topics}`, `${units}`, `${jurisdiction}`.
+
+Unknown placeholders pass through literally; they are not an error.
+
+### Slack example
+
+```json
+{
+  "template": {
+    "text": ":rotating_light: *{call_type}* at {full_address}",
+    "attachments": [
+      {
+        "fields": [
+          {"title": "Intent",  "value": "{intent}", "short": true},
+          {"title": "Topics",  "value": "{topics}", "short": true},
+          {"title": "Units",   "value": "{units}",  "short": false}
+        ]
+      }
+    ]
+  }
+}
+```
+
+Apply via SQL:
+
+```sql
+UPDATE notification_channels
+SET config_json = '{ "template": { ... } }'
+WHERE name = 'webhook_slack';
+```
+
+Or edit the row through the admin UI or `bin/notifications.php`.
+
+### Discord example
+
+```json
+{
+  "template": {
+    "content": "**{call_type}** — {full_address}\nIntent: {intent}\nTopics: {topics}"
+  }
+}
+```
+
+### Authentication
+
+If the receiver requires a bearer token or API key, add two keys to `config_json`:
+
+- `auth_header` — the header name (e.g., `Authorization`, `X-Api-Key`).
+- `auth_token_env` — the env-var **name** holding the token (e.g., `WEBHOOK_AUTH_TOKEN`).
+
+At send time the channel reads the secret via `Config::secret($auth_token_env)`, registers it with `SecretRegistry` so the global `RedactingProcessor` scrubs it from logs, and sets the header. Tokens containing CR or LF are rejected at channel construction.
+
+### Retry semantics
+
+Same as ntfy and Pushover: 4 attempts total (initial + 3 retries, 1 s / 3 s / 9 s backoff). 2xx = success; 4xx = permanent failure (no retry); 5xx and network errors are retried. After exhaustion the channel's `last_error` is updated and a single `SendResult::fail` is recorded in `notification_send_log`.
+
 ## Adding a new channel type
 
-Implement `NwsCad\Notifications\NotificationChannel`, return a fresh `type()` string, and extend the `channelFactory` closure in `src/watcher.php`. Add a unit test under `tests/Unit/Notifications/Channels/`.
+Register a class that implements `NwsCad\Notifications\NotificationChannel` and add a `descriptor()` static method returning a `ChannelDescriptor`. Then add one line in `src/Notifications/registerChannels.php` to register it with `ChannelRegistry`. Add a unit test under `tests/Unit/Notifications/Channels/`.
