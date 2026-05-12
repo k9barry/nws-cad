@@ -12,6 +12,7 @@ use NwsCad\Security\TrustedProxy;
 
 (static function (): void {
     $config = Config::getInstance();
+    require_once __DIR__ . '/Notifications/registerChannels.php';
 
     $isHttps = ($_SERVER['HTTPS'] ?? '') === 'on'
         || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
