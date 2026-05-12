@@ -16,15 +16,24 @@ final class NtfyChannel implements NotificationChannel
     /** @var int[] Backoff between retries, in milliseconds. */
     private const BACKOFF_MS = [1000, 3000, 9000];
 
+    private readonly string $authToken;
+
     public function __construct(
         private readonly string $baseUrl,
-        private readonly string $authToken,
+        string $authToken,
         /** @var array<string,mixed> */
         private readonly array $config,
         private readonly HttpPut $http = new HttpPut(),
         /** @var callable(int):void */
         private $sleeper = null,
     ) {
+        if (preg_match('/[\r\n]/', $authToken) === 1) {
+            throw new \InvalidArgumentException('NTFY auth token contains CR/LF');
+        }
+        if (! preg_match('/^(Bearer|Basic) /', $authToken)) {
+            $authToken = 'Bearer ' . $authToken;
+        }
+        $this->authToken = $authToken;
         if ($this->sleeper === null) {
             $this->sleeper = static fn (int $ms) => usleep($ms * 1000);
         }
