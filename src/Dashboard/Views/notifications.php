@@ -177,6 +177,49 @@ body:has(#notifications-channels-container) > footer {
 }
 
 .clear-failed-btn { font-size: 0.75rem; }
+
+/* Outbox queue card */
+#outbox-queue-card {
+    margin-top: 1rem;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+}
+#outbox-queue-card .card-header {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+}
+#outbox-queue-table {
+    font-size: 0.85rem;
+}
+#outbox-queue-table th {
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+}
+#outbox-queue-table td.error-cell {
+    max-width: 24em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.75rem;
+    color: #991b1b;
+}
+.outbox-status-pill {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.outbox-status-pill.pending   { background: #fef3c7; color: #92400e; }
+.outbox-status-pill.in_flight { background: #dbeafe; color: #1e40af; }
+.outbox-status-pill.done      { background: #dcfce7; color: #166534; }
+.outbox-status-pill.failed    { background: #fee2e2; color: #991b1b; }
 </style>
 
 <div class="dashboard-banner d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -200,6 +243,53 @@ body:has(#notifications-channels-container) > footer {
 </p>
 
 <div id="notifications-channels-container" class="row g-3"></div>
+
+<div id="outbox-queue-card" class="card">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <strong><i class="bi bi-inbox"></i> Outbox queue</strong>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Filter by status" id="outbox-status-tabs">
+                <button type="button" class="btn btn-outline-secondary active" data-status="pending">Pending</button>
+                <button type="button" class="btn btn-outline-secondary" data-status="in_flight">In flight</button>
+                <button type="button" class="btn btn-outline-secondary" data-status="failed">Failed</button>
+                <button type="button" class="btn btn-outline-secondary" data-status="done">Done</button>
+                <button type="button" class="btn btn-outline-secondary" data-status="all">All</button>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span id="outbox-row-count" class="small text-muted"></span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="outbox-refresh-btn" title="Refresh">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="outbox-clear-btn" hidden>
+                <i class="bi bi-trash"></i> Clear all <span id="outbox-clear-status-label"></span>
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table id="outbox-queue-table" class="table table-sm table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Status</th>
+                        <th>Channel</th>
+                        <th>Call</th>
+                        <th>Intent</th>
+                        <th>Attempts</th>
+                        <th>Next attempt</th>
+                        <th>Last error</th>
+                        <th>Updated</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="outbox-queue-tbody">
+                    <tr><td colspan="10" class="text-center text-muted py-3 small">Loading&hellip;</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
 <template id="channel-card-template">
     <div class="col-md-6">
@@ -752,6 +842,184 @@ body:has(#notifications-channels-container) > footer {
         document.addEventListener('DOMContentLoaded', start);
     } else {
         start();
+    }
+})();
+
+/* === Outbox queue card === */
+(function () {
+    const apiBase = window.APP_CONFIG?.apiBaseUrl ?? '/api';
+    let currentStatus = 'pending';
+
+    function init() {
+        const card = document.getElementById('outbox-queue-card');
+        if (!card) return;
+
+        card.querySelectorAll('#outbox-status-tabs button').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                card.querySelectorAll('#outbox-status-tabs button').forEach((b) => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentStatus = btn.dataset.status;
+                refresh();
+            });
+        });
+        document.getElementById('outbox-refresh-btn').addEventListener('click', refresh);
+        document.getElementById('outbox-clear-btn').addEventListener('click', clearAll);
+
+        refresh();
+    }
+
+    async function refresh() {
+        const tbody = document.getElementById('outbox-queue-tbody');
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-3 small">Loading&hellip;</td></tr>';
+
+        try {
+            const data = await Dashboard.apiRequest(`/notifications/outbox?status=${encodeURIComponent(currentStatus)}&limit=100`);
+            const items = data?.items ?? [];
+            renderRows(items);
+            updateClearButton();
+            document.getElementById('outbox-row-count').textContent = items.length === 0 ? '' : `${items.length} row${items.length === 1 ? '' : 's'}`;
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger small py-3">${Dashboard.escapeHtml(err?.message ?? 'Failed to load outbox')}</td></tr>`;
+        }
+    }
+
+    function renderRows(items) {
+        const tbody = document.getElementById('outbox-queue-tbody');
+        tbody.replaceChildren();
+
+        if (items.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 10;
+            td.className = 'text-center text-muted py-3 small';
+            td.textContent = 'No rows';
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+            return;
+        }
+
+        items.forEach((row) => tbody.appendChild(buildRow(row)));
+    }
+
+    function buildRow(row) {
+        const tr = document.createElement('tr');
+        tr.dataset.id = row.id;
+
+        appendText(tr, '#' + row.id);
+        appendStatus(tr, row.status);
+        appendText(tr, row.channel_name ?? `#${row.channel_id}`);
+        appendText(tr, row.call_number ?? `#${row.db_call_id}`);
+        appendText(tr, row.intent);
+        appendText(tr, String(row.attempts));
+        appendText(tr, row.next_attempt_at ? Dashboard.formatTime(row.next_attempt_at) : '—');
+        appendError(tr, row.last_error);
+        appendText(tr, Dashboard.formatTime(row.updated_at));
+        appendActions(tr, row);
+
+        return tr;
+    }
+
+    function appendText(tr, text) {
+        const td = document.createElement('td');
+        td.textContent = text;
+        tr.appendChild(td);
+    }
+
+    function appendStatus(tr, status) {
+        const td = document.createElement('td');
+        const span = document.createElement('span');
+        span.className = `outbox-status-pill ${status}`;
+        span.textContent = status;
+        td.appendChild(span);
+        tr.appendChild(td);
+    }
+
+    function appendError(tr, err) {
+        const td = document.createElement('td');
+        td.className = 'error-cell';
+        if (err) {
+            td.title = err;
+            td.textContent = err;
+        } else {
+            td.textContent = '—';
+        }
+        tr.appendChild(td);
+    }
+
+    function appendActions(tr, row) {
+        const td = document.createElement('td');
+        td.className = 'text-end';
+
+        if (row.status === 'failed') {
+            const retryBtn = document.createElement('button');
+            retryBtn.type = 'button';
+            retryBtn.className = 'btn btn-sm btn-outline-primary me-1';
+            retryBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Retry';
+            retryBtn.addEventListener('click', () => retryRow(row.id));
+            td.appendChild(retryBtn);
+        }
+
+        const dismissBtn = document.createElement('button');
+        dismissBtn.type = 'button';
+        dismissBtn.className = 'btn btn-sm btn-outline-secondary';
+        dismissBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+        dismissBtn.title = 'Dismiss this row';
+        dismissBtn.addEventListener('click', () => dismissRow(row.id));
+        td.appendChild(dismissBtn);
+
+        tr.appendChild(td);
+    }
+
+    async function retryRow(id) {
+        try {
+            await Dashboard.apiRequest(`/notifications/outbox/${id}/retry`, { method: 'POST' });
+            refresh();
+        } catch (err) {
+            alert('Retry failed: ' + (err?.message ?? 'unknown'));
+        }
+    }
+
+    async function dismissRow(id) {
+        if (!confirm(`Dismiss outbox row #${id}?`)) return;
+        try {
+            await Dashboard.apiRequest(`/notifications/outbox/${id}`, { method: 'DELETE' });
+            refresh();
+        } catch (err) {
+            alert('Dismiss failed: ' + (err?.message ?? 'unknown'));
+        }
+    }
+
+    function updateClearButton() {
+        const btn = document.getElementById('outbox-clear-btn');
+        const label = document.getElementById('outbox-clear-status-label');
+        if (currentStatus === 'done' || currentStatus === 'failed') {
+            label.textContent = currentStatus;
+            btn.hidden = false;
+        } else {
+            btn.hidden = true;
+        }
+    }
+
+    async function clearAll() {
+        if (currentStatus !== 'done' && currentStatus !== 'failed') return;
+        if (!confirm(`Clear all ${currentStatus} outbox rows?`)) return;
+        try {
+            const data = await Dashboard.apiRequest(
+                `/notifications/outbox/clear?status=${encodeURIComponent(currentStatus)}`,
+                { method: 'POST' },
+            );
+            const deleted = data?.deleted ?? 0;
+            alert(`${deleted} row${deleted === 1 ? '' : 's'} deleted.`);
+            refresh();
+        } catch (err) {
+            alert('Clear failed: ' + (err?.message ?? 'unknown'));
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
     }
 })();
 </script>

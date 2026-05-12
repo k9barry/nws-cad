@@ -182,4 +182,74 @@ final class OutboxRepository implements OutboxRepositoryInterface
             $stmt->execute([$attempts, $errorMessage, $rowId]);
         });
     }
+
+    private const KNOWN_STATUSES = ['pending', 'in_flight', 'done', 'failed'];
+
+    public function listByStatus(string $status, int $limit): array
+    {
+        return $this->exec(function (PDO $db) use ($status, $limit): array {
+            $sql = "SELECT o.id, o.db_call_id, o.channel_id, o.intent, o.resend_all,
+                           o.status, o.attempts, o.next_attempt_at, o.claimed_at,
+                           o.claimed_by, o.last_error, o.created_at, o.updated_at,
+                           nc.name AS channel_name, nc.type AS channel_type,
+                           c.call_number
+                    FROM notification_outbox o
+                    LEFT JOIN notification_channels nc ON nc.id = o.channel_id
+                    LEFT JOIN calls c ON c.id = o.db_call_id";
+            $params = [];
+            if ($status !== 'all') {
+                if (! in_array($status, self::KNOWN_STATUSES, true)) {
+                    return [];
+                }
+                $sql .= " WHERE o.status = ?";
+                $params[] = $status;
+            }
+            $sql .= " ORDER BY o.id DESC LIMIT ?";
+            $stmt = $db->prepare($sql);
+            $i = 1;
+            foreach ($params as $p) {
+                $stmt->bindValue($i++, $p);
+            }
+            $stmt->bindValue($i, $limit, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        });
+    }
+
+    public function retry(int $rowId): bool
+    {
+        return $this->exec(function (PDO $db) use ($rowId): bool {
+            $stmt = $db->prepare(
+                "UPDATE notification_outbox
+                 SET status = 'pending', attempts = 0,
+                     next_attempt_at = NULL, last_error = NULL,
+                     claimed_at = NULL, claimed_by = NULL,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?"
+            );
+            $stmt->execute([$rowId]);
+            return $stmt->rowCount() > 0;
+        });
+    }
+
+    public function delete(int $rowId): bool
+    {
+        return $this->exec(function (PDO $db) use ($rowId): bool {
+            $stmt = $db->prepare("DELETE FROM notification_outbox WHERE id = ?");
+            $stmt->execute([$rowId]);
+            return $stmt->rowCount() > 0;
+        });
+    }
+
+    public function deleteByStatus(string $status): int
+    {
+        if (! in_array($status, self::KNOWN_STATUSES, true)) {
+            return 0;
+        }
+        return $this->exec(function (PDO $db) use ($status): int {
+            $stmt = $db->prepare("DELETE FROM notification_outbox WHERE status = ?");
+            $stmt->execute([$status]);
+            return $stmt->rowCount();
+        });
+    }
 }

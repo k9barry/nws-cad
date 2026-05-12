@@ -15,6 +15,7 @@ use NwsCad\Api\Controllers\SearchController;
 use NwsCad\Api\Controllers\StatsController;
 use NwsCad\Api\Controllers\LogsController;
 use NwsCad\Api\Controllers\NotificationsController;
+use NwsCad\Api\Controllers\OutboxController;
 use NwsCad\Api\Controllers\HealthController;
 use NwsCad\Api\Controllers\FilterOptionsController;
 
@@ -98,6 +99,12 @@ $router->post('/notifications/channels/{type}/test',    [NotificationsController
 $router->post('/notifications/channels/{type}/clear-error', [NotificationsController::class, 'clearChannelError']);
 $router->delete('/notifications/log/{id}',              [NotificationsController::class, 'dismissLogEntry']);
 $router->post('/notifications/log/clear-failed',        [NotificationsController::class, 'clearFailed']);
+
+// Outbox Controller Routes (operator admin for notification_outbox queue)
+$router->get('/notifications/outbox',                [OutboxController::class, 'index']);
+$router->post('/notifications/outbox/{id}/retry',    [OutboxController::class, 'retry']);
+$router->delete('/notifications/outbox/{id}',        [OutboxController::class, 'dismiss']);
+$router->post('/notifications/outbox/clear',         [OutboxController::class, 'clear']);
 
 // Logs Controller Routes
 $router->get('/logs', [LogsController::class, 'index']);
