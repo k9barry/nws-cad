@@ -138,7 +138,7 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <!-- Custom JS -->
-    <script>
+    <script nonce="<?= htmlspecialchars(\NwsCad\Security\SecurityHeaders::nonce(), ENT_QUOTES) ?>">
         // Always use the current origin for API calls (works for local, remote, and Codespaces)
         const baseUrl = window.location.origin;
         
