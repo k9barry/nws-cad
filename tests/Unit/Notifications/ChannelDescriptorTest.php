@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Notifications;
+namespace NwsCad\Tests\Unit\Notifications;
 
 use Closure;
 use NwsCad\Notifications\ChannelDescriptor;
