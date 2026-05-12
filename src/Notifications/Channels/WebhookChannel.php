@@ -6,6 +6,7 @@ namespace NwsCad\Notifications\Channels;
 
 use InvalidArgumentException;
 use NwsCad\Config;
+use NwsCad\Logger;
 use NwsCad\Notifications\ChannelDescriptor;
 use NwsCad\Notifications\IncidentDto;
 use NwsCad\Notifications\NotificationChannel;
@@ -87,6 +88,9 @@ final class WebhookChannel implements NotificationChannel
         // buildPayload's output is canonical JSON; decode for postJson.
         $payload = json_decode($body, true);
         if ($payload === null) {
+            Logger::getInstance()->error('Webhook channel: substituted template is not valid JSON', [
+                'baseUrl' => $this->baseUrl,
+            ]);
             return [SendResult::fail(
                 httpStatus: 0,
                 durationMs: 0,
@@ -118,10 +122,20 @@ final class WebhookChannel implements NotificationChannel
                 return [SendResult::ok(httpStatus: $lastStatus, durationMs: $durationMs)];
             }
             if ($lastStatus >= 400 && $lastStatus < 500) {
+                Logger::getInstance()->warning('Webhook channel: permanent failure', [
+                    'baseUrl'    => $this->baseUrl,
+                    'httpStatus' => $lastStatus,
+                ]);
                 break;   // permanent
             }
             // 5xx and 0 (network) → retry
         }
+
+        Logger::getInstance()->error('Webhook channel: send failed after retries', [
+            'baseUrl'    => $this->baseUrl,
+            'httpStatus' => $lastStatus,
+            'attempts'   => count(self::RETRY_DELAYS_SEC) + 1,
+        ]);
 
         return [SendResult::fail(
             httpStatus: $lastStatus,
