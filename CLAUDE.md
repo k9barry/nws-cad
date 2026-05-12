@@ -56,7 +56,10 @@ The file watcher (`src/watcher.php` / `FileWatcher.php`) is a separate long-live
 | `Api\DbHelper` | Database-agnostic SQL (`GROUP_CONCAT`/`STRING_AGG`, `COALESCE`, date functions). Validates SQL identifiers against `IDENTIFIER_PATTERN` before interpolation. |
 | `AegisXmlParser` | Parses `*.xml`, transactionally writes to the 13 call-related tables, then dispatches `Notifications\Events\CallProcessedEvent`. |
 | `Notifications\EventDispatcher` | Tiny in-process pub/sub. `subscribe()` is called once during watcher boot; `dispatch()` is called by the parser. |
-| `Notifications\NotificationDispatcher` | Sole subscriber. Applies delta-time gate (`NOTIFICATION_DELTA_SECONDS`, default 900) + intent rules (Created → all topics; Updated with new units only → just the added topics; Updated with call_type/full_address/alarm_level change → all topics; Closed → no-op); fans out to `ChannelRepositoryInterface::listEnabled()`. |
+| `Notifications\Outbox\OutboxWriter` | `CallProcessedEvent` subscriber. Filters Closed + delta-time, then inserts one `notification_outbox` row per enabled channel. |
+| `Notifications\Outbox\OutboxProcessor` | Driven by `FileWatcher::setOnTick`. Per tick: prunes `done` rows >7d, resets orphan `in_flight` rows, claims a batch, runs each row's channel send (intent rules via `TopicResolver`: Created → all topics; Updated with new units only → just added topics; Updated with `call_type`/`full_address`/`alarm_level` change → all topics; Closed never reaches the outbox). Backoff: `[30s, 2m, 10m, 30m, 2h]` up to `OUTBOX_MAX_ATTEMPTS`. |
+| `Notifications\Outbox\OutboxRepository` | DB-access layer for `notification_outbox`: `insert`, `prune`, `resetOrphans`, `claim`, `markDone`, `markRetry`, `markFailed`. |
+| `Notifications\TopicResolver` | Pure helpers: `shouldResendAll(Intent, string[] $changedFields)` and `resolveTopics(IncidentDto, bool $resendAll, string[] $addedTopics)`. Shared by writer (write-time decision) and processor (process-time topic list). |
 | `Notifications\Channels\{NtfyChannel,PushoverChannel}` | Send implementations with cURL + bounded retry (3 attempts, 1s/3s/9s backoff; 4xx is permanent, 5xx and network failures are retried). Both `final`. |
 | `Logging\RedactingProcessor` | Globally registered Monolog processor; scrubs values from `SecretRegistry` out of every log record's `message`/`context`/`extra`. |
 | `Api\Filtering\FilterCriteria` | URL → typed filter value object. Enforces 50-value cap, 256-char cap, allowlist. |
@@ -128,7 +131,7 @@ notification_channels (N) → notification_send_log (N, ON DELETE CASCADE)
 
 ## Notifications
 
-After `AegisXmlParser::processFile()` commits, it dispatches a `CallProcessedEvent` (`Created` / `Updated` / `Closed`, plus `changedFields[]` and `addedTopics[]`) through an in-process `EventDispatcher`. `NotificationDispatcher` (registered in `src/watcher.php`) applies the delta-time gate, the intent rules, and fans out to channels listed in `notification_channels`. Per-attempt results go to `notification_send_log` (auto-pruned to 100 rows per channel). Secrets come from env vars via `Config::secret()`; `RedactingProcessor` scrubs them from all log output. ntfy topic strings derived from CAD data are sanitized via `TopicSanitizer` (whitelist `[A-Za-z0-9_-]`, collapse, trim, return null on empty) and additionally `rawurlencode`d before hitting the URL. See [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) for the operator + developer reference.
+After `AegisXmlParser::processFile()` commits, it dispatches a `CallProcessedEvent` (`Created` / `Updated` / `Closed`, plus `changedFields[]` and `addedTopics[]`) through an in-process `EventDispatcher`. `OutboxWriter` (registered in `src/watcher.php`) applies the delta-time + Closed gates and inserts one `notification_outbox` row per enabled channel. `OutboxProcessor::tick()` runs once per `FileWatcher` loop iteration to drain the outbox: it claims a batch, sends through each channel, records results in `notification_send_log` (auto-pruned to 100 rows per channel), and marks rows `done` / retries with `[30s, 2m, 10m, 30m, 2h]` backoff / `failed` after `OUTBOX_MAX_ATTEMPTS`. Secrets come from env vars via `Config::secret()`; `RedactingProcessor` scrubs them from all log output. ntfy topic strings derived from CAD data are sanitized via `TopicSanitizer` (whitelist `[A-Za-z0-9_-]`, collapse, trim, return null on empty) and additionally `rawurlencode`d before hitting the URL. See [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md) for the operator + developer reference.
 
 ## Conventions
 
@@ -160,7 +163,9 @@ After `AegisXmlParser::processFile()` commits, it dispatches a `CallProcessedEve
 | `API_PORT` (default 8080) | API server port |
 | `WATCHER_INTERVAL` (seconds) | File-watcher poll interval |
 | `LOG_LEVEL`, `APP_ENV` | Logging and environment selection |
-| `NOTIFICATION_DELTA_SECONDS` (default 900) | Delta-time gate for the notification dispatcher |
+| `NOTIFICATION_DELTA_SECONDS` (default 900) | Delta-time gate evaluated at outbox-write time |
+| `OUTBOX_BATCH_SIZE` (default 10) | Max outbox rows claimed per FileWatcher tick |
+| `OUTBOX_MAX_ATTEMPTS` (default 5) | Permanent-failure threshold for outbox rows |
 | `STALE_OPEN_CALL_HOURS` (default 72) | Guardrail: a call open this many hours since `create_datetime` is reclassified as closed in SQL status filters, stats counts, and dashboard badges (via `is_stale` on API rows). Raw rows are not mutated. |
 | `NTFY_AUTH_TOKEN`, `NTFY_BASE_URL` | Required when an `ntfy` channel is enabled |
 | `PUSHOVER_TOKEN`, `PUSHOVER_USER`, `PUSHOVER_BASE_URL` | Required when a `pushover` channel is enabled |
