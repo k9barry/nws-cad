@@ -38,21 +38,35 @@ class CorsPolicyTest extends TestCase
     {
         $this->expectNotToPerformAssertions();
 
-        // The exit() inside CorsPolicy::apply on OPTIONS would terminate the
-        // test runner; trap it by running in an isolated process.
-        $code = <<<'PHP'
+        // Compute the project root from the test file location. `tests/Unit/Security/CorsPolicyTest.php`
+        // → project root = three levels up from this directory.
+        $autoload = var_export(dirname(__DIR__, 3) . '/vendor/autoload.php', true);
+
+        // Heredoc (NOT nowdoc — note the double-quote-style PHP <<<PHP rather than
+        // <<<'PHP') so that $autoload is interpolated. PHP-language $/dollar
+        // references inside must be backslash-escaped.
+        $code = <<<PHP
 <?php
-require __DIR__ . '/vendor/autoload.php';
-$_SERVER['REQUEST_METHOD'] = 'OPTIONS';
+require {$autoload};
+\$_SERVER['REQUEST_METHOD'] = 'OPTIONS';
 \NwsCad\Security\CorsPolicy::apply(\NwsCad\Config::getInstance());
 echo 'NOT_REACHED';
 PHP;
+
         $tmp = tempnam(sys_get_temp_dir(), 'cors-');
         file_put_contents($tmp, $code);
         $output = (string) shell_exec('php ' . escapeshellarg($tmp) . ' 2>&1');
         @unlink($tmp);
+
         if (str_contains($output, 'NOT_REACHED')) {
             $this->fail('OPTIONS preflight did not short-circuit: ' . $output);
+        }
+        // Sanity: confirm autoload + class load actually worked. If they didn't,
+        // the test would still pass (no NOT_REACHED) but for the wrong reason.
+        // A successful exit() leaves $output empty (no fatal). A failed autoload
+        // produces a fatal error mentioning 'autoload' or 'class'.
+        if (str_contains($output, 'autoload') || str_contains($output, 'Fatal error')) {
+            $this->fail('Subprocess failed before reaching CorsPolicy: ' . $output);
         }
     }
 }
