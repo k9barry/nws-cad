@@ -48,6 +48,19 @@ final class ChannelRepository implements ChannelRepositoryInterface
         });
     }
 
+    public function findById(int $id): ?array
+    {
+        return $this->exec(function (PDO $db) use ($id): ?array {
+            $stmt = $db->prepare(
+                "SELECT id, name, type, enabled, base_url, config_json
+                 FROM notification_channels WHERE id = ?"
+            );
+            $stmt->execute([$id]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $row === false ? null : $row;
+        });
+    }
+
     public function recordSend(int $channelId, ?int $callId, ?string $intent, SendResult $result): void
     {
         $this->exec(function (PDO $db) use ($channelId, $callId, $intent, $result): void {

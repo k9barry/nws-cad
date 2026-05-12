@@ -79,4 +79,27 @@ class ChannelRepositoryTest extends TestCase
         $this->assertNotNull($row['last_error_at']);
         $this->assertSame('HTTP 502 bad gateway', $row['last_error_message']);
     }
+
+    public function testFindByIdReturnsRow(): void
+    {
+        self::$db->exec(
+            "INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
+             VALUES ('ntfy_primary', 'ntfy', 1, 'https://ntfy.example', '{}')"
+        );
+        $id = (int) self::$db->lastInsertId();
+
+        $repo = new ChannelRepository(self::$db);
+        $row = $repo->findById($id);
+
+        $this->assertNotNull($row);
+        $this->assertSame('ntfy_primary', $row['name']);
+        $this->assertSame('ntfy', $row['type']);
+        $this->assertSame('https://ntfy.example', $row['base_url']);
+    }
+
+    public function testFindByIdReturnsNullForMissing(): void
+    {
+        $repo = new ChannelRepository(self::$db);
+        $this->assertNull($repo->findById(999999));
+    }
 }
