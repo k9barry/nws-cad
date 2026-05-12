@@ -126,7 +126,11 @@ final class WebhookChannel implements NotificationChannel
                     'baseUrl'    => $this->baseUrl,
                     'httpStatus' => $lastStatus,
                 ]);
-                break;   // permanent
+                return [SendResult::fail(
+                    httpStatus: $lastStatus,
+                    durationMs: (int) ((microtime(true) - $startedAt) * 1000),
+                    error:      $lastError ?? 'unknown',
+                )];
             }
             // 5xx and 0 (network) → retry
         }

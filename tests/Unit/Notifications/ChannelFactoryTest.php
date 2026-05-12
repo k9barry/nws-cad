@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use NwsCad\Config;
 use NwsCad\Notifications\ChannelDescriptor;
 use NwsCad\Notifications\ChannelFactory;
+use NwsCad\Notifications\ChannelFactoryInterface;
 use NwsCad\Notifications\ChannelRegistry;
 use NwsCad\Notifications\NotificationChannel;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -15,6 +16,7 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(ChannelFactory::class)]
+#[UsesClass(ChannelFactoryInterface::class)]
 #[UsesClass(ChannelRegistry::class)]
 #[UsesClass(ChannelDescriptor::class)]
 #[UsesClass(Config::class)]
