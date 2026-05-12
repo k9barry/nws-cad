@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.3] - 2026-05-12
+
+### Changes
+- feat(notifications): ChannelRegistry + WebhookChannel for plug-in transports (#24) (32c3ea9)
+
 ## [1.1.2] - 2026-05-12
 
 ### Changes
