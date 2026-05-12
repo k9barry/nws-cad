@@ -114,6 +114,49 @@ final class OutboxRepositoryTest extends TestCase
         $this->assertSame('retries exhausted', $row['last_error']);
     }
 
+    public function testPruneDeletesDoneRowsOlderThanThreshold(): void
+    {
+        $oldDoneId = $this->insertPending();
+        $this->repo->markDone($oldDoneId);
+        self::$db->exec("UPDATE notification_outbox SET updated_at = DATE_SUB(NOW(), INTERVAL 8 DAY) WHERE id = {$oldDoneId}");
+
+        $recentDoneId = $this->insertPending();
+        $this->repo->markDone($recentDoneId);
+
+        $pendingId = $this->insertPending();
+        self::$db->exec("UPDATE notification_outbox SET updated_at = DATE_SUB(NOW(), INTERVAL 8 DAY) WHERE id = {$pendingId}");
+
+        $deleted = $this->repo->prune(7 * 86400);
+
+        $this->assertSame(1, $deleted);
+        $remaining = (int) self::$db->query("SELECT COUNT(*) FROM notification_outbox WHERE id = {$oldDoneId}")->fetchColumn();
+        $this->assertSame(0, $remaining);
+        $this->assertNotFalse(self::$db->query("SELECT id FROM notification_outbox WHERE id = {$recentDoneId}")->fetch());
+        $this->assertNotFalse(self::$db->query("SELECT id FROM notification_outbox WHERE id = {$pendingId}")->fetch());
+    }
+
+    public function testResetOrphansClaimsForOtherWorkers(): void
+    {
+        $mineId  = $this->insertPending();
+        $otherId = $this->insertPending();
+
+        self::$db->exec(
+            "UPDATE notification_outbox SET status='in_flight', claimed_by='me:1:111', claimed_at=NOW() WHERE id={$mineId}"
+        );
+        self::$db->exec(
+            "UPDATE notification_outbox SET status='in_flight', claimed_by='other:2:222', claimed_at=NOW() WHERE id={$otherId}"
+        );
+
+        $reset = $this->repo->resetOrphans('me:1:111');
+
+        $this->assertSame(1, $reset);
+        $mine  = self::$db->query("SELECT status FROM notification_outbox WHERE id={$mineId}")->fetchColumn();
+        $other = self::$db->query("SELECT status, claimed_by FROM notification_outbox WHERE id={$otherId}")->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('in_flight', $mine);
+        $this->assertSame('pending', $other['status']);
+        $this->assertNull($other['claimed_by']);
+    }
+
     private function insertPending(): int
     {
         return $this->repo->insert(

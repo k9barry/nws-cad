@@ -59,12 +59,31 @@ final class OutboxRepository implements OutboxRepositoryInterface
 
     public function prune(int $olderThanSeconds): int
     {
-        throw new \LogicException('not implemented');
+        return $this->exec(function (PDO $db) use ($olderThanSeconds): int {
+            $cutoff = (new DateTimeImmutable())->modify("-{$olderThanSeconds} seconds")->format('Y-m-d H:i:s');
+            $stmt = $db->prepare(
+                "DELETE FROM notification_outbox
+                 WHERE status = 'done' AND updated_at < ?"
+            );
+            $stmt->execute([$cutoff]);
+            return $stmt->rowCount();
+        });
     }
 
     public function resetOrphans(string $currentWorkerId): int
     {
-        throw new \LogicException('not implemented');
+        return $this->exec(function (PDO $db) use ($currentWorkerId): int {
+            $stmt = $db->prepare(
+                "UPDATE notification_outbox
+                 SET status = 'pending',
+                     claimed_at = NULL,
+                     claimed_by = NULL,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE status = 'in_flight' AND (claimed_by IS NULL OR claimed_by <> ?)"
+            );
+            $stmt->execute([$currentWorkerId]);
+            return $stmt->rowCount();
+        });
     }
 
     public function claim(string $workerId, int $batchSize, DateTimeImmutable $now): array
