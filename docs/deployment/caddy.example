@@ -1,0 +1,22 @@
+# docs/deployment/caddy.example
+# Place at /etc/caddy/Caddyfile (or include from your existing one).
+# Caddy automatically terminates TLS for the named hostname via Let's Encrypt.
+
+cad.example.com {
+    # Strip any inbound X-Auth-User from the client BEFORE basicauth runs.
+    # This is the single most important line in this file.
+    request_header -X-Auth-User
+
+    # Single shared operator credential. Generate the hash with:
+    #   caddy hash-password
+    basicauth {
+        k9barry $2a$14$<bcrypt-hash-here>
+    }
+
+    # After successful auth, set X-Auth-User to the authenticated user.
+    request_header X-Auth-User {http.auth.user.id}
+
+    reverse_proxy 127.0.0.1:8080 {
+        header_up X-Forwarded-Proto https
+    }
+}
