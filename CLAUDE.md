@@ -139,7 +139,7 @@ After `AegisXmlParser::processFile()` commits, it dispatches a `CallProcessedEve
 - Prepared statements only; identifier validation in `DbHelper`.
 - XXE protection: do not enable `LIBXML_NOENT` when calling SimpleXML; use `LIBXML_NONET`.
 - CORS origin whitelist lives in `Security/SecurityHeaders.php`.
-- `LogsController` is disabled by default in production — keep it that way unless explicitly toggling.
+- `LogsController` is disabled by default in production. Enabling it (`APP_LOGS_ENABLED=true`) also requires `LOGS_ADMIN_USERS` to be set to a csv allowlist of identity-header users; an empty allowlist in prod is treated as deny (fail-secure). Non-production environments remain open.
 - Coordinate inputs are validated (lat ±90, lng ±180); LIKE patterns are escaped.
 - Never `extract($row)` from DB rows. Use explicit DTO mapping (see `IncidentDto::fromRow()` for the pattern).
 - Notification secrets are referenced by **env-var name** (`auth_token_env`) in `notification_channels.config_json`, never by literal value. Read them at send time with `Config::secret($envName)`.
@@ -166,6 +166,7 @@ After `AegisXmlParser::processFile()` commits, it dispatches a `CallProcessedEve
 | `NOTIFICATION_DELTA_SECONDS` (default 900) | Delta-time gate evaluated at outbox-write time |
 | `OUTBOX_BATCH_SIZE` (default 10) | Max outbox rows claimed per FileWatcher tick |
 | `OUTBOX_MAX_ATTEMPTS` (default 5) | Permanent-failure threshold for outbox rows |
+| `LOGS_ADMIN_USERS` (csv, default empty) | Allowlist of identity-header users permitted to read `/api/logs` in production. Empty in prod = denied (fail-secure). Ignored outside prod. |
 | `STALE_OPEN_CALL_HOURS` (default 72) | Guardrail: a call open this many hours since `create_datetime` is reclassified as closed in SQL status filters, stats counts, and dashboard badges (via `is_stale` on API rows). Raw rows are not mutated. |
 | `NTFY_AUTH_TOKEN`, `NTFY_BASE_URL` | Required when an `ntfy` channel is enabled |
 | `PUSHOVER_TOKEN`, `PUSHOVER_USER`, `PUSHOVER_BASE_URL` | Required when a `pushover` channel is enabled |

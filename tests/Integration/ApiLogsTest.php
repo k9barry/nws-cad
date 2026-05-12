@@ -16,6 +16,8 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Logger
  * @uses \NwsCad\Logging\RedactingProcessor
  * @uses \NwsCad\Logging\SecretRegistry
+ * @uses \NwsCad\Security\Identity
+ * @uses \NwsCad\Security\InputValidator
  */
 class ApiLogsTest extends TestCase
 {
@@ -188,53 +190,130 @@ EOL;
 
     public function testDeniesAccessWhenDisabled(): void
     {
-        // Disable logs. Config reads $_ENV first then falls back to getenv(),
-        // so a putenv() alone wouldn't override the phpunit.xml-supplied
-        // $_ENV['APP_ENV']='testing'. Set both.
-        $prevEnv = $_ENV['APP_ENV'] ?? null;
-        $prevLogsEnabled = $_ENV['APP_LOGS_ENABLED'] ?? null;
-        $_ENV['APP_LOGS_ENABLED'] = 'false';
-        $_ENV['APP_ENV'] = 'production';
-        putenv('APP_LOGS_ENABLED=false');
-        putenv('APP_ENV=production');
+        $this->withProdEnv(logsEnabled: false, allowlist: '', identityUser: null, scenario: function () {
+            $controller = new \NwsCad\Api\Controllers\LogsController();
+            ob_start();
+            $controller->index();
+            $data = json_decode((string) ob_get_clean(), true);
+            $this->assertIsArray($data, 'Controller should have emitted a JSON response');
+            $this->assertFalse($data['success']);
+            $this->assertStringContainsString('disabled in production', $data['error']);
+        });
+    }
 
-        // Force config reload
-        $reflection = new \ReflectionClass(Config::class);
-        $instanceProperty = $reflection->getProperty('instance');
-        $instanceProperty->setAccessible(true);
-        $instanceProperty->setValue(null, null);
+    public function testDeniesAccessInProdWithEmptyAllowlist(): void
+    {
+        $this->withProdEnv(logsEnabled: true, allowlist: '', identityUser: 'k9barry', scenario: function () {
+            $controller = new \NwsCad\Api\Controllers\LogsController();
+            ob_start();
+            $controller->index();
+            $data = json_decode((string) ob_get_clean(), true);
+            $this->assertFalse($data['success']);
+            $this->assertStringContainsString('admin identity', $data['error']);
+        });
+    }
 
-        // Response::json() in testing mode no-ops on the second call (it
-        // can't exit() like production), so the forbidden response from
-        // checkAccess() is what we want to see — even though index() will
-        // continue running and call Response::success() afterwards, the
-        // success body is silently dropped.
-        \NwsCad\Api\Response::resetForTesting();
+    public function testDeniesAccessInProdWhenUserNotInAllowlist(): void
+    {
+        $this->withProdEnv(logsEnabled: true, allowlist: 'alice,bob', identityUser: 'mallory', scenario: function () {
+            $controller = new \NwsCad\Api\Controllers\LogsController();
+            ob_start();
+            $controller->index();
+            $data = json_decode((string) ob_get_clean(), true);
+            $this->assertFalse($data['success']);
+            $this->assertStringContainsString('admin identity', $data['error']);
+        });
+    }
 
-        $controller = new \NwsCad\Api\Controllers\LogsController();
+    public function testAllowsAccessInProdWhenUserInAllowlist(): void
+    {
+        $this->withProdEnv(logsEnabled: true, allowlist: 'alice,bob,k9barry', identityUser: 'k9barry', scenario: function () {
+            $controller = new \NwsCad\Api\Controllers\LogsController();
+            ob_start();
+            $controller->index();
+            $data = json_decode((string) ob_get_clean(), true);
+            $this->assertTrue($data['success'], 'k9barry on the allowlist should pass the gate');
+            $this->assertArrayHasKey('files', $data['data']);
+        });
+    }
 
-        ob_start();
-        $controller->index();
-        $output = ob_get_clean();
+    public function testDeniesAccessInProdWhenIdentityIsUnknown(): void
+    {
+        $this->withProdEnv(logsEnabled: true, allowlist: 'alice', identityUser: null, scenario: function () {
+            $controller = new \NwsCad\Api\Controllers\LogsController();
+            ob_start();
+            $controller->index();
+            $data = json_decode((string) ob_get_clean(), true);
+            $this->assertFalse($data['success']);
+        });
+    }
 
-        $data = json_decode($output, true);
+    /**
+     * Run the given scenario with a production-mode Config singleton, the
+     * specified logs-enabled + allowlist values, and Identity::current()
+     * resolved from the provided user (or unset for "no identity").
+     * Restores env state on return.
+     */
+    private function withProdEnv(bool $logsEnabled, string $allowlist, ?string $identityUser, \Closure $scenario): void
+    {
+        $prev = [
+            'APP_ENV'           => $_ENV['APP_ENV']           ?? null,
+            'APP_LOGS_ENABLED'  => $_ENV['APP_LOGS_ENABLED']  ?? null,
+            'LOGS_ADMIN_USERS'  => $_ENV['LOGS_ADMIN_USERS']  ?? null,
+            'HTTP_X_AUTH_USER'  => $_SERVER['HTTP_X_AUTH_USER'] ?? null,
+            'identity'          => $GLOBALS['__identity']     ?? null,
+        ];
+        try {
+            $_ENV['APP_ENV']          = 'production';
+            $_ENV['APP_LOGS_ENABLED'] = $logsEnabled ? 'true' : 'false';
+            $_ENV['LOGS_ADMIN_USERS'] = $allowlist;
+            putenv('APP_ENV=production');
+            putenv('APP_LOGS_ENABLED=' . ($logsEnabled ? 'true' : 'false'));
+            putenv("LOGS_ADMIN_USERS={$allowlist}");
 
-        $this->assertIsArray($data, 'Controller should have emitted a JSON response');
-        $this->assertFalse($data['success']);
+            $this->resetConfig();
+            \NwsCad\Api\Response::resetForTesting();
 
-        // Reset for other tests
-        if ($prevEnv === null) {
-            unset($_ENV['APP_ENV']);
-        } else {
-            $_ENV['APP_ENV'] = $prevEnv;
+            if ($identityUser !== null) {
+                $_SERVER['HTTP_X_AUTH_USER'] = $identityUser;
+                $GLOBALS['__identity'] = \NwsCad\Security\Identity::extract(Config::getInstance());
+            } else {
+                unset($_SERVER['HTTP_X_AUTH_USER']);
+                $GLOBALS['__identity'] = \NwsCad\Security\Identity::extract(Config::getInstance());
+            }
+
+            $scenario();
+        } finally {
+            foreach (['APP_ENV', 'APP_LOGS_ENABLED', 'LOGS_ADMIN_USERS'] as $k) {
+                if ($prev[$k] === null) {
+                    unset($_ENV[$k]);
+                    putenv("$k");
+                } else {
+                    $_ENV[$k] = $prev[$k];
+                    putenv("$k=" . $prev[$k]);
+                }
+            }
+            if ($prev['HTTP_X_AUTH_USER'] === null) {
+                unset($_SERVER['HTTP_X_AUTH_USER']);
+            } else {
+                $_SERVER['HTTP_X_AUTH_USER'] = $prev['HTTP_X_AUTH_USER'];
+            }
+            if ($prev['identity'] === null) {
+                unset($GLOBALS['__identity']);
+            } else {
+                $GLOBALS['__identity'] = $prev['identity'];
+            }
+            $this->resetConfig();
+            putenv('APP_LOGS_ENABLED=true');
+            putenv('APP_ENV=testing');
         }
-        if ($prevLogsEnabled === null) {
-            unset($_ENV['APP_LOGS_ENABLED']);
-        } else {
-            $_ENV['APP_LOGS_ENABLED'] = $prevLogsEnabled;
-        }
-        putenv('APP_LOGS_ENABLED=true');
-        putenv('APP_ENV=testing');
-        $instanceProperty->setValue(null, null);
+    }
+
+    private function resetConfig(): void
+    {
+        $refl = new \ReflectionClass(Config::class);
+        $prop = $refl->getProperty('instance');
+        $prop->setAccessible(true);
+        $prop->setValue(null, null);
     }
 }
