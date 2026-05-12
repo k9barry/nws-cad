@@ -97,7 +97,12 @@ jobs:
         env:
           MYSQL_HOST: 127.0.0.1
           MYSQL_PORT: 3306
-          MYSQL_DATABASE: nws_cad_test
+          # tests/bootstrap.php treats MYSQL_DATABASE as the production name and
+          # redirects to MYSQL_TEST_DATABASE before any DELETE runs. Set them
+          # to different values so the safety check passes; the actual MySQL
+          # service only has nws_cad_test created.
+          MYSQL_DATABASE: nws_cad
+          MYSQL_TEST_DATABASE: nws_cad_test
           MYSQL_USER: test_user
           MYSQL_PASSWORD: test_pass
 
@@ -106,7 +111,8 @@ jobs:
         env:
           MYSQL_HOST: 127.0.0.1
           MYSQL_PORT: 3306
-          MYSQL_DATABASE: nws_cad_test
+          MYSQL_DATABASE: nws_cad
+          MYSQL_TEST_DATABASE: nws_cad_test
           MYSQL_USER: test_user
           MYSQL_PASSWORD: test_pass
 
@@ -124,7 +130,8 @@ jobs:
         env:
           MYSQL_HOST: 127.0.0.1
           MYSQL_PORT: 3306
-          MYSQL_DATABASE: nws_cad_test
+          MYSQL_DATABASE: nws_cad
+          MYSQL_TEST_DATABASE: nws_cad_test
           MYSQL_USER: test_user
           MYSQL_PASSWORD: test_pass
         continue-on-error: true
@@ -134,7 +141,8 @@ jobs:
         env:
           MYSQL_HOST: 127.0.0.1
           MYSQL_PORT: 3306
-          MYSQL_DATABASE: nws_cad_test
+          MYSQL_DATABASE: nws_cad
+          MYSQL_TEST_DATABASE: nws_cad_test
           MYSQL_USER: test_user
           MYSQL_PASSWORD: test_pass
 
@@ -143,7 +151,8 @@ jobs:
         env:
           MYSQL_HOST: 127.0.0.1
           MYSQL_PORT: 3306
-          MYSQL_DATABASE: nws_cad_test
+          MYSQL_DATABASE: nws_cad
+          MYSQL_TEST_DATABASE: nws_cad_test
           MYSQL_USER: test_user
           MYSQL_PASSWORD: test_pass
 
