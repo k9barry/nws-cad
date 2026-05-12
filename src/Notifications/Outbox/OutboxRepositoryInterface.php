@@ -44,4 +44,25 @@ interface OutboxRepositoryInterface
     ): void;
 
     public function markFailed(int $rowId, int $attempts, string $errorMessage): void;
+
+    /**
+     * List rows for operator inspection, joined with channel name/type and
+     * call_number for display.
+     *
+     * @param string $status One of `pending`, `in_flight`, `done`, `failed`, `all`.
+     * @return array<int,array<string,mixed>>
+     */
+    public function listByStatus(string $status, int $limit): array;
+
+    /**
+     * Operator-initiated retry: reset a failed (or any) row to pending with
+     * cleared backoff state. Returns true if a row was updated.
+     */
+    public function retry(int $rowId): bool;
+
+    /** Operator-initiated dismissal of a single row. Returns true if removed. */
+    public function delete(int $rowId): bool;
+
+    /** Bulk delete by status. Returns count removed. */
+    public function deleteByStatus(string $status): int;
 }

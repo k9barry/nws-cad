@@ -205,6 +205,112 @@ final class OutboxRepositoryTest extends TestCase
         $this->assertSame([], $claimed);
     }
 
+    public function testListByStatusReturnsPendingWithChannelJoin(): void
+    {
+        $pending = $this->insertPending();
+        $done    = $this->insertPending();
+        $this->repo->markDone($done);
+
+        $rows = $this->repo->listByStatus('pending', 50);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame($pending, (int) $rows[0]['id']);
+        $this->assertSame('ntfy_primary', $rows[0]['channel_name']);
+        $this->assertSame('ntfy', $rows[0]['channel_type']);
+        $this->assertSame('C-1', $rows[0]['call_number']);
+    }
+
+    public function testListByStatusFailedFiltersCorrectly(): void
+    {
+        $pending = $this->insertPending();
+        $failed  = $this->insertPending();
+        $this->repo->markFailed($failed, 5, 'retries exhausted');
+
+        $rows = $this->repo->listByStatus('failed', 50);
+        $this->assertCount(1, $rows);
+        $this->assertSame($failed, (int) $rows[0]['id']);
+        $this->assertSame('retries exhausted', $rows[0]['last_error']);
+    }
+
+    public function testListByStatusAllReturnsEverything(): void
+    {
+        $this->insertPending();
+        $done = $this->insertPending();
+        $this->repo->markDone($done);
+
+        $rows = $this->repo->listByStatus('all', 50);
+        $this->assertCount(2, $rows);
+    }
+
+    public function testListByStatusHonorsLimit(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->insertPending();
+        }
+        $rows = $this->repo->listByStatus('pending', 2);
+        $this->assertCount(2, $rows);
+    }
+
+    public function testListByStatusOrdersByIdDesc(): void
+    {
+        $first  = $this->insertPending();
+        $second = $this->insertPending();
+        $third  = $this->insertPending();
+
+        $rows = $this->repo->listByStatus('pending', 50);
+        $ids  = array_map(static fn ($r) => (int) $r['id'], $rows);
+        $this->assertSame([$third, $second, $first], $ids);
+    }
+
+    public function testRetryClearsFailedRowToPending(): void
+    {
+        $id = $this->insertPending();
+        $this->repo->markFailed($id, 5, 'retries exhausted');
+
+        $ok = $this->repo->retry($id);
+        $this->assertTrue($ok);
+
+        $row = self::$db->query("SELECT status, attempts, next_attempt_at, last_error FROM notification_outbox WHERE id={$id}")
+            ->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('pending', $row['status']);
+        $this->assertSame(0, (int) $row['attempts']);
+        $this->assertNull($row['next_attempt_at']);
+        $this->assertNull($row['last_error']);
+    }
+
+    public function testRetryReturnsFalseForMissingRow(): void
+    {
+        $this->assertFalse($this->repo->retry(99999));
+    }
+
+    public function testDeleteRemovesRow(): void
+    {
+        $id = $this->insertPending();
+        $ok = $this->repo->delete($id);
+        $this->assertTrue($ok);
+        $count = (int) self::$db->query("SELECT COUNT(*) FROM notification_outbox WHERE id={$id}")->fetchColumn();
+        $this->assertSame(0, $count);
+    }
+
+    public function testDeleteReturnsFalseForMissingRow(): void
+    {
+        $this->assertFalse($this->repo->delete(99999));
+    }
+
+    public function testDeleteByStatusBulkDeletes(): void
+    {
+        $d1 = $this->insertPending();
+        $d2 = $this->insertPending();
+        $pending = $this->insertPending();
+        $this->repo->markDone($d1);
+        $this->repo->markDone($d2);
+
+        $deleted = $this->repo->deleteByStatus('done');
+        $this->assertSame(2, $deleted);
+        $remaining = (int) self::$db->query("SELECT COUNT(*) FROM notification_outbox")->fetchColumn();
+        $this->assertSame(1, $remaining);
+    }
+
     private function insertPending(): int
     {
         return $this->repo->insert(
