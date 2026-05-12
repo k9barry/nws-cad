@@ -106,7 +106,19 @@ final class NotificationsController
             $envKey  = strtoupper($type) . '_BASE_URL';
             $baseUrl = $_ENV[$envKey] ?? getenv($envKey) ?: '';
 
-            $name = "{$type}_primary";
+            if ($baseUrl !== '') {
+                $check = \NwsCad\Security\UrlValidator::validateChannelBaseUrl(
+                    $baseUrl,
+                    \NwsCad\Config::getInstance()
+                );
+                if (! $check['ok']) {
+                    Response::error("Invalid base_url: {$check['reason']}", 422);
+                    return;
+                }
+            }
+
+            $actor = \NwsCad\Security\Identity::current()->user;
+            $name  = "{$type}_primary";
 
             $stmt = $this->db->prepare("SELECT id, base_url FROM notification_channels WHERE name = ?");
             $stmt->execute([$name]);
@@ -122,22 +134,23 @@ final class NotificationsController
                     : '{"token_env":"PUSHOVER_TOKEN","user_env":"PUSHOVER_USER"}';
 
                 $ins = $this->db->prepare(
-                    "INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-                     VALUES (?, ?, 1, ?, ?)"
+                    "INSERT INTO notification_channels (name, type, enabled, base_url, config_json, last_updated_actor)
+                     VALUES (?, ?, 1, ?, ?, ?)"
                 );
-                $ins->execute([$name, $type, $baseUrl, $defaultConfig]);
+                $ins->execute([$name, $type, $baseUrl, $defaultConfig, $actor]);
             } else {
                 $upd = $this->db->prepare(
                     "UPDATE notification_channels
-                     SET enabled = 1, updated_at = CURRENT_TIMESTAMP
+                     SET enabled = 1, updated_at = CURRENT_TIMESTAMP, last_updated_actor = ?
                      WHERE name = ?"
                 );
-                $upd->execute([$name]);
+                $upd->execute([$actor, $name]);
             }
 
             $row = $this->db->prepare(
                 "SELECT id, name, type, enabled, base_url,
-                        last_error_at, last_error_message, created_at, updated_at
+                        last_error_at, last_error_message, last_updated_actor,
+                        created_at, updated_at
                  FROM notification_channels WHERE name = ?"
             );
             $row->execute([$name]);
@@ -155,12 +168,13 @@ final class NotificationsController
                 Response::error("Unknown channel type: {$type}", 404);
                 return;
             }
+            $actor = \NwsCad\Security\Identity::current()->user;
             $stmt = $this->db->prepare(
                 "UPDATE notification_channels
-                 SET enabled = 0, updated_at = CURRENT_TIMESTAMP
+                 SET enabled = 0, updated_at = CURRENT_TIMESTAMP, last_updated_actor = ?
                  WHERE type = ?"
             );
-            $stmt->execute([$type]);
+            $stmt->execute([$actor, $type]);
             Response::success(['updated' => $stmt->rowCount()]);
         } catch (Exception $e) {
             Response::error('Failed to disable channel: ' . $e->getMessage(), 500);
@@ -224,6 +238,21 @@ final class NotificationsController
                 $this->repo->recordSend((int) $row['id'], null, 'test', $r);
             }
 
+            $actor = \NwsCad\Security\Identity::current()->user;
+            if ($actor !== null) {
+                $count = count($results);
+                $upd = $this->db->prepare(
+                    "UPDATE notification_send_log SET actor = ?
+                     WHERE channel_id = ? AND id IN (
+                        SELECT id FROM (
+                            SELECT id FROM notification_send_log
+                            WHERE channel_id = ? ORDER BY id DESC LIMIT {$count}
+                        ) recent
+                     )"
+                );
+                $upd->execute([$actor, (int) $row['id'], (int) $row['id']]);
+            }
+
             // Retrieve the ID of the most recently inserted log row for this channel
             $idStmt = $this->db->prepare(
                 "SELECT id FROM notification_send_log WHERE channel_id = ? ORDER BY id DESC LIMIT 1"
@@ -274,13 +303,14 @@ final class NotificationsController
                 Response::error("Unknown channel type: {$type}", 404);
                 return;
             }
+            $actor = \NwsCad\Security\Identity::current()->user;
             $stmt = $this->db->prepare(
                 "UPDATE notification_channels
                  SET last_error_at = NULL, last_error_message = NULL,
-                     updated_at = CURRENT_TIMESTAMP
+                     updated_at = CURRENT_TIMESTAMP, last_updated_actor = ?
                  WHERE type = ?"
             );
-            $stmt->execute([$type]);
+            $stmt->execute([$actor, $type]);
             Response::success(['cleared' => $stmt->rowCount()]);
         } catch (Exception $e) {
             Response::error('Failed to clear channel error: ' . $e->getMessage(), 500);

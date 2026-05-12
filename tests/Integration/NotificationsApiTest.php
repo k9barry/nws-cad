@@ -23,6 +23,10 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Notifications\NotificationContext
  * @uses \NwsCad\Notifications\SendResult
  * @uses \NwsCad\Notifications\Events\Intent
+ * @uses \NwsCad\Security\UrlValidator
+ * @uses \NwsCad\Security\Identity
+ * @uses \NwsCad\Security\InputValidator
+ * @uses \NwsCad\Security\TrustedProxy
  */
 class NotificationsApiTest extends TestCase
 {
@@ -44,6 +48,12 @@ class NotificationsApiTest extends TestCase
         // testing mode short-circuits subsequent calls within a request, so
         // without a reset every test after the first would silently no-op.
         Response::resetForTesting();
+    }
+
+    protected function tearDown(): void
+    {
+        unset($GLOBALS['__identity']);
+        parent::tearDown();
     }
 
     public function testChannelsReturnsEmpty(): void
@@ -306,5 +316,56 @@ class NotificationsApiTest extends TestCase
         $payload = json_decode((string) ob_get_clean(), true);
 
         $this->assertFalse($payload['success']);
+    }
+
+    public function testEnableRejectsHttpUrl(): void
+    {
+        $_ENV['NTFY_BASE_URL'] = 'http://attacker.example';
+        putenv('NTFY_BASE_URL=http://attacker.example');
+
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->enable('ntfy');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertFalse($payload['success']);
+        $this->assertStringContainsString('Invalid base_url', $payload['error']);
+        $this->assertStringContainsString('scheme', $payload['error']);
+    }
+
+    public function testEnableRejectsCrLfUrl(): void
+    {
+        $_ENV['NTFY_BASE_URL'] = "https://a.example\r\nX: y";
+        putenv('NTFY_BASE_URL=' . $_ENV['NTFY_BASE_URL']);
+
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->enable('ntfy');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertFalse($payload['success']);
+        $this->assertStringContainsString('crlf', $payload['error']);
+    }
+
+    public function testEnableRecordsActorFromIdentity(): void
+    {
+        $_ENV['NTFY_BASE_URL'] = 'https://ntfy.example.com';
+        putenv('NTFY_BASE_URL=https://ntfy.example.com');
+
+        // Inject a fake Identity directly via the global slot, bypassing the
+        // proxy-header parsing (which is tested separately in IdentityTest).
+        $reflection = new \ReflectionClass(\NwsCad\Security\Identity::class);
+        $GLOBALS['__identity'] = $reflection->newInstanceArgs(['k9barry']);
+
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->enable('ntfy');
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertTrue($payload['success']);
+        $row = self::$db->query(
+            "SELECT last_updated_actor FROM notification_channels WHERE name = 'ntfy_primary'"
+        )->fetch();
+        $this->assertSame('k9barry', $row['last_updated_actor']);
     }
 }
