@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.5] - 2026-05-12
+
+### Changes
+- feat(notifications): transactional outbox + async worker (#26) (51634c2)
+
 ## [1.1.4] - 2026-05-12
 
 ### Changes
