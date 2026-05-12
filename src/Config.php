@@ -30,6 +30,21 @@ class Config
         return self::$instance;
     }
 
+    /**
+     * Split and trim a comma-separated string. Empty input or empty segments
+     * are dropped. Used for env-driven list values (CIDRs, origins, etc.).
+     *
+     * @return string[]
+     */
+    public static function csv(string $value): array
+    {
+        if ($value === '') {
+            return [];
+        }
+        $parts = array_map('trim', explode(',', $value));
+        return array_values(array_filter($parts, static fn (string $s): bool => $s !== ''));
+    }
+
     private function loadConfig(): void
     {
         // Load .env file if exists
@@ -73,7 +88,16 @@ class Config
                 'tmp' => __DIR__ . '/../tmp',
             ],
             'notifications' => [
-                'delta_seconds' => (int) $this->env('NOTIFICATION_DELTA_SECONDS', '900'),
+                'delta_seconds'          => (int) $this->env('NOTIFICATION_DELTA_SECONDS', '900'),
+                'base_url_allowlist'     => self::csv($this->env('NOTIFICATION_BASE_URL_ALLOWLIST', '')),
+                'allow_http_for_private' => $this->env('NOTIFICATION_ALLOW_HTTP_PRIVATE', 'false') === 'true',
+            ],
+            'cors' => [
+                'allowed_origins' => self::csv($this->env('ALLOWED_ORIGINS', '')),
+            ],
+            'proxy' => [
+                'trusted_cidrs'   => self::csv($this->env('TRUSTED_PROXY_CIDRS', '127.0.0.1/32,::1/128')),
+                'identity_header' => $this->env('PROXY_IDENTITY_HEADER', 'X-Auth-User'),
             ],
             'calls' => [
                 // Guardrail: after this many hours since create_datetime, an
