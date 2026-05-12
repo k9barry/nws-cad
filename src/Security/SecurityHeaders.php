@@ -11,6 +11,34 @@ namespace NwsCad\Security;
  */
 class SecurityHeaders
 {
+    /** @var string|null Memoized per-request CSP nonce (base64) */
+    private static ?string $nonce = null;
+
+    /**
+     * Return a per-request CSP nonce. Memoized so the same value appears in
+     * both the Content-Security-Policy header and every `<script nonce="...">`
+     * tag rendered by views during this request.
+     *
+     * Format: 22 chars of url-safe base64 (16 random bytes). Long enough that
+     * an attacker can't guess it; short enough not to bloat every script tag.
+     */
+    public static function nonce(): string
+    {
+        if (self::$nonce === null) {
+            // base64 of 16 random bytes = 24 chars including `==` padding;
+            // strip padding for a shorter token. CSP accepts any non-whitespace
+            // value here — base64 is just a convenient encoding.
+            self::$nonce = rtrim(base64_encode(random_bytes(16)), '=');
+        }
+        return self::$nonce;
+    }
+
+    /** Test-only: reset the memoized nonce so the next call generates a new one. */
+    public static function resetNonceForTesting(): void
+    {
+        self::$nonce = null;
+    }
+
     /**
      * Set all recommended security headers
      *
@@ -34,23 +62,22 @@ class SecurityHeaders
     /**
      * Set Content-Security-Policy header
      *
-     * Note: Default policy includes 'unsafe-inline' and 'unsafe-eval' for compatibility
-     * with libraries like Chart.js and Leaflet.js. In production, consider:
-     * - Using nonce-based CSP for inline scripts
-     * - Migrating to external script files
-     * - Using strict-dynamic for modern browsers
+     * The default policy uses a per-request nonce for inline scripts (no
+     * 'unsafe-inline' in script-src). 'unsafe-eval' remains for compatibility
+     * with libraries like Chart.js and Leaflet.js that compile expressions at
+     * runtime. Style attribute hardening (style-src nonces or hashes) is a
+     * separate follow-up.
      *
-     * @param string|null $policy Custom CSP policy (default: permissive for dashboard compatibility)
+     * @param string|null $policy Custom CSP policy (default: nonce-based for dashboard compatibility)
      * @return void
      */
     public static function setContentSecurityPolicy(?string $policy = null): void
     {
         if ($policy === null) {
-            // Permissive policy for dashboard with CDN libraries
-            // TODO: Tighten in production with nonces or external scripts
+            $nonce  = self::nonce();
             $policy = implode('; ', [
                 "default-src 'self'",
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://*.cloudflare.com",
+                "script-src 'self' 'nonce-{$nonce}' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://*.cloudflare.com",
                 "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://fonts.googleapis.com",
                 "img-src 'self' data: https://cdn.jsdelivr.net https://*.tile.openstreetmap.org",
                 "font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com",

@@ -375,7 +375,8 @@ body:has(#notifications-channels-container) > footer {
   </div>
 </div>
 
-<script>
+<?php $__cspNonce = htmlspecialchars(\NwsCad\Security\SecurityHeaders::nonce(), ENT_QUOTES); ?>
+<script nonce="<?= $__cspNonce ?>">
 (function() {
     const POLL_INTERVAL_MS = 5000;
     const KNOWN = [
