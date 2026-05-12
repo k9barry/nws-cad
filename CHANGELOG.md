@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.9] - 2026-05-12
+
+### Changes
+- docs: add PIPELINE.md operator runbook + refresh docs index (#30) (c9a55c9)
+
 ## [1.1.8] - 2026-05-12
 
 ### Changes
