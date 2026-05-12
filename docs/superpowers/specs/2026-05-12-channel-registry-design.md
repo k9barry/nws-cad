@@ -163,7 +163,7 @@ Two-pass:
 Authoring rule: raw placeholders must appear as quoted string values in the template so the template remains valid JSON during authoring.
 
 **Available `{string}` placeholders:**
-`{intent}`, `{call_id}`, `{call_number}`, `{call_type}`, `{call_type_description}`, `{full_address}`, `{create_datetime}`, `{alarm_level}`, `{narrative}`, `{agency_type}`, `{jurisdiction}`, `{units}`, `{topics}` (comma-joined).
+`{intent}`, `{call_id}`, `{call_number}`, `{call_type}`, `{full_address}`, `{create_datetime}`, `{alarm_level}`, `{narrative}`, `{agency_type}`, `{jurisdiction}`, `{units}`, `{topics}` (comma-joined).
 
 **Available `${array}` raw placeholders:**
 `${topics}`, `${units}`, `${jurisdiction}`.
