@@ -66,7 +66,69 @@ final class OutboxProcessor
     /** @param array<string,mixed> $row */
     private function processRow(array $row): void
     {
-        throw new \LogicException('processRow: implemented in Task 11');
+        $logger      = Logger::getInstance();
+        $outboxId    = (int) $row['id'];
+        $callId      = (int) $row['db_call_id'];
+        $channelId   = (int) $row['channel_id'];
+        $intent      = Intent::from((string) $row['intent']);
+        $resendAll   = (bool) (int) $row['resend_all'];
+        $addedTopics = json_decode((string) $row['added_topics_json'], true) ?: [];
+
+        $dto    = ($this->incidentLoader)($callId);
+        $topics = TopicResolver::resolveTopics($dto, $resendAll, $addedTopics);
+
+        if ($topics === []) {
+            $logger->info('Outbox processRow: no topics, marking done', ['outboxId' => $outboxId]);
+            $this->repo->markDone($outboxId);
+            return;
+        }
+
+        $channelRow = $this->channelRepo->findById($channelId);
+        if ($channelRow === null) {
+            $logger->warning('Outbox processRow: channel missing', [
+                'outboxId' => $outboxId, 'channelId' => $channelId,
+            ]);
+            $attempts = (int) $row['attempts'] + 1;
+            $this->repo->markFailed($outboxId, $attempts, "Channel #{$channelId} missing");
+            return;
+        }
+
+        $channel = $this->factory->create($channelRow);
+        $context = new NotificationContext(
+            intent:         $intent,
+            resendAll:      $resendAll,
+            topicsToNotify: $topics,
+            channelConfig:  [],
+        );
+
+        $results = $channel->send($dto, $context);
+
+        if ($results === []) {
+            $logger->info('Outbox processRow: channel returned no results, marking done', ['outboxId' => $outboxId]);
+            $this->repo->markDone($outboxId);
+            return;
+        }
+
+        $anyOk    = false;
+        $firstErr = '';
+        foreach ($results as $r) {
+            $this->channelRepo->recordSend($channelId, $callId, $intent->value, $r);
+            if ($r->ok) {
+                $anyOk = true;
+            } else {
+                $msg = ($r->httpStatus ? "HTTP {$r->httpStatus}: " : '') . ($r->error ?? 'unknown');
+                $this->channelRepo->markFailure($channelId, $msg);
+                if ($firstErr === '') {
+                    $firstErr = $msg;
+                }
+            }
+        }
+
+        if ($anyOk) {
+            $this->repo->markDone($outboxId);
+            return;
+        }
+        $this->markRetryOrFail($row, $firstErr);
     }
 
     /** @param array<string,mixed> $row */
