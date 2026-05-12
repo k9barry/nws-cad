@@ -78,6 +78,13 @@ class Config
                 'log_level' => $this->env('LOG_LEVEL', 'info'),
                 'logs_enabled' => $this->env('APP_LOGS_ENABLED', 'false') === 'true',
             ],
+            'logs' => [
+                // Allowlist of identity-header users permitted to read logs
+                // in production (when app.logs_enabled is true). Empty list
+                // in production = denied (fail-secure). Ignored in non-prod
+                // environments where logs are open to anyone reaching the API.
+                'admin_users' => self::csv($this->env('LOGS_ADMIN_USERS', '')),
+            ],
             'watcher' => [
                 'folder' => $this->env('WATCH_FOLDER', __DIR__ . '/../watch'),
                 'interval' => (int)$this->env('WATCHER_INTERVAL', '5'),

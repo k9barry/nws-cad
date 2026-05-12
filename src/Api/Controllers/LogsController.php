@@ -7,6 +7,7 @@ namespace NwsCad\Api\Controllers;
 use NwsCad\Config;
 use NwsCad\Api\Request;
 use NwsCad\Api\Response;
+use NwsCad\Security\Identity;
 use Exception;
 
 /**
@@ -18,14 +19,13 @@ use Exception;
  * sensitive information (IP addresses, usernames, error details, etc.).
  * 
  * Security measures implemented:
- * - Production environment check (disabled by default)
+ * - Production environment check (disabled by default; gate at app.logs_enabled)
+ * - Production admin allowlist (LOGS_ADMIN_USERS env; empty list = fail-secure deny)
+ * - Identity comes from the trusted-proxy + identity-header chain
  * - Directory traversal prevention
  * - Log level whitelist validation
  * - Filename format validation
- * 
- * TODO: Add proper authentication (API key, admin session, etc.) before
- * enabling in production.
- * 
+ *
  * @package NwsCad\Api\Controllers
  */
 class LogsController
@@ -52,19 +52,33 @@ class LogsController
      */
     private function checkAccess(): void
     {
-        $config = Config::getInstance();
-        $logsEnabled = $config->get('app.logs_enabled', false); // Default to disabled
-        
-        // In production, logs should be disabled unless explicitly enabled
-        if ($config->get('app.env') === 'production' && !$logsEnabled) {
-            Response::forbidden('Log access is disabled in production');
+        $config      = Config::getInstance();
+        $logsEnabled = (bool) $config->get('app.logs_enabled', false);
+        $isProd      = $config->get('app.env') === 'production';
+
+        // Non-production: open access. Dev environments deliberately make logs
+        // reachable without the admin-allowlist gate.
+        if (! $isProd) {
+            return;
         }
-        
-        // Development environments can access logs
-        // TODO: Add proper authentication here:
-        // - Check for admin API key in header
-        // - Verify admin session
-        // - Check IP whitelist
+
+        // Production with logs disabled: deny immediately.
+        if (! $logsEnabled) {
+            Response::forbidden('Log access is disabled in production');
+            return;
+        }
+
+        // Production with logs enabled: require the caller's identity to match
+        // the admin allowlist. Empty allowlist is treated as deny (fail-secure):
+        // an operator who enables logs in prod without an allowlist almost
+        // certainly didn't mean to.
+        $allowlist = (array) $config->get('logs.admin_users', []);
+        $user      = Identity::current()->user;
+
+        if ($user === null || $allowlist === [] || ! in_array($user, $allowlist, true)) {
+            Response::forbidden('Log access requires an admin identity');
+            return;
+        }
     }
     
     /**
