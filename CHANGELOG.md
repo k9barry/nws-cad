@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.10] - 2026-05-12
+
+### Changes
+- refactor(search): inline allowedQueryParams; remove deprecated Request::filters (#31) (db04fbb)
+
 ## [1.1.9] - 2026-05-12
 
 ### Changes
