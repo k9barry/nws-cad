@@ -36,7 +36,7 @@ Create `tests/Unit/Notifications/ChannelDescriptorTest.php`:
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Notifications;
+namespace NwsCad\Tests\Unit\Notifications;
 
 use Closure;
 use NwsCad\Notifications\ChannelDescriptor;
@@ -158,7 +158,7 @@ Create `tests/Unit/Notifications/ChannelRegistryTest.php`:
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Notifications;
+namespace NwsCad\Tests\Unit\Notifications;
 
 use NwsCad\Notifications\ChannelDescriptor;
 use NwsCad\Notifications\ChannelRegistry;
@@ -327,7 +327,7 @@ Create `tests/Unit/Notifications/Channels/NtfyChannelDescriptorTest.php`:
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Notifications\Channels;
+namespace NwsCad\Tests\Unit\Notifications\Channels;
 
 use NwsCad\Notifications\ChannelDescriptor;
 use NwsCad\Notifications\Channels\NtfyChannel;
@@ -360,7 +360,7 @@ Create `tests/Unit/Notifications/Channels/PushoverChannelDescriptorTest.php`:
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Notifications\Channels;
+namespace NwsCad\Tests\Unit\Notifications\Channels;
 
 use NwsCad\Notifications\ChannelDescriptor;
 use NwsCad\Notifications\Channels\PushoverChannel;
@@ -484,7 +484,7 @@ Create `tests/Unit/Notifications/RegisterChannelsBootTest.php`:
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Notifications;
+namespace NwsCad\Tests\Unit\Notifications;
 
 use NwsCad\Notifications\ChannelDescriptor;
 use NwsCad\Notifications\ChannelRegistry;
@@ -609,7 +609,7 @@ If it exists, read it to learn how the factory is tested. If it doesn't exist, c
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Notifications;
+namespace NwsCad\Tests\Unit\Notifications;
 
 use InvalidArgumentException;
 use NwsCad\Config;
@@ -990,7 +990,7 @@ Create `tests/Unit/Notifications/Channels/HttpPostJsonTest.php`:
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Notifications\Channels;
+namespace NwsCad\Tests\Unit\Notifications\Channels;
 
 use NwsCad\Notifications\Channels\HttpPost;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -1166,7 +1166,7 @@ Create `tests/Unit/Notifications/Channels/WebhookChannelTest.php`:
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Notifications\Channels;
+namespace NwsCad\Tests\Unit\Notifications\Channels;
 
 use DateTimeImmutable;
 use NwsCad\Notifications\Channels\WebhookChannel;
@@ -1576,7 +1576,7 @@ Create `tests/Integration/Notifications/WebhookEndToEndTest.php`:
 
 declare(strict_types=1);
 
-namespace Tests\Integration\Notifications;
+namespace NwsCad\Tests\Integration\Notifications;
 
 use DateTimeImmutable;
 use NwsCad\Notifications\ChannelDescriptor;
