@@ -7,7 +7,7 @@ namespace NwsCad\Notifications;
 use InvalidArgumentException;
 use NwsCad\Config;
 
-final class ChannelFactory
+class ChannelFactory
 {
     public function __construct(private readonly Config $config)
     {
