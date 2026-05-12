@@ -125,32 +125,6 @@ class Request
     }
 
     /**
-     * Get filter parameters
-     *
-     * @deprecated Use \NwsCad\Api\Filtering\FilterCriteria::fromQuery() instead.
-     *             Retained for SearchController which is out of scope for the
-     *             v1 filter-refactor. Remove once SearchController is migrated.
-     *
-     * Only returns values for explicitly allowed filter keys.
-     *
-     * @param array<string> $allowed List of allowed filter parameter names
-     * @return array<string, mixed> Associative array of filter key => value
-     */
-    public static function filters(array $allowed = []): array
-    {
-        $filters = [];
-        
-        foreach ($allowed as $key) {
-            $value = self::query($key);
-            if ($value !== null) {
-                $filters[$key] = $value;
-            }
-        }
-
-        return $filters;
-    }
-
-    /**
      * Get sorting parameters
      * 
      * Normalizes sort direction to uppercase ASC or DESC.
