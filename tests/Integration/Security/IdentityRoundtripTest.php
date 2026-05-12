@@ -15,15 +15,19 @@ use PHPUnit\Framework\TestCase;
  * @covers \NwsCad\Security\Identity
  * @uses \NwsCad\Api\Controllers\NotificationsController
  * @uses \NwsCad\Api\Response
- * @uses \NwsCad\Database
  * @uses \NwsCad\Config
+ * @uses \NwsCad\Database
  * @uses \NwsCad\Logger
  * @uses \NwsCad\Logging\RedactingProcessor
  * @uses \NwsCad\Logging\SecretRegistry
+ * @uses \NwsCad\Notifications\ChannelDescriptor
  * @uses \NwsCad\Notifications\ChannelFactory
+ * @uses \NwsCad\Notifications\ChannelRegistry
  * @uses \NwsCad\Notifications\ChannelRepository
- * @uses \NwsCad\Security\UrlValidator
+ * @uses \NwsCad\Notifications\Channels\NtfyChannel
+ * @uses \NwsCad\Notifications\Channels\PushoverChannel
  * @uses \NwsCad\Security\InputValidator
+ * @uses \NwsCad\Security\UrlValidator
  */
 class IdentityRoundtripTest extends TestCase
 {
@@ -44,6 +48,14 @@ class IdentityRoundtripTest extends TestCase
         Response::resetForTesting();
         unset($GLOBALS['__identity']);
         unset($_SERVER['HTTP_X_AUTH_USER']);
+        \NwsCad\Notifications\ChannelRegistry::clear();
+        \NwsCad\Notifications\ChannelRegistry::register(\NwsCad\Notifications\Channels\NtfyChannel::descriptor());
+        \NwsCad\Notifications\ChannelRegistry::register(\NwsCad\Notifications\Channels\PushoverChannel::descriptor());
+    }
+
+    protected function tearDown(): void
+    {
+        \NwsCad\Notifications\ChannelRegistry::clear();
     }
 
     public function testEnableRecordsExtractedIdentity(): void
