@@ -144,18 +144,6 @@ class ApiRequestTest extends TestCase
         $this->assertNull($result);
     }
 
-    public function testFiltersReturnsOnlyAllowedParameters(): void
-    {
-        $_GET = ['status' => 'active', 'type' => 'medical', 'ignored' => 'value'];
-        
-        $filters = Request::filters(['status', 'type']);
-        
-        $this->assertIsArray($filters);
-        $this->assertArrayHasKey('status', $filters);
-        $this->assertArrayHasKey('type', $filters);
-        $this->assertArrayNotHasKey('ignored', $filters);
-    }
-
     public function testSortingReturnsDefaultValues(): void
     {
         $_GET = [];

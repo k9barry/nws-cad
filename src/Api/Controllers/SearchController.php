@@ -25,6 +25,25 @@ class SearchController
     }
 
     /**
+     * Pick the allow-listed query parameters from $_GET, preserving raw values
+     * (no type coercion, no empty-string filtering — callers handle those).
+     *
+     * @param array<string> $allowed
+     * @return array<string,mixed>
+     */
+    private function allowedQueryParams(array $allowed): array
+    {
+        $out = [];
+        foreach ($allowed as $key) {
+            $value = $_GET[$key] ?? null;
+            if ($value !== null) {
+                $out[$key] = $value;
+            }
+        }
+        return $out;
+    }
+
+    /**
      * Search calls by various criteria
      * GET /api/search/calls
      */
@@ -33,7 +52,7 @@ class SearchController
         try {
             $pagination = Request::pagination();
             $search = Request::search();
-            $filters = Request::filters([
+            $filters = $this->allowedQueryParams([
                 'call_number',
                 'nature_of_call',
                 'caller_name',
@@ -275,7 +294,7 @@ class SearchController
     {
         try {
             $pagination = Request::pagination();
-            $filters = Request::filters([
+            $filters = $this->allowedQueryParams([
                 'address',
                 'city',
                 'state',
@@ -461,7 +480,7 @@ class SearchController
         try {
             $pagination = Request::pagination();
             $search = Request::search();
-            $filters = Request::filters([
+            $filters = $this->allowedQueryParams([
                 'unit_number',
                 'unit_type',
                 'jurisdiction',
