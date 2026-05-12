@@ -31,11 +31,6 @@ final class PushoverChannel implements NotificationChannel
         }
     }
 
-    public static function type(): string
-    {
-        return 'pushover';
-    }
-
     public static function descriptor(): ChannelDescriptor
     {
         return new ChannelDescriptor(

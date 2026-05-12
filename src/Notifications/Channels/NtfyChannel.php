@@ -41,11 +41,6 @@ final class NtfyChannel implements NotificationChannel
         }
     }
 
-    public static function type(): string
-    {
-        return 'ntfy';
-    }
-
     public static function descriptor(): ChannelDescriptor
     {
         return new ChannelDescriptor(
