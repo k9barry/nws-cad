@@ -17,6 +17,7 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(ChannelFactory::class)]
 #[UsesClass(ChannelRegistry::class)]
 #[UsesClass(ChannelDescriptor::class)]
+#[UsesClass(Config::class)]
 final class ChannelFactoryTest extends TestCase
 {
     protected function setUp(): void

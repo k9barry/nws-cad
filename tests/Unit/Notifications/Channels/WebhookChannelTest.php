@@ -4,22 +4,24 @@ declare(strict_types=1);
 
 namespace NwsCad\Tests\Unit\Notifications\Channels;
 
+use NwsCad\Notifications\ChannelDescriptor;
+use NwsCad\Notifications\Channels\HttpPost;
 use NwsCad\Notifications\Channels\WebhookChannel;
 use NwsCad\Notifications\Events\Intent;
 use NwsCad\Notifications\IncidentDto;
 use NwsCad\Notifications\NotificationContext;
+use NwsCad\Notifications\SendResult;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @uses \NwsCad\Notifications\ChannelDescriptor
- * @uses \NwsCad\Notifications\IncidentDto
- * @uses \NwsCad\Notifications\NotificationContext
- * @uses \NwsCad\Notifications\SendResult
- * @uses \NwsCad\Notifications\Events\Intent
- * @uses \NwsCad\Notifications\Channels\HttpPost
- */
 #[CoversClass(WebhookChannel::class)]
+#[UsesClass(ChannelDescriptor::class)]
+#[UsesClass(IncidentDto::class)]
+#[UsesClass(NotificationContext::class)]
+#[UsesClass(SendResult::class)]
+#[UsesClass(Intent::class)]
+#[UsesClass(HttpPost::class)]
 final class WebhookChannelTest extends TestCase
 {
     private function dto(): IncidentDto
