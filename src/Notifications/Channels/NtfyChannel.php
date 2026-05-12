@@ -53,7 +53,10 @@ final class NtfyChannel implements NotificationChannel
             label:         'ntfy.sh',
             baseUrlEnv:    'NTFY_BASE_URL',
             requiredEnvs:  ['NTFY_AUTH_TOKEN'],
-            defaultConfig: ['auth_token_env' => 'NTFY_AUTH_TOKEN'],
+            defaultConfig: [
+                'auth_token_env'     => 'NTFY_AUTH_TOKEN',
+                'alarm_priority_map' => ['1' => 3, '2' => 4, '3' => 5],
+            ],
             factory: static function (array $row, Config $cfg): NotificationChannel {
                 $raw    = $row['config_json'] ?? '';
                 $config = $raw !== '' ? (json_decode($raw, true) ?: []) : [];
