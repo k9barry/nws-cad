@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.8] - 2026-05-12
+
+### Changes
+- chore(cleanup): drop 4 unused exception classes; refresh stale doc prose (#29) (0b3763b)
+
 ## [1.1.7] - 2026-05-12
 
 ### Changes
