@@ -53,6 +53,7 @@ class NotificationsApiTest extends TestCase
     protected function tearDown(): void
     {
         unset($GLOBALS['__identity']);
+        unset($_SERVER['HTTP_X_AUTH_USER']);
         parent::tearDown();
     }
 
@@ -352,10 +353,12 @@ class NotificationsApiTest extends TestCase
         $_ENV['NTFY_BASE_URL'] = 'https://ntfy.example.com';
         putenv('NTFY_BASE_URL=https://ntfy.example.com');
 
-        // Inject a fake Identity directly via the global slot, bypassing the
-        // proxy-header parsing (which is tested separately in IdentityTest).
-        $reflection = new \ReflectionClass(\NwsCad\Security\Identity::class);
-        $GLOBALS['__identity'] = $reflection->newInstanceArgs(['k9barry']);
+        // Drive identity through the same path the bootstrap uses: set the
+        // trusted header and let Identity::extract() build the object. This
+        // avoids reflecting past the private constructor (which PHP rightly
+        // refuses).
+        $_SERVER['HTTP_X_AUTH_USER'] = 'k9barry';
+        $GLOBALS['__identity'] = \NwsCad\Security\Identity::extract(\NwsCad\Config::getInstance());
 
         $controller = new NotificationsController();
         ob_start();
