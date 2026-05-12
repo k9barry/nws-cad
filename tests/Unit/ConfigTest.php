@@ -145,8 +145,11 @@ class ConfigTest extends TestCase
 
     public function testTrustedProxyCidrsDefaultIncludesLoopback(): void
     {
-        unset($_ENV['TRUSTED_PROXY_CIDRS']);
-        putenv('TRUSTED_PROXY_CIDRS');
+        // Empty-string assignment defeats Config's loadEnvFile() re-load
+        // (which would silently pull a value back in from a developer's .env)
+        // while still triggering env()'s falsy-default branch.
+        $_ENV['TRUSTED_PROXY_CIDRS'] = '';
+        putenv('TRUSTED_PROXY_CIDRS=');
         $reflection = new \ReflectionClass(\NwsCad\Config::class);
         $prop = $reflection->getProperty('instance');
         $prop->setAccessible(true);
@@ -160,8 +163,8 @@ class ConfigTest extends TestCase
 
     public function testIdentityHeaderDefaultsToXAuthUser(): void
     {
-        unset($_ENV['PROXY_IDENTITY_HEADER']);
-        putenv('PROXY_IDENTITY_HEADER');
+        $_ENV['PROXY_IDENTITY_HEADER'] = '';
+        putenv('PROXY_IDENTITY_HEADER=');
         $reflection = new \ReflectionClass(\NwsCad\Config::class);
         $prop = $reflection->getProperty('instance');
         $prop->setAccessible(true);

@@ -189,8 +189,9 @@ jobs:
 
       - name: Code Style Check
         run: |
-          # Check for PHP syntax errors
-          find src -name "*.php" -exec php -l {} \; | grep -v "No syntax errors"
+          # Surface only files with syntax errors. grep -v exits 1 when all
+          # files pass (no matching lines); we explicitly succeed in that case.
+          find src -name "*.php" -exec php -l {} \; | grep -v "No syntax errors" || true
         continue-on-error: true
 
       - name: Generate test summary
