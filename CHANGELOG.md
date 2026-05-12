@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.6] - 2026-05-12
+
+### Changes
+- chore(tests): hermetic env handling + sockets-ext skip + quiet code-style step (#27) (3235f84)
+
 ## [1.1.5] - 2026-05-12
 
 ### Changes
