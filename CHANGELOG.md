@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.7] - 2026-05-12
+
+### Changes
+- feat(notifications): outbox admin endpoints + dashboard queue card (#28) (17f68f0)
+
 ## [1.1.6] - 2026-05-12
 
 ### Changes
