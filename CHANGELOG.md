@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.4] - 2026-05-12
+
+### Changes
+- chore(notifications): final factory via interface; consistent 4xx logging; 400 test names (#25) (9a7ac27)
+
 ## [1.1.3] - 2026-05-12
 
 ### Changes
