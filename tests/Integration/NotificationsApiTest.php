@@ -18,11 +18,15 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Logging\RedactingProcessor
  * @uses \NwsCad\Logging\SecretRegistry
  * @uses \NwsCad\Notifications\ChannelFactory
+ * @uses \NwsCad\Notifications\ChannelRegistry
+ * @uses \NwsCad\Notifications\ChannelDescriptor
  * @uses \NwsCad\Notifications\ChannelRepository
  * @uses \NwsCad\Notifications\IncidentDto
  * @uses \NwsCad\Notifications\NotificationContext
  * @uses \NwsCad\Notifications\SendResult
  * @uses \NwsCad\Notifications\Events\Intent
+ * @uses \NwsCad\Notifications\Channels\NtfyChannel
+ * @uses \NwsCad\Notifications\Channels\PushoverChannel
  * @uses \NwsCad\Security\UrlValidator
  * @uses \NwsCad\Security\Identity
  * @uses \NwsCad\Security\InputValidator
@@ -48,10 +52,17 @@ class NotificationsApiTest extends TestCase
         // testing mode short-circuits subsequent calls within a request, so
         // without a reset every test after the first would silently no-op.
         Response::resetForTesting();
+
+        // Populate the registry so validateType() works for ntfy/pushover.
+        // Tests that probe unknown types may clear/re-register as needed.
+        \NwsCad\Notifications\ChannelRegistry::clear();
+        \NwsCad\Notifications\ChannelRegistry::register(\NwsCad\Notifications\Channels\NtfyChannel::descriptor());
+        \NwsCad\Notifications\ChannelRegistry::register(\NwsCad\Notifications\Channels\PushoverChannel::descriptor());
     }
 
     protected function tearDown(): void
     {
+        \NwsCad\Notifications\ChannelRegistry::clear();
         unset($GLOBALS['__identity']);
         unset($_SERVER['HTTP_X_AUTH_USER']);
         parent::tearDown();
@@ -370,5 +381,22 @@ class NotificationsApiTest extends TestCase
             "SELECT last_updated_actor FROM notification_channels WHERE name = 'ntfy_primary'"
         )->fetch();
         $this->assertSame('k9barry', $row['last_updated_actor']);
+    }
+
+    public function testEnableUnknownTypeReturnsAvailableTypes(): void
+    {
+        // Registry already has ntfy + pushover from setUp(); just verify the
+        // error response includes the available_types list.
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+
+        $controller = new NotificationsController();
+        ob_start();
+        $controller->enable('badtype');
+        $body = (string) ob_get_clean();
+
+        $response = json_decode($body, true);
+        $this->assertSame(400, http_response_code());
+        $this->assertFalse($response['success']);
+        $this->assertSame(['ntfy', 'pushover'], $response['errors']['available_types']);
     }
 }
