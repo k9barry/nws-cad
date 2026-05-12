@@ -5,7 +5,7 @@
  * REST API for accessing CAD database
  */
 
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/bootstrap.php';
 
 use NwsCad\Api\Router;
 use NwsCad\Api\Response;
@@ -17,17 +17,6 @@ use NwsCad\Api\Controllers\LogsController;
 use NwsCad\Api\Controllers\NotificationsController;
 use NwsCad\Api\Controllers\HealthController;
 use NwsCad\Api\Controllers\FilterOptionsController;
-
-// Enable CORS
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-
-// Handle preflight requests
-if ($_SERVER['REQUEST_METHOD' ] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
 
 // Set error handling
 set_exception_handler(function ($e) {
