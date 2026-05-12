@@ -62,7 +62,7 @@ services:
         TZ: ${TZ:-UTC}
     container_name: nws-cad-api
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - ./public:/var/www/public
       - ./src:/var/www/src
@@ -102,6 +102,7 @@ services:
     volumes:
       - ./data/mysql:/var/lib/mysql
       - ./database/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/mysql/test-setup.sql:/docker-entrypoint-initdb.d/zz-test-setup.sql
       - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
     ports:
       - "${MYSQL_PORT:-3306}:3306"

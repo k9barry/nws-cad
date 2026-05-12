@@ -7,9 +7,8 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/bootstrap.php';
 
-use NwsCad\Dashboard\Router;
 use Jenssegers\Agent\Agent;
 
 // Detect device type
@@ -97,12 +96,10 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
                     </li>
                 </ul>
                 <div class="d-flex align-items-center">
-                    <span class="navbar-text me-3" id="live-indicator">
-                        <i class="bi bi-circle-fill text-secondary"></i> Connecting...
+                    <span class="live-pill" id="dashboard-live-pill">
+                        <span class="dot"></span>
+                        <span id="dashboard-live-text">Live</span>
                     </span>
-                    <button class="btn btn-outline-light btn-sm" onclick="window.print()">
-                        <i class="bi bi-printer"></i> Print
-                    </button>
                 </div>
             </div>
         </div>
@@ -148,7 +145,7 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
         window.APP_CONFIG = {
             apiBaseUrl: baseUrl + '/api',
             currentPage: '<?= $page ?>',
-            refreshInterval: 30000 // 30 seconds
+            refreshInterval: 5000 // 5 seconds
         };
         
         console.log('[NWS CAD] Configuration loaded:', {
@@ -190,7 +187,6 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
     <script src="/assets/js/mobile.js?v=<?= time() ?>"></script>
     <?php else: ?>
     <!-- Desktop-specific scripts -->
-    <script src="/assets/js/filter-manager.js?v=<?= time() ?>"></script>
     <script src="/assets/js/maps.js?v=<?= time() ?>"></script>
     <script src="/assets/js/charts.js?v=<?= time() ?>"></script>
     

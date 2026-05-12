@@ -48,26 +48,59 @@
         
         console.log('[Dashboard Main] Managers:', managers);
         
-        // Global filter manager
-        let filterManager = null;
-        
+        // FilterPanel instance and current query string
+        let panel = null;
+        let currentQs = '';
+
         /**
          * Handle filter changes
          */
-        async function onFilterChange(filters) {
-            console.log('[Dashboard Main] Filters changed:', filters);
+        async function onFilterChange() {
+            console.log('[Dashboard Main] Filters changed, qs:', currentQs);
             updateFilterSummary();
+            window.dispatchEvent(new CustomEvent('filter-applied', { detail: { qs: currentQs } }));
             await refreshDashboard();
         }
         
         // Initialize map
         let map = null;
+        const previousCallIds = new Set();
+
+        function setDashboardLivePill(state) {
+            const pill = document.getElementById('dashboard-live-pill');
+            const text = document.getElementById('dashboard-live-text');
+            if (!pill || !text) return;
+            pill.classList.remove('is-paused', 'is-error');
+            if (state === 'error') {
+                pill.classList.add('is-error');
+                text.textContent = 'Connection error';
+            } else if (state === 'paused') {
+                pill.classList.add('is-paused');
+                text.textContent = 'Paused';
+            } else {
+                text.textContent = 'Live';
+            }
+        }
+
         if (managers.MapManager) {
             try {
                 const mapEl = document.getElementById('calls-map');
                 if (mapEl) {
                     map = MapManager.initMap('calls-map');
                     console.log('[Dashboard Main] Map initialized');
+
+                    // Map container is flex-sized and grows as the right column
+                    // populates with API data. Observe the container itself so
+                    // Leaflet retiles whenever its size actually changes —
+                    // covers initial paint, viewport resize, and post-load growth.
+                    let mapResizeTimer = null;
+                    const mapResizeObserver = new ResizeObserver(() => {
+                        clearTimeout(mapResizeTimer);
+                        mapResizeTimer = setTimeout(() => {
+                            MapManager.resize('calls-map');
+                        }, 150);
+                    });
+                    mapResizeObserver.observe(mapEl);
                 } else {
                     console.warn('[Dashboard Main] Map element not found');
                 }
@@ -80,36 +113,100 @@
          * Update filter summary display
          */
         function updateFilterSummary() {
-            const summaryEl = document.getElementById('filter-summary');
-            if (!summaryEl) return;
-            
-            const currentFilters = filterManager.getFilters();
-            const parts = [];
-            
-            // Quick period or date range
-            if (currentFilters.quick_period) {
-                const periods = {
-                    'today': 'Today',
-                    'yesterday': 'Yesterday',
-                    '7days': 'Last 7 Days',
-                    '30days': 'Last 30 Days',
-                    'thismonth': 'This Month',
-                    'lastmonth': 'Last Month'
-                };
-                parts.push(periods[currentFilters.quick_period] || 'Custom Range');
-            } else if (currentFilters.date_from && currentFilters.date_to) {
-                parts.push(`${currentFilters.date_from} to ${currentFilters.date_to}`);
-            } else {
-                parts.push('All Time');
+            const summaryEl = document.getElementById('filter-summary-badge');
+            if (!summaryEl || !panel) return;
+
+            const vals = panel.getState().snapshot();
+            const chips = [];
+
+            // Date chip (always present — either preset, custom range, or "All Time")
+            const presets = {
+                today: 'Today', yesterday: 'Yesterday',
+                last_7_days: 'Last 7 Days', last_30_days: 'Last 30 Days',
+                this_month: 'This Month', last_month: 'Last Month',
+            };
+            if (vals.preset)               chips.push({ label: presets[vals.preset] || vals.preset, kind: 'accent' });
+            else if (vals.from && vals.to) chips.push({ label: `${vals.from} → ${vals.to}`, kind: 'accent' });
+            else                           chips.push({ label: 'All Time', kind: 'plain' });
+
+            // Status chips — colored per state
+            if (vals.status && vals.status.length) {
+                vals.status.forEach(function (s) {
+                    chips.push({ label: s.charAt(0).toUpperCase() + s.slice(1), kind: 'status-' + s });
+                });
             }
-            
-            // Add other filters
-            if (currentFilters.agency_type) parts.push(`Agency: ${currentFilters.agency_type}`);
-            if (currentFilters.jurisdiction) parts.push(`Jurisdiction: ${currentFilters.jurisdiction}`);
-            if (currentFilters.status) parts.push(`Status: ${currentFilters.status}`);
-            if (currentFilters.priority) parts.push(`Priority: ${currentFilters.priority}`);
-            
-            summaryEl.textContent = parts.join(' • ');
+
+            // Other active filters → compact chips
+            const labelMap = {
+                call_type: 'Type', incident_type: 'Incident', nature_of_call: 'Nature',
+                agency: 'Agency', ori: 'ORI', fdid: 'FDID',
+                beat: 'Beat', area: 'Area', city: 'City',
+                location: 'Location', call_id: 'Call ID', unit: 'Unit', q: 'Search',
+            };
+            Object.keys(labelMap).forEach(function (key) {
+                const v = vals[key];
+                if (!v) return;
+                if (Array.isArray(v) && v.length === 0) return;
+                const display = Array.isArray(v)
+                    ? (v.length > 2 ? `${v.length} ${labelMap[key].toLowerCase()}s` : v.join(', '))
+                    : String(v);
+                if (display) chips.push({ label: `${labelMap[key]}: ${display}`, kind: 'plain' });
+            });
+
+            // Render
+            renderChips(summaryEl, chips);
+
+            // Update count badge on the Filters button
+            updateFilterCountBadge(chips.length);
+
+            // Mirror the same chips into per-stat-card pills. Active Calls
+            // is special-cased: when its numeric value > 0, show a single
+            // green "Live" chip instead of the filter summary.
+            [
+                'stat-total-pill', 'stat-closed-pill', 'stat-analytics-pill',
+                'analytics-modal-filter-chips',
+                'analytics-stat-total-pill', 'analytics-stat-response-pill',
+                'analytics-stat-units-pill', 'analytics-stat-toptype-pill',
+            ].forEach(function (id) {
+                const el = document.getElementById(id);
+                if (el) renderChips(el, chips);
+            });
+            const activePill = document.getElementById('stat-active-pill');
+            if (activePill) {
+                const activeValEl = document.getElementById('stat-active-calls');
+                const activeVal = activeValEl ? parseInt(activeValEl.textContent, 10) : NaN;
+                if (Number.isFinite(activeVal) && activeVal > 0) {
+                    renderChips(activePill, [{ label: 'Live', kind: 'live' }]);
+                } else {
+                    renderChips(activePill, chips);
+                }
+            }
+        }
+
+        function renderChips(el, chips) {
+            el.innerHTML = '';
+            chips.forEach(function (c) {
+                const span = document.createElement('span');
+                span.className = 'summary-chip summary-chip--' + c.kind;
+                span.textContent = c.label;
+                el.appendChild(span);
+            });
+        }
+
+        function updateFilterCountBadge(count) {
+            const btn = document.querySelector('[data-bs-target="#filter-drawer"]');
+            if (!btn) return;
+            let badge = btn.querySelector('.filter-count-badge');
+            if (count <= 1) {
+                if (badge) badge.remove();
+                return;
+            }
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'filter-count-badge';
+                btn.appendChild(badge);
+            }
+            badge.textContent = String(count);
         }
         
         /**
@@ -117,21 +214,15 @@
          */
         async function loadStats() {
             console.log('[Dashboard Main] Loading stats...');
-            const filters = filterManager.getFilters();
-            console.log('[Dashboard Main] Current filters:', filters);
             try {
-                // Translate filters for API
-                const apiFilters = filterManager.translateForAPI(filters);
-                console.log('[Dashboard Main] Translated API filters:', apiFilters);
-                
-                const url = '/stats' + Dashboard.buildQueryString(apiFilters);
+                const url = '/stats' + (currentQs ? '?' + currentQs : '');
                 console.log('[Dashboard Main] Stats API URL:', url);
                 const stats = await Dashboard.apiRequest(url);
                 console.log('[Dashboard Main] Stats response:', stats);
-                
+
                 // Get units for available count (stats endpoint doesn't provide this)
-                const unitsParams = { per_page: 1000, ...apiFilters };
-                const units = await Dashboard.apiRequest('/units' + Dashboard.buildQueryString(unitsParams))
+                const unitsUrl = '/units?' + (currentQs ? currentQs + '&' : '') + 'per_page=1000';
+                const units = await Dashboard.apiRequest(unitsUrl)
                     .then(r => r?.items || []).catch(() => []);
                 
                 console.log('[Dashboard Main] Loaded', units.length, 'units from API');
@@ -194,40 +285,31 @@
         async function loadRecentCalls(page = 1) {
             console.log('[Dashboard Main] Loading recent calls, page:', page);
             currentCallsPage = page;
-            const filters = filterManager.getFilters();
-            console.log('[Dashboard Main] Current filters for recent calls:', filters);
             try {
-                // Translate filters for API
-                const apiFilters = filterManager.translateForAPI(filters);
-                
-                const queryParams = {
-                    page: page,
-                    per_page: callsPerPage,
-                    sort: 'create_datetime',
-                    order: 'desc',
-                    ...apiFilters
-                };
-                
-                // Default to active calls if no status filter
-                if (!filters.status) {
-                    queryParams.closed_flag = 'false';
-                }
-                
-                // Update card title based on filters
+                // Build query string from current filter state plus pagination params
+                const pagingParams = new URLSearchParams(currentQs);
+                pagingParams.set('page', page);
+                pagingParams.set('per_page', callsPerPage);
+                pagingParams.set('sort', 'create_datetime');
+                pagingParams.set('order', 'desc');
+
+                // Update card title based on status filter
                 const titleEl = document.getElementById('recent-calls-title');
                 if (titleEl) {
-                    if (filters.status === 'active' || !filters.status) {
+                    const statusVal = panel ? panel.getState().get('status') : null;
+                    const statusArr = Array.isArray(statusVal) ? statusVal : (statusVal ? [statusVal] : []);
+                    if (statusArr.includes('open') && !statusArr.includes('closed')) {
                         titleEl.textContent = 'Recent Active Calls';
-                    } else if (filters.status === 'closed') {
+                    } else if (statusArr.includes('closed') && !statusArr.includes('open')) {
                         titleEl.textContent = 'Recent Closed Calls';
                     } else {
                         titleEl.textContent = 'Recent Calls';
                     }
                 }
-                
-                const url = '/calls' + Dashboard.buildQueryString(queryParams);
+
+                const url = '/calls?' + pagingParams.toString();
                 console.log('[Dashboard Main] Recent calls API URL:', url);
-                console.log('[Dashboard Main] Query params:', queryParams);
+                console.log('[Dashboard Main] Query params:', pagingParams.toString());
                 
                 console.log('[Dashboard Main] Fetching:', Dashboard.config.apiBaseUrl + url);
                 
@@ -255,7 +337,7 @@
                 if (calls.length === 0) {
                     tableBody.innerHTML = `
                         <tr>
-                            <td colspan="9" class="text-center py-4">
+                            <td colspan="8" class="text-center py-4">
                                 <i class="bi bi-inbox fs-1 text-muted"></i>
                                 <p class="text-muted mt-2">No calls found</p>
                             </td>
@@ -263,18 +345,26 @@
                     `;
                 } else {
                     tableBody.innerHTML = calls.map((call, index) => {
-                        const statusBadge = call.closed_flag 
-                            ? '<span class="badge bg-success">Closed</span>' 
-                            : '<span class="badge bg-warning text-dark">Open</span>';
+                        const callState = Dashboard.getCallState(call); // 'open' | 'closed' | 'reopened' | 'canceled'
+                        const stateLabel = callState.charAt(0).toUpperCase() + callState.slice(1);
+                        const stateClass = callState === 'reopened'
+                            ? 'is-reopened'
+                            : ((callState === 'closed' || callState === 'canceled') ? 'is-closed' : 'is-active');
+                        const statusBadge = `<span class="pill-badge ${stateClass}">${Dashboard.escapeHtml(stateLabel)}</span>`;
+
+                        const priorityKey = (call.priority || 'Normal');
+                        const priorityClass = priorityKey === 'High'
+                            ? 'is-priority-1'
+                            : (priorityKey === 'Medium' ? 'is-priority-2' : 'is-priority-3');
+                        const priorityBadge = `<span class="pill-badge ${priorityClass}">${Dashboard.escapeHtml(priorityKey)}</span>`;
                         
-                        const priorityBadge = call.priority 
-                            ? `<span class="badge bg-${call.priority === 'High' ? 'danger' : call.priority === 'Medium' ? 'warning' : 'secondary'}">${Dashboard.escapeHtml(call.priority)}</span>`
-                            : '<span class="badge bg-secondary">Normal</span>';
-                        
-                        // Check if call has valid coordinates for zoom
-                        const lat = call.location?.coordinates?.lat;
-                        const lng = call.location?.coordinates?.lng;
-                        const hasCoordinates = lat && lng && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng));
+                        // Check if call has valid coordinates for zoom (reject -361 sentinel and other out-of-range)
+                        const rawLat = parseFloat(call.location?.coordinates?.lat);
+                        const rawLng = parseFloat(call.location?.coordinates?.lng);
+                        const hasCoordinates = Number.isFinite(rawLat) && Number.isFinite(rawLng)
+                            && rawLat >= -90 && rawLat <= 90 && rawLng >= -180 && rawLng <= 180;
+                        const lat = hasCoordinates ? rawLat : null;
+                        const lng = hasCoordinates ? rawLng : null;
                         
                         if (index === 0) {
                             console.log('[Dashboard Main] First call coordinates:', {
@@ -289,7 +379,7 @@
                             <tr class="call-row" data-call-id="${call.id}" style="cursor: pointer;">
                                 <td>${Dashboard.escapeHtml(call.call_number || call.id)}</td>
                                 <td><small>${Dashboard.formatTime(call.create_datetime)}</small></td>
-                                <td>${Dashboard.escapeHtml(call.call_types?.[0] || call.nature_of_call || 'Unknown')}</td>
+                                <td>${Dashboard.formatCallTypes(call)}</td>
                                 <td>
                                     <small>${Dashboard.escapeHtml(call.location?.address || call.location?.city || 'No address')}</small>
                                 </td>
@@ -303,7 +393,7 @@
                                     </button>
                                 </td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-success zoom-call-btn" 
+                                    <button class="btn btn-sm btn-outline-success zoom-call-btn"
                                             data-call-id="${call.id}"
                                             data-lat="${lat || ''}"
                                             data-lng="${lng || ''}"
@@ -312,15 +402,20 @@
                                         <i class="bi bi-map"></i>
                                     </button>
                                 </td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary view-call-btn"
-                                            data-call-id="${call.id}">
-                                        <i class="bi bi-eye"></i>
-                                    </button>
-                                </td>
                             </tr>
                         `;
                     }).join('');
+                    // Mark rows whose ID wasn't in the previous render so they flash.
+                    const currentIds = new Set();
+                    calls.forEach(function (c) { currentIds.add(String(c.id)); });
+                    tableBody.querySelectorAll('tr.call-row').forEach(function (tr) {
+                        const id = tr.getAttribute('data-call-id');
+                        if (id && !previousCallIds.has(id)) {
+                            tr.classList.add('row-new');
+                        }
+                    });
+                    previousCallIds.clear();
+                    currentIds.forEach(function (id) { previousCallIds.add(id); });
                 }
                 
                 console.log('[Dashboard Main] Calls table rendered:', calls.length);
@@ -337,7 +432,7 @@
                 if (tableBody) {
                     tableBody.innerHTML = `
                         <tr>
-                            <td colspan="9" class="text-center text-danger py-4">
+                            <td colspan="8" class="text-center text-danger py-4">
                                 <i class="bi bi-exclamation-triangle"></i> Failed to load calls
                             </td>
                         </tr>
@@ -362,31 +457,31 @@
             const totalEl = document.getElementById('calls-total');
             
             if (!container || !pagination) return;
-            
+
             const total = pagination.total || 0;
             const currentPage = pagination.current_page || currentCallsPage;
             const totalPages = pagination.total_pages || totalCallsPages;
             const perPage = pagination.per_page || callsPerPage;
-            
-            // Show pagination only if there's more than one page
-            if (totalPages > 1) {
-                container.style.display = 'flex';
-                
-                // Update page info
-                const start = (currentPage - 1) * perPage + 1;
-                const end = Math.min(currentPage * perPage, total);
-                
-                showingStart.textContent = start;
-                showingEnd.textContent = end;
-                totalEl.textContent = total;
-                pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
-                
-                // Update button states
-                prevBtn.disabled = currentPage <= 1;
-                nextBtn.disabled = currentPage >= totalPages;
-            } else {
-                container.style.display = 'none';
-            }
+
+            // Always keep the count text current. Previously these only updated
+            // when totalPages > 1, so the static "0-0 of 0" from the HTML stayed
+            // in the DOM whenever the result fit on one page — surfacing as
+            // "Showing 0 of 0 calls" the moment any code path made the container
+            // visible (or read the values directly).
+            const start = total === 0 ? 0 : (currentPage - 1) * perPage + 1;
+            const end   = Math.min(currentPage * perPage, total);
+            if (showingStart) showingStart.textContent = start;
+            if (showingEnd)   showingEnd.textContent   = end;
+            if (totalEl)      totalEl.textContent      = total;
+            if (pageInfo)     pageInfo.textContent     = `Page ${currentPage} of ${Math.max(totalPages, 1)}`;
+            if (prevBtn)      prevBtn.disabled         = currentPage <= 1;
+            if (nextBtn)      nextBtn.disabled         = currentPage >= totalPages;
+
+            // Show pagination controls only when there's more than one page;
+            // when there's just one (or none), we still want the result count
+            // visible to the user, so show the container whenever there are
+            // results at all.
+            container.style.display = total > 0 ? 'flex' : 'none';
         }
         
         /**
@@ -402,25 +497,20 @@
             }
             
             try {
-                // Translate filters for API
-                const filters = filterManager.getFilters();
-                const apiFilters = filterManager.translateForAPI(filters);
-                
-                const queryParams = {
-                    page: 1,
-                    per_page: 100,
-                    ...apiFilters
-                };
-                
+                // Build query from current filter state plus map-specific params
+                const mapParams = new URLSearchParams(currentQs);
+                mapParams.set('page', '1');
+                mapParams.set('per_page', '100');
+
                 // Default to showing only open calls on map if no status filter set
-                if (!filters.status) {
-                    queryParams.closed_flag = 'false';
+                if (!mapParams.has('status')) {
+                    mapParams.set('status', 'open');
                 }
-                
-                const url = '/calls' + Dashboard.buildQueryString(queryParams);
-                
+
+                const url = '/calls?' + mapParams.toString();
+
                 console.log('[Dashboard Main] Fetching calls for map from:', Dashboard.config.apiBaseUrl + url);
-                console.log('[Dashboard Main] Map query params:', queryParams);
+                console.log('[Dashboard Main] Map query params:', mapParams.toString());
                 const response = await fetch(Dashboard.config.apiBaseUrl + url);
                 const result = await response.json();
                 
@@ -428,11 +518,18 @@
                 
                 if (result.success && result.data?.items) {
                     const callsWithLoc = result.data.items
-                        .filter(c => c.location?.coordinates?.lat && c.location?.coordinates?.lng)
-                        .map(c => ({
+                        .map(c => {
+                            const lat = parseFloat(c.location?.coordinates?.lat);
+                            const lng = parseFloat(c.location?.coordinates?.lng);
+                            return { c, lat, lng };
+                        })
+                        // Aegis emits -361,-361 as a "no GPS" sentinel; reject anything outside legal ranges
+                        .filter(({ lat, lng }) => Number.isFinite(lat) && Number.isFinite(lng)
+                            && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180)
+                        .map(({ c, lat, lng }) => ({
                             ...c,
-                            latitude: parseFloat(c.location.coordinates.lat),
-                            longitude: parseFloat(c.location.coordinates.lng),
+                            latitude: lat,
+                            longitude: lng,
                             address: c.location?.address || c.location?.city
                         }));
                     
@@ -444,6 +541,11 @@
                         if (mapElement) {
                             console.log('[Dashboard Main] Showing', callsWithLoc.length, 'calls on map');
                             MapManager.showCalls('calls-map', callsWithLoc);
+                            const markerCountEl = document.getElementById('map-marker-count');
+                            if (markerCountEl) {
+                                const n = callsWithLoc.length;
+                                markerCountEl.textContent = n + ' marker' + (n === 1 ? '' : 's');
+                            }
                             console.log('[Dashboard Main] Map updated and centered on calls');
                         } else {
                             console.warn('[Dashboard Main] calls-map element not found');
@@ -469,10 +571,8 @@
             }
             
             console.log('[Dashboard Main] Loading charts...');
-            const filters = filterManager.getFilters();
-            console.log('[Dashboard Main] Current filters for charts:', filters);
             try {
-                const url = '/stats' + Dashboard.buildQueryString(filters);
+                const url = '/stats' + (currentQs ? '?' + currentQs : '');
                 console.log('[Dashboard Main] Charts API URL:', url);
                 const stats = await Dashboard.apiRequest(url);
                 console.log('[Dashboard Main] Charts stats received:', stats);
@@ -600,12 +700,11 @@
             
             // Now check if target IS a button or CONTAINS a button
             let zoomBtn = target.classList?.contains('zoom-call-btn') ? target : target.querySelector('.zoom-call-btn');
-            let viewBtn = target.classList?.contains('view-call-btn') ? target : target.querySelector('.view-call-btn');
             let unitsBtn = target.classList?.contains('units-btn') ? target : target.querySelector('.units-btn');
             const row = target.closest('.call-row');
-            
+
             console.log('[Dashboard Main] Click target:', target.tagName, target.className);
-            console.log('[Dashboard Main] Found buttons:', { zoomBtn: !!zoomBtn, viewBtn: !!viewBtn, unitsBtn: !!unitsBtn });
+            console.log('[Dashboard Main] Found buttons:', { zoomBtn: !!zoomBtn, unitsBtn: !!unitsBtn });
             if (zoomBtn) {
                 console.log('[Dashboard Main] Zoom button details:', {
                     disabled: zoomBtn.disabled,
@@ -629,17 +728,7 @@
                 console.log('[Dashboard Main] Zoom button clicked:', { callId, lat, lng });
                 zoomToCallOnMap(callId, lat, lng);
                 return; // STOP HERE - don't process row click
-                
-            } else if (viewBtn) {
-                // View button clicked
-                event.stopPropagation();
-                event.preventDefault();
-                
-                const callId = parseInt(viewBtn.dataset.callId);
-                console.log('[Dashboard Main] View button clicked:', callId);
-                viewCallDetails(callId);
-                return; // STOP HERE
-                
+
             } else if (unitsBtn && !unitsBtn.disabled) {
                 // Units button clicked
                 event.stopPropagation();
@@ -674,8 +763,11 @@
                     loadCallsMap(),
                     loadCharts()
                 ]);
+                setDashboardLivePill('live');
+                updateFilterSummary();
                 console.log('[Dashboard Main] === Refresh complete ===');
             } catch (error) {
+                setDashboardLivePill('error');
                 console.error('[Dashboard Main] Refresh error:', error);
             }
         }
@@ -788,7 +880,7 @@
                             <tr><th>Created By:</th><td>${Dashboard.escapeHtml(call.created_by || 'N/A')}</td></tr>
                             <tr><th>Alarm Level:</th><td>${Dashboard.escapeHtml(call.alarm_level || 'N/A')}</td></tr>
                             <tr><th>EMD Code:</th><td>${Dashboard.escapeHtml(call.emd_code || 'N/A')}</td></tr>
-                            <tr><th>Closed:</th><td>${call.closed_flag ? '<span class="badge bg-secondary">Yes</span>' : '<span class="badge bg-success">No</span>'}</td></tr>
+                            <tr><th>Status:</th><td>${Dashboard.getCallStateBadge(call)}</td></tr>
                             <tr><th>Canceled:</th><td>${call.canceled_flag ? '<span class="badge bg-warning">Yes</span>' : '<span class="badge bg-success">No</span>'}</td></tr>
                         </table>
                         
@@ -1145,32 +1237,32 @@
         
         window.filterDashboard = function(status) {
             console.log('[Dashboard Main] Filtering dashboard to:', status);
-            
-            if (!filterManager) {
-                console.error('[Dashboard Main] FilterManager not initialized');
+
+            if (!panel) {
+                console.error('[Dashboard Main] FilterPanel not initialized');
                 return;
             }
-            
-            // Get current filters
-            const currentFilters = filterManager.getFilters();
-            
-            // Update status
+
+            // UI vocabulary 'active' maps to canonical API status 'open'.
+            // Without this translation the API rejects the request (VALID_STATUSES = open|closed|canceled).
+            if (status === 'active') status = 'open';
+
+            // Update the panel state
             if (status === 'all') {
-                delete currentFilters.status;
+                panel.getState().merge({ status: [] });
             } else {
-                currentFilters.status = status;
+                panel.getState().merge({ status: [status] });
             }
-            
-            // Save filters
-            filterManager.currentFilters = currentFilters;
-            filterManager.save();
-            
-            // Update filter summary
-            updateFilterSummary();
-            
-            // Refresh dashboard with new filters
-            refreshDashboard();
-            
+
+            // Sync URL and localStorage (mirrors what FilterPanel._apply() does)
+            const qs = panel.getState().toQueryString();
+            const newUrl = window.location.pathname + (qs ? '?' + qs : '');
+            window.history.replaceState({}, '', newUrl);
+            localStorage.setItem('filter-panel:last-state', JSON.stringify(panel.getState().snapshot()));
+            currentQs = qs;
+
+            onFilterChange();
+
             console.log('[Dashboard Main] Dashboard filtered to:', status);
         };
         
@@ -1193,14 +1285,51 @@
             window.location.href = `/${page}`;
         };
         
-        // Initialize FilterManager
-        filterManager = new FilterManager({
-            formId: 'dashboard-filter-form',
-            onFilterChange: onFilterChange,
-            searchDebounceMs: 300
+        // Heal legacy state where status=active leaked into URL/localStorage from
+        // an earlier build (API only accepts open|closed|canceled).
+        (function migrateLegacyStatus() {
+            const params = new URLSearchParams(window.location.search);
+            const raw = params.get('status');
+            if (raw && raw.split(',').indexOf('active') >= 0) {
+                const fixed = raw.split(',').map(function (s) {
+                    return s.trim() === 'active' ? 'open' : s.trim();
+                }).filter(Boolean);
+                params.set('status', fixed.join(','));
+                window.history.replaceState({}, '', window.location.pathname + '?' + params.toString());
+            }
+            const lastRaw = localStorage.getItem('filter-panel:last-state');
+            if (lastRaw) {
+                try {
+                    const last = JSON.parse(lastRaw);
+                    if (Array.isArray(last.status) && last.status.indexOf('active') >= 0) {
+                        last.status = last.status.map(function (s) { return s === 'active' ? 'open' : s; });
+                        localStorage.setItem('filter-panel:last-state', JSON.stringify(last));
+                    }
+                } catch (_) { /* ignore corrupt entry */ }
+            }
+        })();
+
+        // Pre-populate URL with sensible defaults (today + open) on any fresh
+        // page load (no existing URL state). This is the dispatcher's most
+        // common view — always start there instead of an empty filter set or
+        // a stale saved state.
+        if (!window.location.search) {
+            const url = new URL(window.location);
+            url.searchParams.set('preset', 'today');
+            url.searchParams.set('status', 'open');
+            window.history.replaceState({}, '', url);
+        }
+
+        // Initialize FilterPanel
+        panel = new FilterPanel({
+            root: document.getElementById('filter-panel'),
+            onChange: function (state) {
+                currentQs = state.toQueryString();
+                onFilterChange();
+            },
         });
-        
-        await filterManager.init();
+        await panel.mount();
+        currentQs = panel.getState().toQueryString();
         updateFilterSummary();
         
         // Initialize pagination event listeners
@@ -1300,12 +1429,15 @@ window.zoomToCallOnMap = async function(callId, latitude, longitude) {
         const timeEl = document.getElementById('map-modal-time');
         
         if (titleEl) titleEl.textContent = `Call #${call.call_number || callId}`;
-        if (typeEl) typeEl.textContent = call.call_types?.[0] || call.nature_of_call || 'Unknown';
+        if (typeEl) {
+            // textContent for the unescaped fallback path; use innerText only via the
+            // helper which escapes. Set via textContent of joined string for safety.
+            const types = Array.isArray(call.call_types) ? call.call_types.filter(Boolean) : [];
+            typeEl.textContent = types.length ? types.join(' / ') : (call.nature_of_call || 'Unknown');
+        }
         if (addressEl) addressEl.textContent = call.location?.address || call.location?.city || 'No address';
         if (priorityEl) priorityEl.innerHTML = Dashboard.getPriorityBadge(call.agency_contexts?.[0]?.priority || call.priority || 'Normal');
-        if (statusEl) statusEl.innerHTML = call.closed_flag 
-            ? '<span class="badge bg-success">Closed</span>' 
-            : '<span class="badge bg-warning text-dark">Open</span>';
+        if (statusEl) statusEl.innerHTML = Dashboard.getCallStateBadge(call);
         if (timeEl) timeEl.textContent = Dashboard.formatDateTime(call.create_datetime);
         
         console.log('[Dashboard Main] Modal content updated');

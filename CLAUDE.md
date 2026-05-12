@@ -28,6 +28,9 @@ docker-compose exec mysql mysql -u nws_user -p nws_cad
 php bin/notifications.php list
 php bin/notifications.php enable ntfy --base-url=https://ntfy.example
 php bin/notifications.php disable pushover
+
+# Reference data seeding (filter dropdowns)
+php bin/seed-reference.php                           # uses database/seeds/reference.json
 ```
 
 ## Architecture
@@ -56,6 +59,10 @@ The file watcher (`src/watcher.php` / `FileWatcher.php`) is a separate long-live
 | `Notifications\NotificationDispatcher` | Sole subscriber. Applies delta-time gate (`NOTIFICATION_DELTA_SECONDS`, default 900) + intent rules (Created → all topics; Updated with new units only → just the added topics; Updated with call_type/full_address/alarm_level change → all topics; Closed → no-op); fans out to `ChannelRepositoryInterface::listEnabled()`. |
 | `Notifications\Channels\{NtfyChannel,PushoverChannel}` | Send implementations with cURL + bounded retry (3 attempts, 1s/3s/9s backoff; 4xx is permanent, 5xx and network failures are retried). Both `final`. |
 | `Logging\RedactingProcessor` | Globally registered Monolog processor; scrubs values from `SecretRegistry` out of every log record's `message`/`context`/`extra`. |
+| `Api\Filtering\FilterCriteria` | URL → typed filter value object. Enforces 50-value cap, 256-char cap, allowlist. |
+| `Api\Filtering\FilterSqlBuilder` | FilterCriteria → parameterized WHERE/JOIN/params via `SqlFragment`. |
+| `Api\Filtering\FilterRegistry` | Static per-controller allowlist (`for('calls')`, `for('units')`, `for('stats')`). |
+| `Api\Filtering\FilterOptionsCache` | In-process 5-minute cache for `/api/filter-options`. Invalidated by `AegisXmlParser` after writes. |
 
 ### Controller pattern
 
@@ -117,6 +124,7 @@ notification_channels (N) → notification_send_log (N, ON DELETE CASCADE)
 - `Dashboard.apiRequest(endpoint)` — fetch wrapper with consistent error handling.
 - `Dashboard.escapeHtml(text)` — XSS prevention; **must wrap any user-derived value rendered into HTML**. The `notifications.php` view builds list items via `createElement` + `textContent` since the source data (CAD field names, agency/jurisdiction strings) is untrusted.
 - `Dashboard.formatTime(datetime)`, `Dashboard.buildQueryString(params)`.
+- `FilterPanel` (`public/assets/js/filters/FilterPanel.js`) — universal filter component. Mount via `<div data-filter-panel data-fields="...">`. Owns URL sync, restore-banner, Choices.js + Flatpickr widgets.
 
 ## Notifications
 
@@ -153,6 +161,7 @@ After `AegisXmlParser::processFile()` commits, it dispatches a `CallProcessedEve
 | `WATCHER_INTERVAL` (seconds) | File-watcher poll interval |
 | `LOG_LEVEL`, `APP_ENV` | Logging and environment selection |
 | `NOTIFICATION_DELTA_SECONDS` (default 900) | Delta-time gate for the notification dispatcher |
+| `STALE_OPEN_CALL_HOURS` (default 72) | Guardrail: a call open this many hours since `create_datetime` is reclassified as closed in SQL status filters, stats counts, and dashboard badges (via `is_stale` on API rows). Raw rows are not mutated. |
 | `NTFY_AUTH_TOKEN`, `NTFY_BASE_URL` | Required when an `ntfy` channel is enabled |
 | `PUSHOVER_TOKEN`, `PUSHOVER_USER`, `PUSHOVER_BASE_URL` | Required when a `pushover` channel is enabled |
 

@@ -18,6 +18,18 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     background-color: #f5f7fa;
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Sticky-footer pattern: <main> grows to fill space between navbar and footer
+   so dashboard-row-fill can flex-grow into a definite height instead of
+   guessing a viewport offset. */
+body > main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 /* Navbar */
@@ -143,6 +155,69 @@ span.navbar-text i.bi.bi-circle-fill.pulse::before,
 /* Map Styles */
 #calls-map, #units-map {
     border-radius: 0 0 12px 12px;
+}
+
+/* Map column: fill the row's stretched height; aligns with Recent Calls card */
+.map-column-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.map-column-card .card-body {
+    flex: 1;
+    min-height: 0;
+    padding: 0;
+}
+
+#calls-map {
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
+}
+
+/* Dashboard map+stats row grows to fill the flex-sized <main>.
+   !important is required because Bootstrap utilities (mb-4, py-4) carry !important. */
+.dashboard-row-fill {
+    flex: 1;
+    min-height: 0;
+    margin-bottom: 0 !important;
+}
+
+body:has(.dashboard-row-fill) > main {
+    padding-top: 1rem !important;
+    padding-bottom: 0.5rem !important;
+}
+
+body:has(.dashboard-row-fill) > footer {
+    margin-top: 0 !important;
+}
+
+.dashboard-right-col {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Recent Calls card grows to fill remaining right-column space below stats grid;
+   the table-responsive scroll area absorbs whatever height is left. */
+.dashboard-right-col .recent-calls-card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.dashboard-right-col .recent-calls-card .card-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.recent-calls-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .leaflet-popup-content-wrapper {
@@ -499,3 +574,177 @@ footer a:hover {
     animation: fadeIn 0.3s ease-in;
 }
 Timestamp: Wed Jan 28 01:35:28 UTC 2026
+
+/* === Dashboard prettify components (mirrors notifications page palette) === */
+.dashboard-banner {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%);
+    color: #fff;
+    border-radius: 0.75rem;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
+}
+.dashboard-banner h2 { margin: 0; font-weight: 600; }
+.dashboard-banner .subtitle { opacity: 0.85; font-size: 0.9rem; margin-top: 0.25rem; }
+.dashboard-banner .btn-light {
+    background: rgba(255, 255, 255, 0.95);
+    border: none;
+}
+
+/* Live status pill — reusable across dashboard, notifications, and analytics */
+.live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 999px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #fff;
+}
+.live-pill .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #00e676;
+    box-shadow: 0 0 6px rgba(0, 230, 118, 0.9), 0 0 0 0 rgba(0, 230, 118, 0.85);
+    animation: live-pulse 1.6s infinite;
+}
+.live-pill.is-paused .dot { background: #94a3b8; animation: none; box-shadow: none; }
+.live-pill.is-error  .dot { background: #f87171; animation: none; box-shadow: none; }
+@keyframes live-pulse {
+    0%   { box-shadow: 0 0 6px rgba(0, 230, 118, 0.9), 0 0 0 0 rgba(0, 230, 118, 0.85); }
+    70%  { box-shadow: 0 0 6px rgba(0, 230, 118, 0.9), 0 0 0 12px rgba(0, 230, 118, 0); }
+    100% { box-shadow: 0 0 6px rgba(0, 230, 118, 0.9), 0 0 0 0 rgba(0, 230, 118, 0); }
+}
+
+/* Reusable pill-shaped status / priority / context badge */
+.pill-badge {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: #e2e8f0;
+    color: #475569;
+}
+.pill-badge.is-info       { background: rgba(255, 255, 255, 0.22); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3); }
+.pill-badge.is-priority-1 { background: #fee2e2; color: #991b1b; }
+.pill-badge.is-priority-2 { background: #ffedd5; color: #9a3412; }
+.pill-badge.is-priority-3 { background: #e0f2fe; color: #075985; }
+.pill-badge.is-active     { background: #d1fae5; color: #065f46; }
+.pill-badge.is-reopened   { background: #fef3c7; color: #92400e; }
+.pill-badge.is-closed     { background: #e2e8f0; color: #475569; }
+
+/* Gradient card header strip — applied to map + Recent Calls cards */
+.gradient-card-header {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+    color: #fff;
+    border-bottom: none !important;
+    border-radius: 12px 12px 0 0 !important;
+}
+.gradient-card-header .card-title,
+.gradient-card-header h5,
+.gradient-card-header small { color: #fff !important; }
+.gradient-card-header .text-muted { color: rgba(255, 255, 255, 0.75) !important; }
+
+/* Modernized stat cards — gradient icon tile + top accent strip */
+.stat-card-v2 {
+    border: none;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    height: 100%; /* match tallest sibling so Analytics doesn't shrink when its h2 is shorter */
+}
+.stat-card-v2::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+}
+.stat-card-v2:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+}
+.stat-card-v2 .stat-icon {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+.stat-card-v2 .card-body { padding: 0.55rem 0.9rem; }
+.stat-card-v2 h2 { font-size: 1.5rem; font-weight: 700; line-height: 1.15; }
+.stat-card-v2 h6 { font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+.stat-card-v2 .stat-icon { width: 40px; height: 40px; font-size: 1.1rem; }
+.stat-card-v2 .summary-chips { font-size: 0.7rem; }
+
+.stat-card-v2.is-total::before    { background: linear-gradient(90deg, #2563eb, #4f46e5); }
+.stat-card-v2.is-total    .stat-icon { background: linear-gradient(135deg, #2563eb, #4f46e5); }
+.stat-card-v2.is-active::before   { background: linear-gradient(90deg, #ef4444, #db2777); }
+.stat-card-v2.is-active   .stat-icon { background: linear-gradient(135deg, #ef4444, #db2777); }
+.stat-card-v2.is-closed::before   { background: linear-gradient(90deg, #475569, #1e293b); }
+.stat-card-v2.is-closed   .stat-icon { background: linear-gradient(135deg, #475569, #1e293b); }
+.stat-card-v2.is-analytics::before{ background: linear-gradient(90deg, #f59e0b, #db2777); }
+.stat-card-v2.is-analytics .stat-icon { background: linear-gradient(135deg, #f59e0b, #db2777); }
+.stat-card-v2.is-info::before     { background: linear-gradient(90deg, #06b6d4, #2563eb); }
+.stat-card-v2.is-info     .stat-icon { background: linear-gradient(135deg, #06b6d4, #2563eb); }
+.stat-card-v2.is-success::before  { background: linear-gradient(90deg, #10b981, #059669); }
+.stat-card-v2.is-success  .stat-icon { background: linear-gradient(135deg, #10b981, #059669); }
+
+/* Analytics modal — same gradient header palette as .dashboard-banner */
+.analytics-modal-header {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%) !important;
+    color: #fff !important;
+    border-bottom: none !important;
+    padding: 1rem 1.5rem;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.analytics-modal-header .modal-title { color: #fff; font-weight: 600; margin: 0; }
+.analytics-modal-header .subtitle { opacity: 0.85; font-size: 0.85rem; margin-top: 0.15rem; }
+.analytics-modal-header .btn-close { filter: brightness(0) invert(1); opacity: 0.85; }
+.analytics-modal-header .btn-close:hover { opacity: 1; }
+.analytics-modal-title-block { margin-right: auto; }
+.analytics-modal-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+.analytics-modal-actions .summary-chips { max-width: 38rem; }
+.analytics-modal-actions .summary-chip {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+.analytics-modal-actions .summary-chip--accent {
+    background: rgba(255, 255, 255, 0.28);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.45);
+}
+#analytics-modal .modal-body { background: #f8fafc; }
+#analytics-modal .card { border: none; border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08); }
+
+/* Filter drawer must float above the fullscreen analytics modal so the user
+   can change filters without closing analytics. Default Bootstrap z-index
+   stack puts modal (1055) above offcanvas (1045); bump the drawer + its
+   backdrop above the modal. */
+#filter-drawer { z-index: 1080; }
+.offcanvas-backdrop { z-index: 1075; }
+
+/* Recent Calls row flash on insert */
+.recent-calls-card tbody tr.row-new {
+    animation: row-flash 1.2s ease;
+}
+@keyframes row-flash {
+    0%   { background-color: #fef9c3; }
+    100% { background-color: transparent; }
+}

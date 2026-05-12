@@ -1,0 +1,23 @@
+{
+  "agencies": [
+    {"code": "PEN_PD",  "label": "Pendleton Police", "kind": "police", "ori": "IN0480000", "fdid": null,    "active": 1, "sort_order": 10},
+    {"code": "EDG_FD",  "label": "Edgewood Fire",    "kind": "fire",   "ori": null,        "fdid": "48013", "active": 1, "sort_order": 20},
+    {"code": "MAD_EMS", "label": "Madison EMS",      "kind": "ems",    "ori": null,        "fdid": null,    "active": 1, "sort_order": 30}
+  ],
+  "oris": [
+    {"ori": "IN0480000", "label": "IN0480000 (Pendleton PD)", "kind": "police", "agency_code": "PEN_PD"},
+    {"ori": "IN0480200", "label": "IN0480200 (Edgewood PD)",  "kind": "police", "agency_code": null}
+  ],
+  "fdids": [
+    {"fdid": "48002", "label": "48002 (Anderson FD)",  "agency_code": null},
+    {"fdid": "48013", "label": "48013 (Edgewood FD)", "agency_code": "EDG_FD"}
+  ],
+  "beats": [
+    {"code": "B1", "label": "Beat 1 (North)", "kind": "police", "jurisdiction": "Pendleton", "active": 1},
+    {"code": "B2", "label": "Beat 2 (South)", "kind": "police", "jurisdiction": "Pendleton", "active": 1}
+  ],
+  "areas": [
+    {"code": "Quad-1", "label": "Quad 1", "kind": "fire_quad", "active": 1},
+    {"code": "EMS-3",  "label": "EMS District 3", "kind": "ems_district", "active": 1}
+  ]
+}

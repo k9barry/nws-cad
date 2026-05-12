@@ -11,8 +11,6 @@ $args = $_SERVER['argv'] ?? [];
 array_shift($args);
 $cmd = $args[0] ?? 'help';
 
-$db = Database::getConnection();
-
 function help(): never
 {
     echo <<<TXT
@@ -34,6 +32,7 @@ TXT;
 
 switch ($cmd) {
     case 'list':
+        $db = Database::getConnection();
         $rows = $db->query("SELECT id, name, type, enabled, base_url, last_error_at, last_error_message
                             FROM notification_channels ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
         if (!$rows) {
@@ -68,10 +67,20 @@ switch ($cmd) {
             }
         }
 
+        $check = \NwsCad\Security\UrlValidator::validateChannelBaseUrl(
+            $baseUrl,
+            \NwsCad\Config::getInstance()
+        );
+        if (! $check['ok']) {
+            fwrite(STDERR, "Invalid base_url: {$check['reason']}\n");
+            exit(1);
+        }
+
         $defaultConfig = $type === 'ntfy'
             ? '{"auth_token_env":"NTFY_AUTH_TOKEN","alarm_priority_map":{"1":3,"2":4,"3":5}}'
             : '{"token_env":"PUSHOVER_TOKEN","user_env":"PUSHOVER_USER"}';
 
+        $db = Database::getConnection();
         $name = "{$type}_primary";
         $stmt = $db->prepare("SELECT id FROM notification_channels WHERE name = ?");
         $stmt->execute([$name]);
@@ -93,6 +102,7 @@ switch ($cmd) {
             fwrite(STDERR, "disable requires <type>\n");
             exit(1);
         }
+        $db = Database::getConnection();
         $db->prepare("UPDATE notification_channels
                       SET enabled=0, updated_at=CURRENT_TIMESTAMP WHERE type=?")->execute([$type]);
         echo "Disabled all '{$type}' channels.\n";

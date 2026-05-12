@@ -13,6 +13,13 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Api\DbHelper
  * @uses \NwsCad\Api\Request
  * @uses \NwsCad\Api\Response
+ * @uses \NwsCad\Api\Filtering\FilterCriteria
+ * @uses \NwsCad\Api\Filtering\FilterContext
+ * @uses \NwsCad\Api\Filtering\FilterRegistry
+ * @uses \NwsCad\Api\Filtering\FilterSqlBuilder
+ * @uses \NwsCad\Api\Filtering\SqlFragment
+ * @uses \NwsCad\Api\Filtering\DateRange
+ * @uses \NwsCad\Api\Filtering\InvalidFilterException
  * @uses \NwsCad\Config
  * @uses \NwsCad\Database
  * @uses \NwsCad\Logger
@@ -329,24 +336,66 @@ class ApiStatsTest extends TestCase
         $stmt->execute([1, 'CALL-001', '2024-01-01 10:00:00']);
         $stmt->execute([2, 'CALL-002', '2024-01-10 11:00:00']);
         
-        // Set filters
-        $_GET['date_from'] = '2024-01-09';
-        $_GET['date_to'] = '2024-01-11';
-        
+        // Set filters using the new consolidated filter param names
+        $_GET['from'] = '2024-01-09';
+        $_GET['to'] = '2024-01-11';
+
         $controller = new \NwsCad\Api\Controllers\StatsController();
-        
+
         ob_start();
         $controller->index();
         $output = ob_get_clean();
-        
+
         $data = json_decode($output, true);
-        
+
         $this->assertTrue($data['success']);
         $this->assertEquals(1, $data['data']['total_calls']); // Only one call in date range
-        
+
         // Clean up
-        unset($_GET['date_from']);
-        unset($_GET['date_to']);
+        unset($_GET['from']);
+        unset($_GET['to']);
+    }
+
+    /**
+     * 72h stale-open guardrail: a call that has been open longer than the
+     * STALE_OPEN_CALL_HOURS threshold (default 72) must be counted as
+     * `closed` in calls_by_status, not `open`.
+     */
+    public function testStaleOpenCallIsCountedAsClosed(): void
+    {
+        $cutoffWithinWindow = (new \DateTimeImmutable('-1 hour'))->format('Y-m-d H:i:s');
+        $cutoffBeyondWindow = (new \DateTimeImmutable('-100 hours'))->format('Y-m-d H:i:s');
+
+        $stmt = self::$db->prepare("
+            INSERT INTO calls
+                (call_id, call_number, create_datetime, close_datetime, closed_flag, canceled_flag, reopened_flag)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ");
+        // Fresh open call — within 72h, no close.
+        $stmt->execute([1, 'CALL-FRESH-OPEN', $cutoffWithinWindow, null, 0, 0, 0]);
+        // Stale open call — older than 72h, still no close. Guardrail should
+        // demote this to `closed`.
+        $stmt->execute([2, 'CALL-STALE-OPEN', $cutoffBeyondWindow, null, 0, 0, 0]);
+        // Legitimately closed call (recent).
+        $stmt->execute([3, 'CALL-REAL-CLOSED', $cutoffWithinWindow, $cutoffWithinWindow, 1, 0, 0]);
+        // Canceled (stays canceled regardless of age).
+        $stmt->execute([4, 'CALL-CANCELED', $cutoffBeyondWindow, null, 0, 1, 0]);
+
+        $controller = new \NwsCad\Api\Controllers\StatsController();
+        ob_start();
+        $controller->index();
+        $output = ob_get_clean();
+
+        $data = json_decode($output, true);
+        $this->assertTrue($data['success']);
+
+        $byStatus = $data['data']['calls_by_status'];
+        // Fresh open → open (which also rolls in any reopened — 0 here).
+        $this->assertSame(1, $byStatus['open'], 'fresh open call must count as open');
+        // Real close + stale open → closed.
+        $this->assertSame(2, $byStatus['closed'], 'stale open call must roll into closed alongside the real close');
+        $this->assertSame(1, $byStatus['canceled']);
+        $this->assertSame(0, $byStatus['reopened']);
     }
 
     /**

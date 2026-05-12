@@ -478,20 +478,21 @@ const Dashboard = {
     
     /**
      * Get status badge HTML
-     * 
+     *
      * @param {string} status - Status value
      * @returns {string} HTML badge element (safe - user data is escaped)
      */
     getStatusBadge(status) {
         if (!status) return '<span class="badge bg-secondary">Unknown</span>';
-        
+
         const statusStr = String(status).toLowerCase();
         const escapedStatus = this.escapeHtml(status);
-        
+
         const colorMap = {
             'open': 'warning',
             'active': 'primary',
             'closed': 'success',
+            'reopened': 'danger',
             'cancelled': 'secondary',
             'canceled': 'secondary',
             'dispatched': 'info',
@@ -499,17 +500,68 @@ const Dashboard = {
             'on scene': 'primary',
             'clear': 'success'
         };
-        
+
         const badgeColor = colorMap[statusStr] || 'secondary';
-        
+
         return `<span class="badge bg-${badgeColor}">${escapedStatus}</span>`;
+    },
+
+    /**
+     * Derive a call's operational state from close_datetime, reopened_flag, and
+     * canceled_flag. Mirrors the server-side filter logic in
+     * Api\Filtering\FilterSqlBuilder so the badge agrees with the filter that
+     * decides which calls are visible.
+     *
+     * is_stale (set server-side when create_datetime predates the 72h guardrail
+     * cutoff) wins over reopened/open so a stale row badges as closed, matching
+     * the filter that put it in the closed bucket in the first place.
+     *
+     * @param {Object} call - API calls list item
+     * @returns {'open'|'closed'|'reopened'|'canceled'}
+     */
+    getCallState(call) {
+        if (call.canceled_flag) return 'canceled';
+        if (call.is_stale) return 'closed';
+        if (call.reopened_flag) return 'reopened';
+        if (call.close_datetime) return 'closed';
+        return 'open';
+    },
+
+    /**
+     * Render a status badge for a call using the derived state. Use in place of
+     * raw `closed_flag` checks so multi-agency / reopened calls show correctly.
+     *
+     * @param {Object} call - API calls list item
+     * @returns {string} HTML badge element
+     */
+    getCallStateBadge(call) {
+        const state = this.getCallState(call);
+        const label = state.charAt(0).toUpperCase() + state.slice(1);
+        return this.getStatusBadge(label);
+    },
+
+    /**
+     * Render all per-agency call_types joined by " / ". Multi-agency calls
+     * (e.g., Fire+Police) carry a distinct call_type per agency; showing only
+     * the first one is misleading when the visible CallType belongs to an
+     * agency that's already closed.
+     *
+     * @param {Object} call - API calls list item with call_types array
+     * @returns {string} HTML-escaped joined call_types or fallback to nature_of_call
+     */
+    formatCallTypes(call) {
+        const types = Array.isArray(call.call_types) ? call.call_types.filter(Boolean) : [];
+        if (types.length === 0) {
+            return this.escapeHtml(call.nature_of_call || 'Unknown');
+        }
+        return this.escapeHtml(types.join(' / '));
     },
     
     /**
      * Setup auto-refresh for a function
      */
     setupAutoRefresh(refreshFunction, interval = null) {
-        interval = interval || this.config.refreshInterval || 30000;
+        interval = interval || this.config.refreshInterval || 5000;
         
         console.log('[Dashboard] setupAutoRefresh called for:', refreshFunction.name, 'interval:', interval);
         
@@ -554,21 +606,16 @@ const Dashboard = {
      * Update live indicator status
      */
     updateLiveIndicator(isLive) {
-        const indicator = document.getElementById('live-indicator');
-        if (!indicator) {
-            console.error('[Dashboard] Live indicator element not found!');
-            return;
-        }
-        
+        const pill = document.getElementById('dashboard-live-pill');
+        const text = document.getElementById('dashboard-live-text');
+        if (!pill || !text) return;
+        pill.classList.remove('is-paused', 'is-error');
         if (isLive) {
-            // Bright green badge with white text
-            indicator.innerHTML = '<span style="background: #00ff00; color: white; border-radius: 50%; padding: 4px 8px; font-size: 0.75em; display: inline-block; line-height: 1; font-weight: 500; box-shadow: 0 0 8px rgba(0, 255, 0, 0.5);" class="pulse">●</span> <span style="color: white;">Live</span>';
+            text.textContent = 'Live';
         } else {
-            // Gray badge when paused
-            indicator.innerHTML = '<span style="background: #6c757d; color: white; border-radius: 50%; padding: 4px 8px; font-size: 0.75em; display: inline-block; line-height: 1; font-weight: 500;">●</span> <span style="color: rgba(255,255,255,0.7);">Paused</span>';
+            pill.classList.add('is-paused');
+            text.textContent = 'Paused';
         }
-        
-        console.log('[Dashboard] Live indicator updated:', isLive ? 'Live (green badge pulsing)' : 'Paused (gray badge)');
     }
 };
 

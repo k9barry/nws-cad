@@ -5,119 +5,91 @@
 
 (function() {
     'use strict';
-    
+
     console.log('[Analytics] Script loaded');
-    
-    let filterManager = null;
-    
+
     /**
-     * Display active filters banner
+     * Get the current filter query string from the URL.
+     * dashboard-main.js keeps the URL in sync via history.replaceState,
+     * so window.location.search always reflects the active filters.
      */
-    function displayActiveFilters() {
-        const banner = document.getElementById('active-filters-card');
-        const display = document.getElementById('active-filters-display');
-        
-        if (!banner || !display) return;
-        
-        const filters = filterManager.getFilters();
-        const filterCount = Object.keys(filters).length;
-        
-        if (filterCount > 0) {
-            const filterText = Object.entries(filters)
-                .filter(([key, value]) => value && key !== 'quick_period')
-                .map(([key, value]) => `${key.replace('_', ' ')}: ${value}`)
-                .slice(0, 3)  // Show only first 3
-                .join(', ');
-            
-            display.textContent = filterText + (filterCount > 3 ? '...' : '');
-            banner.style.display = 'block';
-        } else {
-            banner.style.display = 'none';
-        }
+    function getCurrentQs() {
+        return window.location.search.replace(/^\?/, '');
     }
-    
+
     /**
      * Handle filter changes
      */
-    async function onFilterChange(filters) {
-        console.log('[Analytics] Filters changed:', filters);
-        displayActiveFilters();
+    async function onFilterChange() {
+        console.log('[Analytics] Filters changed, qs:', getCurrentQs());
         await loadAnalytics();
     }
-    
+
     async function init() {
         if (typeof Dashboard === 'undefined' || typeof ChartManager === 'undefined') {
             console.error('[Analytics] Dependencies not found, retrying...');
             setTimeout(init, 100);
             return;
         }
-        
+
         console.log('[Analytics] Initializing analytics page...');
-        
-        // Initialize FilterManager
-        filterManager = new FilterManager({
-            formId: 'dashboard-filter-form',
-            onFilterChange: onFilterChange,
-            searchDebounceMs: 300
-        });
-        
-        await filterManager.init();
-        displayActiveFilters();
-        
+
         // Load initial data
         await loadAnalytics();
-        
+
+        // Listen for filter changes dispatched by dashboard-main.js
+        window.addEventListener('filter-applied', function () {
+            onFilterChange();
+        });
+
         // Setup auto-refresh with longer interval
         if (Dashboard.setupAutoRefresh) {
             Dashboard.setupAutoRefresh(loadAnalytics, 60000); // 1 minute
         }
     }
-    
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
         init();
     }
-    
+
     async function loadAnalytics() {
         console.log('[Analytics] Loading analytics data...');
-        const filters = filterManager.getFilters();
-        console.log('[Analytics] Current filters:', filters);
-        
+        const qs = getCurrentQs();
+        console.log('[Analytics] Current query string:', qs);
+
         try {
-            // Translate filters for API (converts status to closed_flag, etc.)
-            const apiFilters = filterManager.translateForAPI(filters);
-            const queryString = Dashboard.buildQueryString(apiFilters);
-            
-            console.log('[Analytics] Translated API filters:', apiFilters);
+            const queryString = qs ? '?' + qs : '';
+
             console.log('[Analytics] Using query string:', queryString);
-            
+
             // Fetch both general stats and detailed call stats (which includes agency data)
             // NOTE: Reduced per_page from 10000 to 500 for performance (was causing 2-5 second delays)
             // Top locations/units tables only show top 5, so we don't need all records
             const [stats, callStats, calls, units] = await Promise.all([
                 Dashboard.apiRequest('/stats' + queryString),
                 Dashboard.apiRequest('/stats/calls' + queryString).catch(() => null),
-                Dashboard.apiRequest('/calls?per_page=500' + (queryString ? '&' + queryString.substring(1) : '')).then(r => r?.items || []).catch(() => []),
-                Dashboard.apiRequest('/units?per_page=500' + (queryString ? '&' + queryString.substring(1) : '')).then(r => r?.items || []).catch(() => [])
+                Dashboard.apiRequest('/calls?per_page=500' + (qs ? '&' + qs : '')).then(r => r?.items || []).catch(() => []),
+                Dashboard.apiRequest('/units?per_page=500' + (qs ? '&' + qs : '')).then(r => r?.items || []).catch(() => [])
             ]);
             console.log('[Analytics] Stats:', stats);
             console.log('[Analytics] Call Stats:', callStats);
             console.log('[Analytics] Loaded', calls.length, 'calls and', units.length, 'units with filters');
             console.log('[Analytics] Sample calls:', calls.slice(0, 3));
-            
+
             // Update summary cards
             updateSummaryCards(stats, calls, units);
-            
+
             // Create charts (pass both stats objects)
             createCharts(stats, callStats, calls);
-            
+
             // Populate top locations and units
             populateTopLocations(calls);
             populateTopUnits(units);
-            
+
             console.log('[Analytics] Analytics loaded successfully');
-            
+
         } catch (error) {
             console.error('[Analytics] Error loading analytics:', error);
             if (Dashboard.showError) {
@@ -125,7 +97,7 @@
             }
         }
     }
-    
+
     /**
      * Helper function to update stats cards
      */
@@ -135,30 +107,30 @@
             element.textContent = value;
         }
     }
-    
+
     function updateSummaryCards(stats, calls, units) {
         // Update new analytics stats cards
         updateStatsCard('analytics-stat-total', stats.total_calls || 0);
-        
+
         // Average response time
         const avgMin = stats.response_times?.average_minutes || stats.avg_response_time_minutes;
         updateStatsCard('analytics-stat-response', avgMin ? `${Math.round(avgMin)}m` : 'N/A');
-        
+
         // Total unique units
         const uniqueUnits = stats.units_by_type?.reduce((sum, item) => sum + (item.count || 0), 0) || units.length || 0;
         updateStatsCard('analytics-stat-units', uniqueUnits);
-        
+
         // Top call type
         if (stats.top_call_types && stats.top_call_types.length > 0) {
             const topType = stats.top_call_types[0];
-            const displayText = (topType.call_type || topType.type || 'N/A').length > 20 
+            const displayText = (topType.call_type || topType.type || 'N/A').length > 20
                 ? (topType.call_type || topType.type || 'N/A').substring(0, 17) + '...'
                 : (topType.call_type || topType.type || 'N/A');
             updateStatsCard('analytics-stat-toptype', displayText);
         } else if (stats.calls_by_type && stats.calls_by_type.length > 0) {
             // Fallback to calls_by_type if available
             const topType = stats.calls_by_type[0];
-            const displayText = (topType.call_type || 'N/A').length > 20 
+            const displayText = (topType.call_type || 'N/A').length > 20
                 ? (topType.call_type || 'N/A').substring(0, 17) + '...'
                 : (topType.call_type || 'N/A');
             updateStatsCard('analytics-stat-toptype', displayText);
@@ -169,13 +141,13 @@
         if (totalCallsEl) {
             totalCallsEl.textContent = stats.total_calls || 0;
         }
-        
+
         const avgResponseEl = document.getElementById('analytics-avg-response');
         if (avgResponseEl) {
             const avgMin = stats.response_times?.average_minutes;
             avgResponseEl.textContent = avgMin ? `${avgMin} min` : 'N/A';
         }
-        
+
         // Calculate busiest hour
         const busiestHourEl = document.getElementById('analytics-busiest-hour');
         const busiestCountEl = document.getElementById('analytics-busiest-count');
@@ -188,10 +160,10 @@
                     hourCounts[hour] = (hourCounts[hour] || 0) + 1;
                 }
             });
-            
+
             console.log('[Analytics] Hour counts:', hourCounts);
             console.log('[Analytics] Total hours with calls:', Object.keys(hourCounts).length);
-            
+
             let maxHour = 0;
             let maxCount = 0;
             Object.entries(hourCounts).forEach(([hour, count]) => {
@@ -200,9 +172,9 @@
                     maxHour = parseInt(hour);
                 }
             });
-            
+
             console.log('[Analytics] Busiest hour:', maxHour, 'with', maxCount, 'calls');
-            
+
             if (maxCount > 0) {
                 busiestHourEl.textContent = `${maxHour.toString().padStart(2, '0')}:00`;
                 if (busiestCountEl) {
@@ -223,7 +195,7 @@
                 }
             }
         }
-        
+
         // Calculate most active unit
         const topUnitEl = document.getElementById('analytics-top-unit');
         const unitCallsEl = document.getElementById('analytics-unit-calls');
@@ -233,7 +205,7 @@
                 const unitNum = unit.unit_number || 'Unknown';
                 unitCounts[unitNum] = (unitCounts[unitNum] || 0) + 1;
             });
-            
+
             let topUnit = 'N/A';
             let topCount = 0;
             Object.entries(unitCounts).forEach(([unit, count]) => {
@@ -242,7 +214,7 @@
                     topUnit = unit;
                 }
             });
-            
+
             if (topCount > 0) {
                 topUnitEl.textContent = topUnit;
                 if (unitCallsEl) {
@@ -255,12 +227,12 @@
                 }
             }
         }
-        
+
         const activeUnitsEl = document.getElementById('analytics-active-units');
         if (activeUnitsEl) {
             activeUnitsEl.textContent = stats.total_units || 0;
         }
-        
+
         const closureRateEl = document.getElementById('analytics-closure-rate');
         if (closureRateEl && stats.calls_by_status) {
             const total = stats.total_calls || 0;
@@ -269,10 +241,10 @@
             closureRateEl.textContent = `${rate}%`;
         }
     }
-    
+
     function createCharts(stats, callStats, calls) {
         console.log('[Analytics] Creating charts...');
-        
+
         // Call types chart (for distribution) - add counts to labels
         if (stats.top_call_types && stats.top_call_types.length > 0) {
             const chartEl = document.getElementById('analytics-distribution-chart');
@@ -298,7 +270,7 @@
                 console.log('[Analytics] Distribution chart created');
             }
         }
-        
+
         // Incidents by jurisdiction chart
         if (stats.calls_by_jurisdiction && stats.calls_by_jurisdiction.length > 0) {
             const chartEl = document.getElementById('analytics-volume-chart');
@@ -316,7 +288,7 @@
                     'rgba(99, 255, 132, 0.6)'
                 ];
                 const borderColors = colors.map(c => c.replace('0.6', '1'));
-                
+
                 ChartManager.createBarChart('analytics-volume-chart', {
                     labels: stats.calls_by_jurisdiction.map(j => j.jurisdiction),
                     datasets: [{
@@ -335,7 +307,7 @@
                 ChartManager.showEmptyChart('analytics-volume-chart', 'No jurisdiction data available');
             }
         }
-        
+
         // Response times chart
         if (stats.response_times) {
             const responseChartEl = document.getElementById('analytics-response-chart');
@@ -359,7 +331,7 @@
                 console.log('[Analytics] Response times chart created');
             }
         }
-        
+
         // Calls by Agency chart
         if (callStats && callStats.by_agency_type) {
             const agencyChartEl = document.getElementById('analytics-agency-chart');
@@ -369,7 +341,7 @@
                     agency: agency || 'Unknown',
                     count: parseInt(count)
                 })).sort((a, b) => b.count - a.count).slice(0, 10); // Top 10 agencies
-                
+
                 if (agencyData.length > 0) {
                     ChartManager.createBarChart('analytics-agency-chart', {
                         labels: agencyData.map(a => a.agency),
@@ -398,7 +370,7 @@
         } else {
             console.log('[Analytics] No call stats or agency data available');
         }
-        
+
         // Update top call types list
         const topCallsEl = document.getElementById('top-call-types');
         if (topCallsEl && stats.top_call_types && stats.top_call_types.length > 0) {
@@ -414,38 +386,38 @@
                 </div>
             `).join('');
         }
-        
+
         console.log('[Analytics] All charts created');
     }
-    
+
     function populateTopLocations(calls) {
         const topLocationsEl = document.getElementById('top-locations');
         if (!topLocationsEl) return;
-        
+
         // Helper function to escape HTML
         const escapeHtml = (text) => {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         };
-        
+
         // Count calls by location (city)
         const locationCounts = {};
         calls.forEach(call => {
             const location = call.location?.city || call.city || 'Unknown';
             locationCounts[location] = (locationCounts[location] || 0) + 1;
         });
-        
+
         // Sort and get top 5
         const topLocations = Object.entries(locationCounts)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 5);
-        
+
         if (topLocations.length === 0) {
             topLocationsEl.innerHTML = '<div class="list-group-item text-center text-muted">No location data available</div>';
             return;
         }
-        
+
         topLocationsEl.innerHTML = topLocations.map(([location, count], idx) => `
             <div class="list-group-item">
                 <div class="d-flex justify-content-between align-items-center">
@@ -458,35 +430,35 @@
             </div>
         `).join('');
     }
-    
+
     function populateTopUnits(units) {
         const topUnitsEl = document.getElementById('top-units');
         if (!topUnitsEl) return;
-        
+
         // Helper function to escape HTML
         const escapeHtml = (text) => {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         };
-        
+
         // Count activity by unit number
         const unitCounts = {};
         units.forEach(unit => {
             const unitNumber = unit.unit_number || 'Unknown';
             unitCounts[unitNumber] = (unitCounts[unitNumber] || 0) + 1;
         });
-        
+
         // Sort and get top 5
         const topUnits = Object.entries(unitCounts)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 5);
-        
+
         if (topUnits.length === 0) {
             topUnitsEl.innerHTML = '<div class="list-group-item text-center text-muted">No unit data available</div>';
             return;
         }
-        
+
         topUnitsEl.innerHTML = topUnits.map(([unitNumber, count], idx) => `
             <div class="list-group-item">
                 <div class="d-flex justify-content-between align-items-center">
@@ -499,13 +471,13 @@
             </div>
         `).join('');
     }
-    
+
     // Export handlers
     document.getElementById('export-summary-csv')?.addEventListener('click', async function() {
         try {
             console.log('[Analytics] Exporting summary to CSV...');
             const stats = await Dashboard.apiRequest('/stats');
-            
+
             // Create CSV content
             let csv = 'Metric,Value\n';
             csv += `Total Calls,${stats.total_calls || 0}\n`;
@@ -514,7 +486,7 @@
             csv += `Canceled Calls,${stats.calls_by_status?.canceled || 0}\n`;
             csv += `Total Units,${stats.total_units || 0}\n`;
             csv += `Average Response Time,${stats.response_times?.average_minutes || 0} minutes\n`;
-            
+
             // Download CSV
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
@@ -525,7 +497,7 @@
             a.click();
             a.remove();
             window.URL.revokeObjectURL(url);
-            
+
             if (Dashboard.showSuccess) {
                 Dashboard.showSuccess('Summary exported successfully');
             }
@@ -536,17 +508,17 @@
             }
         }
     });
-    
+
     document.getElementById('export-detailed-csv')?.addEventListener('click', async function() {
         try {
             console.log('[Analytics] Exporting detailed report...');
             const url = '/calls/export';
             const response = await fetch(Dashboard.config.apiBaseUrl + url);
-            
+
             if (!response.ok) {
                 throw new Error('Export failed');
             }
-            
+
             const blob = await response.blob();
             const downloadUrl = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -556,7 +528,7 @@
             a.click();
             a.remove();
             window.URL.revokeObjectURL(downloadUrl);
-            
+
             if (Dashboard.showSuccess) {
                 Dashboard.showSuccess('Detailed report exported successfully');
             }

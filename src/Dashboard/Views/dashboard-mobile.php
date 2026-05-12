@@ -18,8 +18,9 @@
 <div class="mobile-content">
     <!-- Stats Cards - Horizontal Scroll -->
     <div class="mobile-stats-scroll">
-        <div class="mobile-stat-card border-primary" data-bs-toggle="modal" data-bs-target="#mobile-filters-modal">
-            <h6>Total Calls</h6>
+        <div class="mobile-stat-card border-primary" id="filter-panel-toggle"
+             data-bs-toggle="offcanvas" data-bs-target="#filter-drawer" role="button">
+            <h6><i class="bi bi-sliders"></i> Filters</h6>
             <h2 class="text-primary" id="stat-total">
                 <span class="spinner-border spinner-border-sm"></span>
             </h2>
@@ -101,11 +102,27 @@
     </button>
 </div>
 
+<!-- Filter Drawer (offcanvas) -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="filter-drawer" aria-labelledby="filter-drawer-label">
+    <div class="offcanvas-header border-bottom">
+        <h5 class="offcanvas-title" id="filter-drawer-label">
+            <i class="bi bi-sliders"></i> Filters
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <?php
+        $filterFields = 'date,call_type,agency,ori,city,unit,status,q';
+        $filterCompact = 'true';
+        include __DIR__ . '/partials/filter-panel.php';
+        ?>
+    </div>
+</div>
+
 <?php
 // Include mobile modals
 $mobile_partials_path = __DIR__ . '/partials-mobile/';
 
-include $mobile_partials_path . 'filters-modal.php';
 include $mobile_partials_path . 'call-detail-modal.php';
 include $mobile_partials_path . 'analytics-modal.php';
 ?>

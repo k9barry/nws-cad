@@ -29,30 +29,56 @@ const MobileDashboard = {
     perPage: MOBILE_CONFIG.DEFAULT_PER_PAGE,
     totalCalls: 0,
     refreshInterval: null,
-    filters: {},
-    
+    panel: null,
+    currentQs: '',
+
     /**
      * Initialize mobile dashboard
      */
-    init() {
+    async init() {
         console.log('[Mobile] Initializing mobile dashboard');
-        
-        // Load saved filters
-        this.filters = Dashboard.filters.load() || this.getDefaultFilters();
-        
+
+        // Pre-populate URL with sensible defaults (last 7 days + open) when
+        // there's no existing URL state and no saved state.
+        if (!window.location.search && !localStorage.getItem('filter-panel:last-state')) {
+            const url = new URL(window.location);
+            url.searchParams.set('preset', 'last_7_days');
+            url.searchParams.set('status', 'open');
+            window.history.replaceState({}, '', url);
+        }
+
+        // Initialize FilterPanel (compact mode). The panel lives inside an
+        // offcanvas drawer that's toggled by the filter stat-card; no explicit
+        // is-collapsed mechanic is needed any more.
+        const panelRoot = document.getElementById('filter-panel');
+        if (panelRoot && typeof FilterPanel !== 'undefined') {
+
+            this.panel = new FilterPanel({
+                root: panelRoot,
+                onChange: (state) => {
+                    this.currentQs = state.toQueryString();
+                    this.currentPage = 1;
+                    this.loadCallsList();
+                    this.loadStats();
+                },
+            });
+            await this.panel.mount();
+            this.currentQs = this.panel.getState().toQueryString();
+        }
+
         // Initialize components
         this.initBottomNav();
         this.initPullToRefresh();
         this.initLiveUpdates();
         this.initCleanup();
-        
+
         // Load initial data
         this.loadCallsList();
         this.loadStats();
-        
+
         // Set up auto-refresh
         this.startAutoRefresh();
-        
+
         console.log('[Mobile] Mobile dashboard initialized');
     },
     
@@ -66,23 +92,6 @@ const MobileDashboard = {
                 this.refreshInterval = null;
             }
         });
-    },
-    
-    /**
-     * Get default filters
-     * @returns {Object} Default filter configuration
-     */
-    getDefaultFilters() {
-        return {
-            date_from: '',
-            date_to: '',
-            quick_select: '7days',
-            jurisdiction: '',
-            agency: '',
-            call_type: '',
-            status: '',
-            priority: ''
-        };
     },
     
     /**
@@ -122,9 +131,14 @@ const MobileDashboard = {
             case 'map':
                 this.showMap();
                 break;
-            case 'filters':
-                this.openFiltersModal();
+            case 'filters': {
+                // Bootstrap offcanvas API; data-bs-toggle on the stat-card also works.
+                const drawerEl = document.getElementById('filter-drawer');
+                if (drawerEl && window.bootstrap) {
+                    bootstrap.Offcanvas.getOrCreateInstance(drawerEl).toggle();
+                }
                 break;
+            }
             case 'analytics':
                 this.openAnalyticsModal();
                 break;
@@ -179,22 +193,23 @@ const MobileDashboard = {
         `;
         
         try {
-            // Build query params with sort order
-            const params = {
-                page: this.currentPage,
-                per_page: this.perPage,
-                sort: 'create_datetime',
-                order: 'desc',
-                ...this.buildFilterParams()
-            };
-            
-            // Default to active calls if no status filter (match desktop behavior)
-            if (!this.filters.status) {
-                params.closed_flag = 'false';
+            // Build query params using FilterPanel state
+            const state = this.panel ? this.panel.getState() : null;
+            let qs = this.currentQs;
+
+            // Default to open calls when no status filter
+            const statusVal = state ? state.get('status') : null;
+            const hasStatus = statusVal && (Array.isArray(statusVal) ? statusVal.length > 0 : true);
+            const baseParams = new URLSearchParams(qs);
+            baseParams.set('page', this.currentPage);
+            baseParams.set('per_page', this.perPage);
+            baseParams.set('sort', 'create_datetime');
+            baseParams.set('order', 'desc');
+            if (!hasStatus) {
+                baseParams.set('status', 'open');
             }
-            
-            const queryString = Dashboard.buildQueryString(params);
-            const data = await Dashboard.apiRequest(`/calls${queryString}`);
+
+            const data = await Dashboard.apiRequest(`/calls?${baseParams.toString()}`);
             
             this.totalCalls = data.pagination?.total || 0;
             this.renderCallsList(data.items || []);
@@ -211,88 +226,6 @@ const MobileDashboard = {
                     </button>
                 </div>
             `;
-        }
-    },
-    
-    /**
-     * Build filter parameters for API request
-     * @returns {Object} Filter parameters
-     */
-    buildFilterParams() {
-        const params = {};
-        
-        // Handle quick select
-        if (this.filters.quick_select && this.filters.quick_select !== 'custom') {
-            const dates = this.getQuickSelectDates(this.filters.quick_select);
-            if (dates) {
-                params.date_from = dates.from;
-                params.date_to = dates.to;
-            }
-        } else if (this.filters.date_from && this.filters.date_to) {
-            params.date_from = this.filters.date_from;
-            params.date_to = this.filters.date_to;
-        }
-        
-        // Handle status filter (convert to closed_flag)
-        if (this.filters.status === 'active') {
-            params.closed_flag = 'false';
-        } else if (this.filters.status === 'closed') {
-            params.closed_flag = 'true';
-        }
-        
-        // Add other filters (excluding status since we handle it above)
-        ['jurisdiction', 'agency', 'call_type', 'priority'].forEach(key => {
-            if (this.filters[key]) {
-                params[key] = this.filters[key];
-            }
-        });
-        
-        return params;
-    },
-    
-    /**
-     * Get date range from quick select option
-     * @param {string} quickSelect - Quick select value
-     * @returns {Object|null} Date range with from and to properties
-     */
-    getQuickSelectDates(quickSelect) {
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
-        const formatDate = (date) => date.toISOString().split('T')[0];
-        
-        switch(quickSelect) {
-            case 'today':
-                return {
-                    from: formatDate(today) + ' 00:00:00',
-                    to: formatDate(today) + ' 23:59:59'
-                };
-            case 'yesterday': {
-                const yesterday = new Date(today);
-                yesterday.setDate(yesterday.getDate() - 1);
-                return {
-                    from: formatDate(yesterday) + ' 00:00:00',
-                    to: formatDate(yesterday) + ' 23:59:59'
-                };
-            }
-            case '7days': {
-                const sevenDaysAgo = new Date(today);
-                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-                return {
-                    from: formatDate(sevenDaysAgo) + ' 00:00:00',
-                    to: formatDate(today) + ' 23:59:59'
-                };
-            }
-            case '30days': {
-                const thirtyDaysAgo = new Date(today);
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                return {
-                    from: formatDate(thirtyDaysAgo) + ' 00:00:00',
-                    to: formatDate(today) + ' 23:59:59'
-                };
-            }
-            default:
-                return null;
         }
     },
     
@@ -331,9 +264,9 @@ const MobileDashboard = {
         const priority = Array.isArray(call.priorities) ? call.priorities[0] : '';
         const locationText = call.location?.address || call.location?.city || 'No location';
         
-        // Use closed_flag like desktop
-        const statusBadge = call.closed_flag 
-            ? '<span class="badge bg-success">Closed</span>' 
+        // closed_flag OR is_stale (72h guardrail set server-side) both demote to Closed.
+        const statusBadge = (call.closed_flag || call.is_stale)
+            ? '<span class="badge bg-success">Closed</span>'
             : '<span class="badge bg-warning text-dark">Open</span>';
         
         const callId = parseInt(call.id, 10);
@@ -415,9 +348,8 @@ const MobileDashboard = {
      */
     async loadStats() {
         try {
-            const params = this.buildFilterParams();
-            const queryString = Dashboard.buildQueryString(params);
-            const stats = await Dashboard.apiRequest(`/stats${queryString}`);
+            const url = '/stats' + (this.currentQs ? '?' + this.currentQs : '');
+            const stats = await Dashboard.apiRequest(url);
             
             const statTotal = document.getElementById('stat-total');
             const statActive = document.getElementById('stat-active');
@@ -512,7 +444,7 @@ const MobileDashboard = {
                 new Date(b.created_datetime) - new Date(a.created_datetime)
             );
             latestPriority = sortedContexts[0].priority || 'N/A';
-            latestStatus = sortedContexts[0].status || (call.closed_flag ? 'Closed' : 'Open');
+            latestStatus = sortedContexts[0].status || ((call.closed_flag || call.is_stale) ? 'Closed' : 'Open');
             callType = sortedContexts[0].call_type || call.nature_of_call || 'Unknown';
         }
         
@@ -622,7 +554,7 @@ const MobileDashboard = {
                 <div class="mobile-detail-row">
                     <span class="mobile-detail-label">Status</span>
                     <span class="mobile-detail-value">
-                        <span class="badge ${call.closed_flag ? 'bg-success' : 'bg-warning text-dark'}">${this.escapeHtml(status)}</span>
+                        <span class="badge ${(call.closed_flag || call.is_stale) ? 'bg-success' : 'bg-warning text-dark'}">${this.escapeHtml(status)}</span>
                     </span>
                 </div>
                 <div class="mobile-detail-row">
@@ -1029,88 +961,6 @@ const MobileDashboard = {
     },
     
     /**
-     * Open filters modal
-     */
-    openFiltersModal() {
-        const modalEl = document.getElementById('mobile-filters-modal');
-        if (!modalEl) return;
-        
-        const modal = new bootstrap.Modal(modalEl);
-        modal.show();
-        
-        // Populate current filter values
-        this.populateFiltersModal();
-    },
-    
-    /**
-     * Populate filters modal with current values
-     */
-    populateFiltersModal() {
-        // Set quick select
-        const quickSelectBtns = document.querySelectorAll('.mobile-quick-select .btn');
-        quickSelectBtns.forEach(btn => {
-            if (btn.dataset.period === this.filters.quick_select) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
-        
-        // Set other filters
-        ['jurisdiction', 'agency', 'call_type', 'status', 'priority'].forEach(key => {
-            const input = document.getElementById(`mobile-filter-${key}`);
-            if (input) {
-                input.value = this.filters[key] || '';
-            }
-        });
-    },
-    
-    /**
-     * Apply filters from modal
-     */
-    applyFilters() {
-        // Get quick select
-        const activeQuickSelect = document.querySelector('.mobile-quick-select .btn.active');
-        this.filters.quick_select = activeQuickSelect ? activeQuickSelect.dataset.period : '7days';
-        
-        // Get other filters
-        ['jurisdiction', 'agency', 'call_type', 'status', 'priority'].forEach(key => {
-            const input = document.getElementById(`mobile-filter-${key}`);
-            if (input) {
-                this.filters[key] = input.value;
-            }
-        });
-        
-        // Save filters
-        Dashboard.filters.save(this.filters);
-        
-        // Reset page and reload
-        this.currentPage = 1;
-        this.refreshData();
-        
-        // Close modal
-        const modalEl = document.getElementById('mobile-filters-modal');
-        if (modalEl) {
-            const modal = bootstrap.Modal.getInstance(modalEl);
-            if (modal) modal.hide();
-        }
-        
-        Dashboard.showToast('Filters applied', 'success');
-    },
-    
-    /**
-     * Reset filters to defaults
-     */
-    resetFilters() {
-        this.filters = this.getDefaultFilters();
-        Dashboard.filters.save(this.filters);
-        this.currentPage = 1;
-        this.populateFiltersModal();
-        this.refreshData();
-        Dashboard.showToast('Filters reset', 'info');
-    },
-    
-    /**
      * Open analytics modal
      */
     openAnalyticsModal() {
@@ -1128,21 +978,20 @@ const MobileDashboard = {
     
     /**
      * Filter by status
-     * @param {string} status - Status to filter by ('active', 'closed', or 'all')
+     * @param {string} status - Status to filter by ('active', 'open', 'closed', or 'all')
      */
     filterByStatus(status) {
         console.log('[Mobile] Filtering by status:', status);
-        
-        // Update filters
-        if (status === 'all') {
-            delete this.filters.status;
-        } else {
-            this.filters.status = status;
+
+        if (this.panel) {
+            const newStatus = (status === 'all') ? [] : [status === 'active' ? 'open' : status];
+            this.panel.getState().merge({ status: newStatus });
+            const qs = this.panel.getState().toQueryString();
+            window.history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''));
+            localStorage.setItem('filter-panel:last-state', JSON.stringify(this.panel.getState().snapshot()));
+            this.currentQs = qs;
         }
-        
-        // Save filters
-        Dashboard.filters.save(this.filters);
-        
+
         // Refresh data
         this.refreshData();
     },
@@ -1247,9 +1096,8 @@ const MobileAnalytics = {
      */
     async loadCharts() {
         try {
-            const params = MobileDashboard.buildFilterParams();
-            const queryString = Dashboard.buildQueryString(params);
-            const stats = await Dashboard.apiRequest(`/stats${queryString}`);
+            const qs = MobileDashboard.currentQs;
+            const stats = await Dashboard.apiRequest('/stats' + (qs ? '?' + qs : ''));
             
             this.createCallVolumeChart(stats);
             this.createCallTypesChart(stats);
@@ -1428,12 +1276,10 @@ const MobileMaps = {
         if (!this.map) return;
         
         try {
-            const params = {
-                ...MobileDashboard.buildFilterParams(),
-                per_page: MOBILE_CONFIG.MAP_MARKERS_LIMIT
-            };
-            const queryString = Dashboard.buildQueryString(params);
-            const data = await Dashboard.apiRequest(`/calls${queryString}`);
+            const qs = MobileDashboard.currentQs;
+            const mapParams = new URLSearchParams(qs);
+            mapParams.set('per_page', MOBILE_CONFIG.MAP_MARKERS_LIMIT);
+            const data = await Dashboard.apiRequest(`/calls?${mapParams.toString()}`);
             
             // Clear existing markers
             this.markers.forEach(marker => this.map.removeLayer(marker));
@@ -1444,11 +1290,12 @@ const MobileMaps = {
             calls.forEach(call => {
                 const lat = parseFloat(call.location?.coordinates?.lat);
                 const lng = parseFloat(call.location?.coordinates?.lng);
-                
-                if (isNaN(lat) || isNaN(lng)) return;
+                // Aegis emits -361,-361 for unmappable calls; reject out-of-range so they don't poison fitBounds
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)
+                    || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
                 
                 const callType = Array.isArray(call.call_types) ? call.call_types[0] : 'Unknown';
-                const statusBadge = call.closed_flag ? 'Closed' : 'Open';
+                const statusBadge = (call.closed_flag || call.is_stale) ? 'Closed' : 'Open';
                 const locationText = call.location?.address || 'No location';
                 const callNumber = call.call_number || call.call_id;
                 const callId = parseInt(call.id, 10);
@@ -1463,7 +1310,7 @@ const MobileMaps = {
                             <i class="bi bi-geo-alt"></i> ${MobileDashboard.escapeHtml(locationText)}
                         </div>
                         <div style="margin-bottom: 8px;">
-                            <span class="badge ${call.closed_flag ? 'bg-success' : 'bg-warning text-dark'}">${statusBadge}</span>
+                            <span class="badge ${(call.closed_flag || call.is_stale) ? 'bg-success' : 'bg-warning text-dark'}">${statusBadge}</span>
                         </div>
                         <button 
                             class="btn btn-primary btn-sm w-100" 

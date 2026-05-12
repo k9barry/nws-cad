@@ -114,10 +114,73 @@ class ConfigTest extends TestCase
     {
         $logsPath = $this->config->get('paths.logs');
         $tmpPath = $this->config->get('paths.tmp');
-        
+
         $this->assertNotNull($logsPath);
         $this->assertNotNull($tmpPath);
         $this->assertIsString($logsPath);
         $this->assertIsString($tmpPath);
+    }
+
+    public function testCsvHelperSplitsAndTrims(): void
+    {
+        $this->assertSame([], \NwsCad\Config::csv(''));
+        $this->assertSame(['a'], \NwsCad\Config::csv('a'));
+        $this->assertSame(['a', 'b', 'c'], \NwsCad\Config::csv('a,b,c'));
+        $this->assertSame(['a', 'b'], \NwsCad\Config::csv(' a , b '));
+        $this->assertSame(['a', 'b'], \NwsCad\Config::csv('a,,b,'));
+    }
+
+    public function testCorsAllowedOriginsDefaultsEmpty(): void
+    {
+        unset($_ENV['ALLOWED_ORIGINS']);
+        putenv('ALLOWED_ORIGINS');
+        $reflection = new \ReflectionClass(\NwsCad\Config::class);
+        $prop = $reflection->getProperty('instance');
+        $prop->setAccessible(true);
+        $prop->setValue(null, null);
+
+        $cfg = \NwsCad\Config::getInstance();
+        $this->assertSame([], $cfg->get('cors.allowed_origins'));
+    }
+
+    public function testTrustedProxyCidrsDefaultIncludesLoopback(): void
+    {
+        unset($_ENV['TRUSTED_PROXY_CIDRS']);
+        putenv('TRUSTED_PROXY_CIDRS');
+        $reflection = new \ReflectionClass(\NwsCad\Config::class);
+        $prop = $reflection->getProperty('instance');
+        $prop->setAccessible(true);
+        $prop->setValue(null, null);
+
+        $cfg = \NwsCad\Config::getInstance();
+        $cidrs = $cfg->get('proxy.trusted_cidrs');
+        $this->assertContains('127.0.0.1/32', $cidrs);
+        $this->assertContains('::1/128', $cidrs);
+    }
+
+    public function testIdentityHeaderDefaultsToXAuthUser(): void
+    {
+        unset($_ENV['PROXY_IDENTITY_HEADER']);
+        putenv('PROXY_IDENTITY_HEADER');
+        $reflection = new \ReflectionClass(\NwsCad\Config::class);
+        $prop = $reflection->getProperty('instance');
+        $prop->setAccessible(true);
+        $prop->setValue(null, null);
+
+        $cfg = \NwsCad\Config::getInstance();
+        $this->assertSame('X-Auth-User', $cfg->get('proxy.identity_header'));
+    }
+
+    public function testNotificationsAllowHttpPrivateDefaultsFalse(): void
+    {
+        unset($_ENV['NOTIFICATION_ALLOW_HTTP_PRIVATE']);
+        putenv('NOTIFICATION_ALLOW_HTTP_PRIVATE');
+        $reflection = new \ReflectionClass(\NwsCad\Config::class);
+        $prop = $reflection->getProperty('instance');
+        $prop->setAccessible(true);
+        $prop->setValue(null, null);
+
+        $cfg = \NwsCad\Config::getInstance();
+        $this->assertFalse($cfg->get('notifications.allow_http_for_private'));
     }
 }

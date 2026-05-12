@@ -202,6 +202,7 @@ class SearchController
                     c.close_datetime,
                     c.closed_flag,
                     c.canceled_flag,
+                    c.reopened_flag,
                     MAX(l.full_address) as full_address,
                     MAX(l.city) as city,
                     MAX(l.state) as state,
@@ -226,8 +227,12 @@ class SearchController
 
             $calls = $stmt->fetchAll();
 
+            // Compute the stale-open cutoff once and reuse across all mapped
+            // rows. See CallsController::isStaleRow for the matching predicate.
+            $staleCutoff = \NwsCad\Api\Filtering\FilterSqlBuilder::staleCutoff();
+
             // Format response
-            $formattedCalls = array_map(function ($call) {
+            $formattedCalls = array_map(function ($call) use ($staleCutoff) {
                 return [
                     'id' => (int)$call['id'],
                     'call_id' => (int)$call['call_id'],
@@ -242,6 +247,8 @@ class SearchController
                     'close_datetime' => $call['close_datetime'],
                     'closed_flag' => (bool)$call['closed_flag'],
                     'canceled_flag' => (bool)$call['canceled_flag'],
+                    'reopened_flag' => (bool)($call['reopened_flag'] ?? false),
+                    'is_stale' => \NwsCad\Api\Filtering\FilterSqlBuilder::isStaleRow($call, $staleCutoff),
                     'location' => [
                         'address' => $call['full_address'],
                         'city' => $call['city'],

@@ -5,7 +5,7 @@
  * REST API for accessing CAD database
  */
 
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../src/bootstrap.php';
 
 use NwsCad\Api\Router;
 use NwsCad\Api\Response;
@@ -16,17 +16,7 @@ use NwsCad\Api\Controllers\StatsController;
 use NwsCad\Api\Controllers\LogsController;
 use NwsCad\Api\Controllers\NotificationsController;
 use NwsCad\Api\Controllers\HealthController;
-
-// Enable CORS
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-
-// Handle preflight requests
-if ($_SERVER['REQUEST_METHOD' ] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
+use NwsCad\Api\Controllers\FilterOptionsController;
 
 // Set error handling
 set_exception_handler(function ($e) {
@@ -41,6 +31,9 @@ $router = new Router('/api');
 
 // Health Check Route (used by docker-compose api healthcheck)
 $router->get('/health', [HealthController::class, 'index']);
+
+// Filter Options Route
+$router->get('/filter-options', [FilterOptionsController::class, 'index']);
 
 // API info endpoint
 $router->get('/', function() {
@@ -102,6 +95,9 @@ $router->get('/notifications/log',      [NotificationsController::class, 'log'])
 $router->post('/notifications/channels/{type}/enable',  [NotificationsController::class, 'enable']);
 $router->post('/notifications/channels/{type}/disable', [NotificationsController::class, 'disable']);
 $router->post('/notifications/channels/{type}/test',    [NotificationsController::class, 'test']);
+$router->post('/notifications/channels/{type}/clear-error', [NotificationsController::class, 'clearChannelError']);
+$router->delete('/notifications/log/{id}',              [NotificationsController::class, 'dismissLogEntry']);
+$router->post('/notifications/log/clear-failed',        [NotificationsController::class, 'clearFailed']);
 
 // Logs Controller Routes
 $router->get('/logs', [LogsController::class, 'index']);

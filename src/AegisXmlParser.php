@@ -54,7 +54,17 @@ class AegisXmlParser
                 return true;
             }
             $this->logger->debug("File has not been processed before");
-            
+
+            // Skip if a newer XML for the same call has already been processed.
+            // Filenames embed a sortable timestamp ({call_number}_{YYYYMMDDhhmmss<cs>}.xml);
+            // CAD-source files occasionally arrive in reverse order, and without
+            // this check an older XML can clobber the newer XML's closed state.
+            if ($this->isFilenameStaleForCall($filename)) {
+                $this->logger->info("Skipping stale XML (newer version already processed for this call): {$filename}");
+                $this->markFileAsProcessed($filename, $filePath, 0);
+                return true;
+            }
+
             // Load XML with security measures
             $this->logger->debug("Loading XML file with XXE protection...");
             $xml = $this->loadXmlFile($filePath);
@@ -78,9 +88,13 @@ class AegisXmlParser
             // Capture snapshot of existing data before any changes
             $existingSnapshot = $this->snapshotExisting((int) $xml->CallId);
 
+            // Detect reopen: previously-closed call now showing fresh unit activity.
+            // Computed pre-insert because the insert overwrites close_datetime/units.
+            $detectedReopen = $this->detectReopen($xml, $existingSnapshot);
+
             // Parse and insert call data
             $this->logger->debug("Parsing and inserting call data...");
-            $callId = $this->insertCall($xml, $filePath);
+            $callId = $this->insertCall($xml, $filePath, $detectedReopen);
             $this->logger->debug("Call data inserted with database ID: {$callId}");
 
             // Capture snapshot of incoming data from the XML
@@ -93,6 +107,11 @@ class AegisXmlParser
             // Commit transaction
             $this->logger->debug("Committing database transaction...");
             $this->db->commit();
+
+            // Invalidate derived filter-option caches whose values may have grown
+            // after ingesting this XML (call_type, incident_type, unit, city).
+            // Curated ref_* lists are not touched by XML ingest, so they are omitted.
+            \NwsCad\Api\Filtering\FilterOptionsCache::invalidate(['call_type', 'incident_type', 'unit', 'city']);
 
             $this->logger->info("File processed successfully: {$filename} (Call ID: {$callId})");
 
@@ -212,9 +231,10 @@ class AegisXmlParser
      *
      * @param SimpleXMLElement $xml XML root element
      * @param string $filePath Original file path
+     * @param bool $detectedReopen True if this XML's units indicate the call was reopened after a prior close.
      * @return int Database call ID
      */
-    private function insertCall(SimpleXMLElement $xml, string $filePath): int
+    private function insertCall(SimpleXMLElement $xml, string $filePath, bool $detectedReopen = false): int
     {
         $this->logger->debug("Extracting call data from XML...");
         
@@ -252,7 +272,10 @@ class AegisXmlParser
             
             $dbCallId = (int)$existingCall['id'];
             
-            // Update the call record
+            // Update the call record. reopened_flag uses CASE so a fresh close
+            // (incoming closed_flag = 1) trumps any prior reopen, a detected reopen
+            // sets it to 1, and otherwise the existing value is preserved (so a
+            // benign post-close edit doesn't accidentally clear the reopen state).
             $sql = "UPDATE calls SET
                 call_number = :call_number,
                 call_source = :call_source,
@@ -265,37 +288,49 @@ class AegisXmlParser
                 created_by = :created_by,
                 closed_flag = :closed_flag,
                 canceled_flag = :canceled_flag,
+                reopened_flag = CASE
+                    WHEN :incoming_closed = 1 THEN 0
+                    WHEN :detected_reopen = 1 THEN 1
+                    ELSE reopened_flag
+                END,
                 alarm_level = :alarm_level,
                 emd_code = :emd_code,
                 fire_controlled_time = :fire_controlled_time,
                 xml_data = :xml_data,
                 updated_at = CURRENT_TIMESTAMP
                 WHERE id = :id";
-            
+
             $updateData = $callData;
             unset($updateData['call_id']); // Remove call_id as UPDATE SQL uses :id instead
             $updateData['id'] = $dbCallId;
-            
+            $updateData['incoming_closed'] = $callData['closed_flag'];
+            $updateData['detected_reopen'] = $detectedReopen ? 1 : 0;
+
             $stmt = $this->db->prepare($sql);
             $stmt->execute($updateData);
             $this->logger->debug("Call record updated successfully");
         } else {
-            // Insert new call
+            // Insert new call. reopened_flag is set from detectedReopen directly;
+            // for a brand-new call this is effectively always 0 (no prior close to reopen),
+            // but we honour the parameter for symmetry.
             $this->logger->debug("Call ID {$callData['call_id']} is new, inserting into database...");
             $sql = "INSERT INTO calls (
                 call_id, call_number, call_source, caller_name, caller_phone,
                 nature_of_call, additional_info, create_datetime, close_datetime,
-                created_by, closed_flag, canceled_flag, alarm_level, emd_code,
+                created_by, closed_flag, canceled_flag, reopened_flag, alarm_level, emd_code,
                 fire_controlled_time, xml_data
             ) VALUES (
                 :call_id, :call_number, :call_source, :caller_name, :caller_phone,
                 :nature_of_call, :additional_info, :create_datetime, :close_datetime,
-                :created_by, :closed_flag, :canceled_flag, :alarm_level, :emd_code,
+                :created_by, :closed_flag, :canceled_flag, :reopened_flag, :alarm_level, :emd_code,
                 :fire_controlled_time, :xml_data
             )";
 
+            $insertData = $callData;
+            $insertData['reopened_flag'] = $detectedReopen ? 1 : 0;
+
             $stmt = $this->db->prepare($sql);
-            $stmt->execute($callData);
+            $stmt->execute($insertData);
             $dbCallId = (int)$this->db->lastInsertId();
             $this->logger->debug("New call inserted with database ID: {$dbCallId}");
         }
@@ -316,7 +351,9 @@ class AegisXmlParser
     }
 
     /**
-     * Insert agency contexts
+     * Upsert agency contexts on (call_id, agency_type). One row per agency
+     * per call; mutating state (status, closed_flag, etc.) overwrites the
+     * prior snapshot rather than accumulating. Mirrors the units upsert.
      */
     private function insertAgencyContexts(SimpleXMLElement $xml, int $callId): void
     {
@@ -328,22 +365,80 @@ class AegisXmlParser
         $count = count($xml->AgencyContexts->AgencyContext);
         $this->logger->debug("  Inserting {$count} agency context(s)...");
 
-        $sql = "INSERT INTO agency_contexts (
-            call_id, agency_type, call_type, priority, status, dispatcher,
-            created_datetime, closed_datetime, closed_flag, canceled_flag,
-            radio_channel, emd_case_number, emd_code
-        ) VALUES (
-            :call_id, :agency_type, :call_type, :priority, :status, :dispatcher,
-            :created_datetime, :closed_datetime, :closed_flag, :canceled_flag,
-            :radio_channel, :emd_case_number, :emd_code
-        )";
-
+        $dbType = Database::getDbType();
+        if ($dbType === 'mysql') {
+            $sql = "INSERT INTO agency_contexts (
+                call_id, agency_type, fdid, call_type, priority, status, dispatcher,
+                created_datetime, closed_datetime, closed_flag, canceled_flag,
+                radio_channel, emd_case_number, emd_code
+            ) VALUES (
+                :call_id, :agency_type, :fdid, :call_type, :priority, :status, :dispatcher,
+                :created_datetime, :closed_datetime, :closed_flag, :canceled_flag,
+                :radio_channel, :emd_case_number, :emd_code
+            ) AS new_ac ON DUPLICATE KEY UPDATE
+                fdid = new_ac.fdid,
+                call_type = new_ac.call_type,
+                priority = new_ac.priority,
+                status = new_ac.status,
+                dispatcher = new_ac.dispatcher,
+                created_datetime = new_ac.created_datetime,
+                closed_datetime = new_ac.closed_datetime,
+                closed_flag = new_ac.closed_flag,
+                canceled_flag = new_ac.canceled_flag,
+                radio_channel = new_ac.radio_channel,
+                emd_case_number = new_ac.emd_case_number,
+                emd_code = new_ac.emd_code,
+                updated_at = CURRENT_TIMESTAMP";
+        } else {
+            $sql = "INSERT INTO agency_contexts (
+                call_id, agency_type, fdid, call_type, priority, status, dispatcher,
+                created_datetime, closed_datetime, closed_flag, canceled_flag,
+                radio_channel, emd_case_number, emd_code
+            ) VALUES (
+                :call_id, :agency_type, :fdid, :call_type, :priority, :status, :dispatcher,
+                :created_datetime, :closed_datetime, :closed_flag, :canceled_flag,
+                :radio_channel, :emd_case_number, :emd_code
+            ) ON CONFLICT (call_id, agency_type) DO UPDATE SET
+                fdid = EXCLUDED.fdid,
+                call_type = EXCLUDED.call_type,
+                priority = EXCLUDED.priority,
+                status = EXCLUDED.status,
+                dispatcher = EXCLUDED.dispatcher,
+                created_datetime = EXCLUDED.created_datetime,
+                closed_datetime = EXCLUDED.closed_datetime,
+                closed_flag = EXCLUDED.closed_flag,
+                canceled_flag = EXCLUDED.canceled_flag,
+                radio_channel = EXCLUDED.radio_channel,
+                emd_case_number = EXCLUDED.emd_case_number,
+                emd_code = EXCLUDED.emd_code,
+                updated_at = CURRENT_TIMESTAMP";
+        }
         $stmt = $this->db->prepare($sql);
 
         foreach ($xml->AgencyContexts->AgencyContext as $context) {
-            $data = [
+            $agencyType = (string)$context->AgencyType ?: null;
+
+            // Extract FDID from XML; fall back to ref_agencies lookup if absent.
+            $fdid = null;
+            $fdidNode = $context->FDID ?? null;
+            if ($fdidNode !== null && (string)$fdidNode !== '') {
+                $fdid = (string)$fdidNode;
+            }
+            if ($fdid === null && $agencyType !== null && $agencyType !== '') {
+                $lookup = $this->db->prepare(
+                    'SELECT fdid FROM ref_agencies WHERE LOWER(label) = LOWER(:lbl) OR code = :code LIMIT 1'
+                );
+                $lookup->execute([':lbl' => $agencyType, ':code' => $agencyType]);
+                $refRow = $lookup->fetch();
+                if ($refRow && !empty($refRow['fdid'])) {
+                    $fdid = (string)$refRow['fdid'];
+                }
+            }
+
+            $stmt->execute([
                 'call_id' => $callId,
-                'agency_type' => (string)$context->AgencyType ?: null,
+                'agency_type' => $agencyType,
+                'fdid' => $fdid,
                 'call_type' => (string)$context->CallType ?: null,
                 'priority' => (string)$context->Priority ?: null,
                 'status' => (string)$context->Status ?: null,
@@ -354,9 +449,8 @@ class AegisXmlParser
                 'canceled_flag' => $this->parseBoolean((string)$context->CanceledFlag),
                 'radio_channel' => (string)$context->RadioChannel ?: null,
                 'emd_case_number' => (string)$context->EmdCaseNumber ?: null,
-                'emd_code' => (string)$context->EmdCode ?: null
-            ];
-            $stmt->execute($data);
+                'emd_code' => (string)$context->EmdCode ?: null,
+            ]);
         }
     }
 
@@ -369,6 +463,15 @@ class AegisXmlParser
             $this->logger->debug("  No location found in XML");
             return;
         }
+
+        // locations is logically 1-to-1 with calls. The schema has no UNIQUE
+        // constraint on call_id, so delete any prior row before inserting to
+        // avoid accumulating duplicates when a call is reprocessed (which
+        // surfaces as duplicate rows in the dashboard's Recent Calls list,
+        // since CallsController::index() LEFT JOINs locations and SELECT
+        // DISTINCT cannot collapse rows whose location columns differ).
+        $deleteStmt = $this->db->prepare("DELETE FROM locations WHERE call_id = ?");
+        $deleteStmt->execute([$callId]);
 
         $this->logger->debug("  Inserting location data...");
         $loc = $xml->Location;
@@ -435,7 +538,8 @@ class AegisXmlParser
     }
 
     /**
-     * Insert incidents
+     * Upsert incidents on (call_id, incident_number). One row per
+     * incident_number per call; CAD-side updates overwrite in place.
      */
     private function insertIncidents(SimpleXMLElement $xml, int $callId): void
     {
@@ -447,18 +551,42 @@ class AegisXmlParser
         $count = count($xml->Incidents->Incident);
         $this->logger->debug("  Inserting {$count} incident(s)...");
 
-        $sql = "INSERT INTO incidents (
-            call_id, incident_number, incident_type, type_description,
-            agency_type, case_number, jurisdiction, create_datetime
-        ) VALUES (
-            :call_id, :incident_number, :incident_type, :type_description,
-            :agency_type, :case_number, :jurisdiction, :create_datetime
-        )";
-
+        $dbType = Database::getDbType();
+        if ($dbType === 'mysql') {
+            $sql = "INSERT INTO incidents (
+                call_id, incident_number, incident_type, type_description,
+                agency_type, case_number, jurisdiction, create_datetime
+            ) VALUES (
+                :call_id, :incident_number, :incident_type, :type_description,
+                :agency_type, :case_number, :jurisdiction, :create_datetime
+            ) AS new_inc ON DUPLICATE KEY UPDATE
+                incident_type = new_inc.incident_type,
+                type_description = new_inc.type_description,
+                agency_type = new_inc.agency_type,
+                case_number = new_inc.case_number,
+                jurisdiction = new_inc.jurisdiction,
+                create_datetime = new_inc.create_datetime,
+                updated_at = CURRENT_TIMESTAMP";
+        } else {
+            $sql = "INSERT INTO incidents (
+                call_id, incident_number, incident_type, type_description,
+                agency_type, case_number, jurisdiction, create_datetime
+            ) VALUES (
+                :call_id, :incident_number, :incident_type, :type_description,
+                :agency_type, :case_number, :jurisdiction, :create_datetime
+            ) ON CONFLICT (call_id, incident_number) DO UPDATE SET
+                incident_type = EXCLUDED.incident_type,
+                type_description = EXCLUDED.type_description,
+                agency_type = EXCLUDED.agency_type,
+                case_number = EXCLUDED.case_number,
+                jurisdiction = EXCLUDED.jurisdiction,
+                create_datetime = EXCLUDED.create_datetime,
+                updated_at = CURRENT_TIMESTAMP";
+        }
         $stmt = $this->db->prepare($sql);
 
         foreach ($xml->Incidents->Incident as $incident) {
-            $data = [
+            $stmt->execute([
                 'call_id' => $callId,
                 'incident_number' => (string)$incident->Number ?: null,
                 'incident_type' => (string)$incident->Type ?: null,
@@ -466,9 +594,8 @@ class AegisXmlParser
                 'agency_type' => (string)$incident->AgencyType ?: null,
                 'case_number' => (string)$incident->CaseNumber ?: null,
                 'jurisdiction' => (string)$incident->Jurisdiction ?: null,
-                'create_datetime' => $this->parseDateTime((string)$incident->CreateDateTime)
-            ];
-            $stmt->execute($data);
+                'create_datetime' => $this->parseDateTime((string)$incident->CreateDateTime),
+            ]);
         }
     }
 
@@ -753,10 +880,15 @@ class AegisXmlParser
     }
 
     /**
-     * Insert persons
+     * Replace all persons for the call with the latest XML's set
+     * (delete-then-insert). CAD emits the full snapshot so the latest
+     * XML is authoritative.
      */
     private function insertPersons(SimpleXMLElement $xml, int $callId): void
     {
+        $deleteStmt = $this->db->prepare("DELETE FROM persons WHERE call_id = ?");
+        $deleteStmt->execute([$callId]);
+
         if (!isset($xml->Persons->Person)) {
             $this->logger->debug("  No persons found in XML");
             return;
@@ -778,11 +910,10 @@ class AegisXmlParser
             :primary_caller_flag, :license_number, :license_state,
             :ssn, :global_subject_id
         )";
-
         $stmt = $this->db->prepare($sql);
 
         foreach ($xml->Persons->Person as $person) {
-            $data = [
+            $stmt->execute([
                 'call_id' => $callId,
                 'first_name' => (string)$person->FirstName ?: null,
                 'middle_name' => (string)$person->MiddleName ?: null,
@@ -791,8 +922,8 @@ class AegisXmlParser
                 'date_of_birth' => $this->parseDateTime((string)$person->DateOfBirth),
                 'sex' => (string)$person->Sex ?: null,
                 'race' => (string)$person->Race ?: null,
-                'height_inches' => $this->parseDecimal((string)$person->HeightInches),
-                'weight' => $this->parseDecimal((string)$person->Weight),
+                'height_inches' => $this->parseInt((string)$person->HeightInches),
+                'weight' => $this->parseInt((string)$person->Weight),
                 'eye_color' => (string)$person->EyeColor ?: null,
                 'hair_color' => (string)$person->HairColor ?: null,
                 'address' => (string)$person->Address ?: null,
@@ -802,17 +933,20 @@ class AegisXmlParser
                 'license_number' => (string)$person->LicenseNumber ?: null,
                 'license_state' => (string)$person->LicenseState ?: null,
                 'ssn' => (string)$person->SSN ?: null,
-                'global_subject_id' => (string)$person->GlobalSubjectId ?: null
-            ];
-            $stmt->execute($data);
+                'global_subject_id' => (string)$person->GlobalSubjectId ?: null,
+            ]);
         }
     }
 
     /**
-     * Insert vehicles
+     * Replace all vehicles for the call with the latest XML's set
+     * (delete-then-insert).
      */
     private function insertVehicles(SimpleXMLElement $xml, int $callId): void
     {
+        $deleteStmt = $this->db->prepare("DELETE FROM vehicles WHERE call_id = ?");
+        $deleteStmt->execute([$callId]);
+
         if (!isset($xml->Vehicles->Vehicle)) {
             $this->logger->debug("  No vehicles found in XML");
             return;
@@ -828,11 +962,10 @@ class AegisXmlParser
             :call_id, :license_plate, :license_state, :make, :model,
             :year, :color, :vin, :vehicle_type
         )";
-
         $stmt = $this->db->prepare($sql);
 
         foreach ($xml->Vehicles->Vehicle as $vehicle) {
-            $data = [
+            $stmt->execute([
                 'call_id' => $callId,
                 'license_plate' => (string)$vehicle->LicensePlate ?: null,
                 'license_state' => (string)$vehicle->LicenseState ?: null,
@@ -841,21 +974,20 @@ class AegisXmlParser
                 'year' => (int)$vehicle->Year ?: null,
                 'color' => (string)$vehicle->Color ?: null,
                 'vin' => (string)$vehicle->VIN ?: null,
-                'vehicle_type' => (string)$vehicle->Type ?: null
-            ];
-            $stmt->execute($data);
+                'vehicle_type' => (string)$vehicle->Type ?: null,
+            ]);
         }
     }
 
     /**
-     * Insert call dispositions
-     *
-     * @param SimpleXMLElement $xml XML root element
-     * @param int $callId Database call ID
-     * @return void
+     * Replace all call dispositions for the call with the latest XML's set
+     * (delete-then-insert).
      */
     private function insertCallDispositions(SimpleXMLElement $xml, int $callId): void
     {
+        $deleteStmt = $this->db->prepare("DELETE FROM call_dispositions WHERE call_id = ?");
+        $deleteStmt->execute([$callId]);
+
         if (!isset($xml->Dispositions->CallDisposition)) {
             $this->logger->debug("  No call dispositions found in XML");
             return;
@@ -869,18 +1001,16 @@ class AegisXmlParser
         ) VALUES (
             :call_id, :disposition_name, :description, :count, :disposition_datetime
         )";
-
         $stmt = $this->db->prepare($sql);
 
         foreach ($xml->Dispositions->CallDisposition as $disp) {
-            $data = [
+            $stmt->execute([
                 'call_id' => $callId,
                 'disposition_name' => (string)$disp->Name ?: null,
                 'description' => (string)$disp->Description ?: null,
                 'count' => $this->parseInt((string)$disp->Count),
-                'disposition_datetime' => $this->parseDateTime((string)$disp->DateTime)
-            ];
-            $stmt->execute($data);
+                'disposition_datetime' => $this->parseDateTime((string)$disp->DateTime),
+            ]);
         }
     }
 
@@ -979,6 +1109,30 @@ class AegisXmlParser
         }
     }
 
+    /**
+     * True when a newer XML for the same call_number has already been processed.
+     * Filenames look like "{call_number}_{YYYYMMDDhhmmss<centiseconds>}.xml" — the
+     * timestamp portion is fixed-width and zero-padded, so lexicographic comparison
+     * matches chronological order. Filenames that don't match the expected pattern
+     * fall through (return false) so manual injects or future formats don't break ingest.
+     */
+    private function isFilenameStaleForCall(string $filename): bool
+    {
+        if (! preg_match('/^(\d+)_\d+\.xml$/', $filename, $m)) {
+            return false;
+        }
+        $prefix = $m[1] . '_';
+        $stmt = $this->db->prepare(
+            "SELECT MAX(filename) FROM processed_files WHERE filename LIKE ?"
+        );
+        $stmt->execute([$prefix . '%']);
+        $max = $stmt->fetchColumn();
+        if ($max === false || $max === null || $max === '') {
+            return false;
+        }
+        return strcmp($filename, (string) $max) <= 0;
+    }
+
     private function markFileAsProcessed(string $filename, string $filePath, int $recordsProcessed): void
     {
         $hash = hash_file('sha256', $filePath);
@@ -1074,7 +1228,43 @@ class AegisXmlParser
             'units'         => $list("SELECT unit_number FROM units WHERE call_id = ? ORDER BY unit_number"),
             'jurisdictions' => $list("SELECT DISTINCT jurisdiction FROM incidents WHERE call_id = ? AND jurisdiction IS NOT NULL ORDER BY jurisdiction"),
             'agencies'      => $list("SELECT DISTINCT agency_type FROM agency_contexts WHERE call_id = ? AND agency_type IS NOT NULL ORDER BY agency_type"),
+            'close_datetime' => $scalar("SELECT close_datetime FROM calls WHERE id = ?"),
         ];
+    }
+
+    /**
+     * True when an incoming XML represents a reopen of a previously-closed call:
+     * a unit assigned after the prior close timestamp with no clear time yet.
+     * Distinguishes legitimate dispatcher reopens from CAD-source ClosedFlag
+     * inconsistency (the latter carries no fresh unit activity).
+     *
+     * @param array<string,mixed>|null $existingSnapshot
+     */
+    private function detectReopen(SimpleXMLElement $xml, ?array $existingSnapshot): bool
+    {
+        if ($existingSnapshot === null) {
+            return false;
+        }
+        $existingClose = (string) ($existingSnapshot['close_datetime'] ?? '');
+        if ($existingClose === '') {
+            return false;
+        }
+        // Convert DB datetime ("YYYY-MM-DD HH:MM:SS") to ISO ("YYYY-MM-DDTHH:MM:SS")
+        // for direct string comparison against the XML's AssignedDateTime values.
+        $existingCloseIso = str_replace(' ', 'T', $existingClose);
+
+        foreach ($xml->AssignedUnits->Unit ?? [] as $u) {
+            $clear = trim((string) $u->ClearDateTime);
+            $assigned = trim((string) $u->AssignedDateTime);
+            // ClearDateTime nil yields '' after cast; AssignedDateTime is ISO 8601
+            // with optional Z suffix. Strip Z so the lexicographic compare against
+            // the DB-format-derived ISO string works consistently.
+            $assignedNorm = rtrim($assigned, 'Z');
+            if ($clear === '' && $assignedNorm !== '' && $assignedNorm > $existingCloseIso) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** @return array<string,mixed> */

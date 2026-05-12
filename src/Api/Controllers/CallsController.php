@@ -31,227 +31,156 @@ class CallsController
     public function index(): void
     {
         try {
+            $criteria = \NwsCad\Api\Filtering\FilterCriteria::fromQuery(
+                $_GET,
+                \NwsCad\Api\Filtering\FilterRegistry::for('calls')
+            );
+        } catch (\NwsCad\Api\Filtering\InvalidFilterException $e) {
+            Response::error($e->getMessage(), 400);
+            return;
+        }
+
+        try {
             $pagination = Request::pagination();
-            $sorting = Request::sorting('create_datetime', 'desc');
-            $filters = Request::filters([
-                'status',
-                'agency_type',
-                'closed_flag',
-                'canceled_flag',
-                'call_number',
-                'created_by',
-                'date_from',
-                'date_to',
-                'nature_of_call',
-                'jurisdiction',
-                'location',
-                'city',
-                'search'
-            ]);
+            $sorting    = Request::sorting('create_datetime', 'desc');
 
-            // Build WHERE clause
-            $where = [];
-            $params = [];
+            $allowedSort = ['create_datetime', 'close_datetime', 'call_number'];
+            $sortField   = in_array($sorting['sort'], $allowedSort, true) ? $sorting['sort'] : 'create_datetime';
 
-            if (isset($filters['search'])) {
-                // Search by incident number
-                $where[] = "i.incident_number LIKE :search";
-                $params[':search'] = '%' . $filters['search'] . '%';
-            }
+            // FilterSqlBuilder will add `LEFT JOIN locations` only when a filter
+            // actually targets a location column (city/beat/area/ori/location).
+            // The detail query below adds it unconditionally to populate the
+            // response DTO; for COUNT and the page-of-IDs query we only want it
+            // when the filter forced it, otherwise we'd scan the JOIN result for
+            // no reason.
+            $builder = new \NwsCad\Api\Filtering\FilterSqlBuilder();
+            $sql     = $builder->build(
+                $criteria,
+                new \NwsCad\Api\Filtering\FilterContext('calls', ['calls'])
+            );
 
-            if (isset($filters['status'])) {
-                $where[] = "ac.status = :status";
-                $params[':status'] = $filters['status'];
-            }
+            $locationsJoin = 'LEFT JOIN locations ON locations.call_id = calls.id';
 
-            if (isset($filters['agency_type'])) {
-                $where[] = "ac.agency_type = :agency_type";
-                $params[':agency_type'] = $filters['agency_type'];
-            }
-
-            if (isset($filters['closed_flag'])) {
-                $where[] = "c.closed_flag = :closed_flag";
-                $params[':closed_flag'] = $filters['closed_flag'] === 'true' ? 1 : 0;
-            }
-
-            if (isset($filters['canceled_flag'])) {
-                $where[] = "c.canceled_flag = :canceled_flag";
-                $params[':canceled_flag'] = $filters['canceled_flag'] === 'true' ? 1 : 0;
-            }
-
-            if (isset($filters['call_number'])) {
-                $where[] = "c.call_number = :call_number";
-                $params[':call_number'] = $filters['call_number'];
-            }
-
-            if (isset($filters['created_by'])) {
-                $where[] = "c.created_by = :created_by";
-                $params[':created_by'] = $filters['created_by'];
-            }
-
-            if (isset($filters['date_from'])) {
-                $where[] = "c.create_datetime >= :date_from";
-                $params[':date_from'] = $filters['date_from'];
-            }
-
-            if (isset($filters['date_to'])) {
-                // Append time to include entire day (date_to is inclusive)
-                $where[] = "c.create_datetime <= :date_to";
-                $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
-            }
-
-            if (isset($filters['nature_of_call'])) {
-                $where[] = "c.nature_of_call LIKE :nature_of_call";
-                $params[':nature_of_call'] = '%' . $filters['nature_of_call'] . '%';
-            }
-
-            if (isset($filters['jurisdiction'])) {
-                $where[] = "i.jurisdiction = :jurisdiction";
-                $params[':jurisdiction'] = $filters['jurisdiction'];
-            }
-
-            if (isset($filters['location'])) {
-                $where[] = "(l.full_address LIKE :location OR l.city LIKE :location2 OR l.common_name LIKE :location3)";
-                $params[':location'] = '%' . $filters['location'] . '%';
-                $params[':location2'] = '%' . $filters['location'] . '%';
-                $params[':location3'] = '%' . $filters['location'] . '%';
-            }
-
-            if (isset($filters['city'])) {
-                $where[] = "l.city = :city";
-                $params[':city'] = $filters['city'];
-            }
-
-            $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
-
-            // Validate sort field
-            $allowedSortFields = ['call_id', 'call_number', 'create_datetime', 'close_datetime', 'nature_of_call'];
-            $sortField = in_array($sorting['sort'], $allowedSortFields) ? $sorting['sort'] : 'create_datetime';
-
-            // Get total count
-            $countSql = "
-                SELECT COUNT(DISTINCT c.id)
-                FROM calls c
-                LEFT JOIN agency_contexts ac ON c.id = ac.call_id
-                LEFT JOIN locations l ON c.id = l.call_id
-                LEFT JOIN incidents i ON c.id = i.call_id
-                {$whereClause}
-            ";
+            // Count: only joins from filters that actually filter rows. The
+            // locations join is excluded here unless a location-targeting filter
+            // requested it (FilterSqlBuilder will include it in $sql->joins in that
+            // case via the FilterContext already-joined hint), which keeps COUNT
+            // from inflating from the LEFT JOIN.
+            $countSql  = 'SELECT COUNT(DISTINCT calls.id) FROM calls '
+                . implode(' ', $sql->joins) . ' '
+                . $sql->whereClause;
             $countStmt = $this->db->prepare($countSql);
-            $countStmt->execute($params);
-            $total = (int)$countStmt->fetchColumn();
+            $countStmt->execute($sql->params);
+            $total = (int) $countStmt->fetchColumn();
 
-            // Get paginated results - OPTIMIZED: removed GROUP_CONCAT
+            // Page — two-step query for performance. The single-step
+            // SELECT DISTINCT calls.*, locations.* ... ORDER BY ... LIMIT
+            // forces MySQL into a temp table + filesort over the entire JOIN
+            // result before applying LIMIT (full table scan on calls). Splitting
+            // into (1) get the page of IDs from the indexed calls table and
+            // (2) fetch detail rows by primary key keeps the index range scan
+            // efficient and the JOIN bounded to per_page rows.
+            // GROUP BY (rather than DISTINCT) so ORDER BY can reference
+            // calls.create_datetime without violating only_full_group_by — the
+            // grouping is by primary key, so create_datetime is functionally
+            // dependent and MySQL's "Functional Dependencies" rule allows the
+            // ORDER BY. Filter joins (agency_contexts, units, incidents) can
+            // produce duplicate calls.id rows; GROUP BY collapses them.
             $offset = ($pagination['page'] - 1) * $pagination['per_page'];
-            
-            // Determine which joins are needed based on filters
-            $needsAgencyJoin = isset($filters['status']) || isset($filters['agency_type']);
-            $needsIncidentJoin = isset($filters['search']) || isset($filters['jurisdiction']);
-            
-            $joins = "LEFT JOIN locations l ON c.id = l.call_id";
-            if ($needsAgencyJoin) {
-                $joins .= " LEFT JOIN agency_contexts ac ON c.id = ac.call_id";
+            $idSql  = 'SELECT calls.id FROM calls '
+                . implode(' ', $sql->joins) . ' '
+                . $sql->whereClause
+                . ' GROUP BY calls.id'
+                . " ORDER BY calls.{$sortField} {$sorting['order']}, calls.id {$sorting['order']}"
+                . ' LIMIT :limit OFFSET :offset';
+            $idStmt = $this->db->prepare($idSql);
+            foreach ($sql->params as $k => $v) {
+                $idStmt->bindValue(':' . $k, $v);
             }
-            if ($needsIncidentJoin) {
-                $joins .= " LEFT JOIN incidents i ON c.id = i.call_id";
-            }
-            
-            $sql = "
-                SELECT DISTINCT
-                    c.id,
-                    c.call_id,
-                    c.call_number,
-                    c.call_source,
-                    c.caller_name,
-                    c.caller_phone,
-                    c.nature_of_call,
-                    c.create_datetime,
-                    c.close_datetime,
-                    c.created_by,
-                    c.closed_flag,
-                    c.canceled_flag,
-                    c.alarm_level,
-                    c.emd_code,
-                    l.full_address,
-                    l.city,
-                    l.state,
-                    l.latitude_y,
-                    l.longitude_x
-                FROM calls c
-                {$joins}
-                {$whereClause}
-                ORDER BY c.{$sortField} {$sorting['order']}
-                LIMIT :limit OFFSET :offset
-            ";
+            $idStmt->bindValue(':limit', $pagination['per_page'], PDO::PARAM_INT);
+            $idStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+            $idStmt->execute();
+            $ids = array_map('intval', $idStmt->fetchAll(PDO::FETCH_COLUMN));
 
-            $stmt = $this->db->prepare($sql);
-            foreach ($params as $key => $value) {
-                $stmt->bindValue($key, $value);
-            }
-            $stmt->bindValue(':limit', $pagination['per_page'], PDO::PARAM_INT);
-            $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-            $stmt->execute();
-
-            $calls = $stmt->fetchAll();
-            
-            // Fetch related data in batch
-            if (!empty($calls)) {
-                $callIds = array_column($calls, 'id');
-                $relatedData = $this->getRelatedDataBatch($callIds);
-                
-                // Merge related data
-                foreach ($calls as &$call) {
-                    $callId = $call['id'];
-                    $call['agency_types'] = $relatedData['agency_types'][$callId] ?? [];
-                    $call['call_types'] = $relatedData['call_types'][$callId] ?? [];
-                    $call['jurisdictions'] = $relatedData['jurisdictions'][$callId] ?? [];
-                    $call['priorities'] = $relatedData['priorities'][$callId] ?? [];
-                    $call['statuses'] = $relatedData['statuses'][$callId] ?? [];
-                    $call['incident_numbers'] = $relatedData['incident_numbers'][$callId] ?? [];
-                    $call['unit_count'] = $relatedData['unit_counts'][$callId] ?? 0;
-                }
-                unset($call);
+            if ($ids === []) {
+                $rows = [];
+            } else {
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                $listSql = 'SELECT calls.*, '
+                    . 'locations.full_address, locations.city, locations.state, '
+                    . 'locations.latitude_y, locations.longitude_x '
+                    . 'FROM calls '
+                    . $locationsJoin
+                    . " WHERE calls.id IN ({$placeholders})"
+                    . " ORDER BY calls.{$sortField} {$sorting['order']}, calls.id {$sorting['order']}";
+                $stmt = $this->db->prepare($listSql);
+                $stmt->execute($ids);
+                $rows = $stmt->fetchAll();
             }
 
-            // Format response
-            $formattedCalls = array_map(function ($call) {
+            $related = !empty($rows)
+                ? $this->getRelatedDataBatch(array_column($rows, 'id'))
+                : [];
+
+            // Compute the stale-open cutoff once and reuse across all mapped
+            // rows. is_stale is true iff the row WOULD be open or reopened
+            // without the guardrail but its create_datetime predates the
+            // cutoff. Client-side badges read this to render the call as
+            // closed even though close_datetime is NULL.
+            $staleCutoff = \NwsCad\Api\Filtering\FilterSqlBuilder::staleCutoff();
+
+            $items = array_map(function (array $row) use ($related, $staleCutoff) {
+                $id  = (int) $row['id'];
+                $lat = $row['latitude_y']  ?? null;
+                $lng = $row['longitude_x'] ?? null;
+                $isStale = \NwsCad\Api\Filtering\FilterSqlBuilder::isStaleRow($row, $staleCutoff);
                 return [
-                    'id' => (int)$call['id'],
-                    'call_id' => (int)$call['call_id'],
-                    'call_number' => $call['call_number'],
-                    'call_source' => $call['call_source'],
-                    'caller' => [
-                        'name' => $call['caller_name'],
-                        'phone' => $call['caller_phone']
+                    'id'              => $id,
+                    'call_id'         => (int) $row['call_id'],
+                    'call_number'     => $row['call_number'],
+                    'call_source'     => $row['call_source'],
+                    'caller'          => [
+                        'name'  => $row['caller_name'],
+                        'phone' => $row['caller_phone'],
                     ],
-                    'nature_of_call' => $call['nature_of_call'],
-                    'create_datetime' => $call['create_datetime'],
-                    'close_datetime' => $call['close_datetime'],
-                    'created_by' => $call['created_by'],
-                    'closed_flag' => (bool)$call['closed_flag'],
-                    'canceled_flag' => (bool)$call['canceled_flag'],
-                    'alarm_level' => $call['alarm_level'] ? (int)$call['alarm_level'] : null,
-                    'emd_code' => $call['emd_code'],
-                    'location' => [
-                        'address' => $call['full_address'],
-                        'city' => $call['city'],
-                        'state' => $call['state'],
-                        'coordinates' => $call['latitude_y'] && $call['longitude_x'] ? [
-                            'lat' => (float)$call['latitude_y'],
-                            'lng' => (float)$call['longitude_x']
-                        ] : null
+                    'nature_of_call'  => $row['nature_of_call'],
+                    'create_datetime' => $row['create_datetime'],
+                    'close_datetime'  => $row['close_datetime'],
+                    'created_by'      => $row['created_by'],
+                    'closed_flag'     => (bool) $row['closed_flag'],
+                    'canceled_flag'   => (bool) $row['canceled_flag'],
+                    'reopened_flag'   => (bool) ($row['reopened_flag'] ?? false),
+                    'is_stale'        => $isStale,
+                    'alarm_level'     => $row['alarm_level'] !== null ? (int) $row['alarm_level'] : null,
+                    'emd_code'        => $row['emd_code'],
+                    'location'        => [
+                        'address'     => $row['full_address'] ?? null,
+                        'city'        => $row['city']         ?? null,
+                        'state'       => $row['state']        ?? null,
+                        'coordinates' => ($lat !== null && $lng !== null && $lat !== '' && $lng !== '')
+                            ? ['lat' => (float) $lat, 'lng' => (float) $lng]
+                            : null,
                     ],
-                    'agency_types' => is_array($call['agency_types']) ? $call['agency_types'] : ($call['agency_types'] ? explode(',', $call['agency_types']) : []),
-                    'call_types' => is_array($call['call_types']) ? $call['call_types'] : ($call['call_types'] ? explode(',', $call['call_types']) : []),
-                    'jurisdictions' => is_array($call['jurisdictions']) ? $call['jurisdictions'] : ($call['jurisdictions'] ? explode(',', $call['jurisdictions']) : []),
-                    'priorities' => is_array($call['priorities']) ? $call['priorities'] : ($call['priorities'] ? explode(',', $call['priorities']) : []),
-                    'statuses' => is_array($call['statuses']) ? $call['statuses'] : ($call['statuses'] ? explode(',', $call['statuses']) : []),
-                    'incident_numbers' => is_array($call['incident_numbers']) ? $call['incident_numbers'] : ($call['incident_numbers'] ? explode(',', $call['incident_numbers']) : []),
-                    'unit_count' => (int)$call['unit_count']
+                    'agency_types'     => $related['agency_types'][$id]     ?? [],
+                    'call_types'       => $related['call_types'][$id]       ?? [],
+                    'jurisdictions'    => $related['jurisdictions'][$id]    ?? [],
+                    'priorities'       => $related['priorities'][$id]       ?? [],
+                    'statuses'         => $related['statuses'][$id]         ?? [],
+                    'incident_numbers' => $related['incident_numbers'][$id] ?? [],
+                    'unit_count'       => $related['unit_counts'][$id]      ?? 0,
                 ];
-            }, $calls);
+            }, $rows);
 
-            Response::paginated($formattedCalls, $total, $pagination['page'], $pagination['per_page']);
+            Response::success([
+                'items'      => $items,
+                'pagination' => [
+                    'total'        => $total,
+                    'per_page'     => $pagination['per_page'],
+                    'current_page' => $pagination['page'],
+                    'total_pages'  => $pagination['per_page'] > 0 ? (int) ceil($total / $pagination['per_page']) : 0,
+                ],
+                'filters'    => $criteria->toArray(),
+            ]);
         } catch (Exception $e) {
             Response::error('Failed to retrieve calls: ' . $e->getMessage(), 500);
         }
@@ -343,6 +272,8 @@ class CallsController
                 'created_by' => $call['created_by'],
                 'closed_flag' => (bool)$call['closed_flag'],
                 'canceled_flag' => (bool)$call['canceled_flag'],
+                'reopened_flag' => (bool)($call['reopened_flag'] ?? false),
+                'is_stale' => \NwsCad\Api\Filtering\FilterSqlBuilder::isStaleRow($call),
                 'alarm_level' => $call['alarm_level'] ? (int)$call['alarm_level'] : null,
                 'emd_code' => $call['emd_code'],
                 'location' => [

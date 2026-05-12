@@ -20,6 +20,7 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Logger
  * @uses \NwsCad\Logging\RedactingProcessor
  * @uses \NwsCad\Logging\SecretRegistry
+ * @uses \NwsCad\Api\Filtering\FilterOptionsCache
  * @uses \NwsCad\Notifications\EventDispatcher
  * @uses \NwsCad\Notifications\Events\CallProcessedEvent
  * @uses \NwsCad\Notifications\Events\Intent

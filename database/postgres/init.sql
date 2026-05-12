@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS calls (
     -- Status flags
     closed_flag BOOLEAN DEFAULT FALSE,
     canceled_flag BOOLEAN DEFAULT FALSE,
-    
+    reopened_flag BOOLEAN DEFAULT FALSE,
+
     -- Codes and levels
     alarm_level INTEGER,
     emd_code VARCHAR(50),
@@ -43,7 +44,10 @@ CREATE INDEX idx_calls_call_number ON calls(call_number);
 CREATE INDEX idx_calls_create_datetime ON calls(create_datetime);
 CREATE INDEX idx_calls_close_datetime ON calls(close_datetime);
 CREATE INDEX idx_calls_closed_flag ON calls(closed_flag);
+CREATE INDEX idx_calls_reopened_flag ON calls(reopened_flag);
 CREATE INDEX idx_calls_created_by ON calls(created_by);
+COMMENT ON COLUMN calls.closed_flag IS 'Raw record of latest XML root <ClosedFlag>; not authoritative for open/closed filtering, see close_datetime + reopened_flag';
+COMMENT ON COLUMN calls.reopened_flag IS 'Set to 1 when a closed call receives an XML with new unit activity after the close timestamp; distinguishes legitimate reopens from CAD-source ClosedFlag inconsistency';
 
 -- ============================================================================
 -- AGENCY CONTEXTS
@@ -54,6 +58,7 @@ CREATE TABLE IF NOT EXISTS agency_contexts (
     call_id BIGINT NOT NULL,
     
     agency_type VARCHAR(50),
+    fdid VARCHAR(10),
     call_type VARCHAR(100),
     priority VARCHAR(100),
     status VARCHAR(100),
@@ -71,11 +76,12 @@ CREATE TABLE IF NOT EXISTS agency_contexts (
     -- EMD
     emd_case_number VARCHAR(100),
     emd_code VARCHAR(50),
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE
+
+    FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
+    CONSTRAINT uk_agency_contexts_call_agency UNIQUE (call_id, agency_type)
 );
 
 CREATE INDEX idx_agency_contexts_call_id ON agency_contexts(call_id);
@@ -164,11 +170,12 @@ CREATE TABLE IF NOT EXISTS incidents (
     case_number VARCHAR(100),
     jurisdiction VARCHAR(50),
     create_datetime TIMESTAMP,
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE
+
+    FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE,
+    CONSTRAINT uk_incidents_call_number UNIQUE (call_id, incident_number)
 );
 
 CREATE INDEX idx_incidents_call_id ON incidents(call_id);
@@ -326,10 +333,11 @@ CREATE TABLE IF NOT EXISTS persons (
     -- Role
     role VARCHAR(100),
     primary_caller_flag BOOLEAN DEFAULT FALSE,
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
+
+    -- Parser delete-then-inserts on each XML; no natural-key UNIQUE.
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE
 );
 
@@ -361,13 +369,14 @@ CREATE TABLE IF NOT EXISTS vehicles (
     
     -- Registration
     registered_owner VARCHAR(255),
-    
+
     -- Additional info
     description TEXT,
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
+
+    -- Parser delete-then-inserts; no natural-key UNIQUE.
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE
 );
 
@@ -382,14 +391,15 @@ CREATE INDEX idx_vehicles_vin ON vehicles(vin);
 CREATE TABLE IF NOT EXISTS call_dispositions (
     id BIGSERIAL PRIMARY KEY,
     call_id BIGINT NOT NULL,
-    
+
     disposition_name VARCHAR(100) NOT NULL,
     description VARCHAR(255),
     count INTEGER DEFAULT 1,
     disposition_datetime TIMESTAMP,
-    
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
+
+    -- Parser delete-then-inserts; no natural-key UNIQUE.
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE
 );
 
@@ -502,6 +512,7 @@ CREATE TABLE IF NOT EXISTS notification_channels (
     config_json TEXT NOT NULL,
     last_error_at TIMESTAMP NULL,
     last_error_message TEXT NULL,
+    last_updated_actor VARCHAR(64) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -518,8 +529,77 @@ CREATE TABLE IF NOT EXISTS notification_send_log (
     http_status INTEGER NULL,
     duration_ms INTEGER NOT NULL,
     error TEXT NULL,
+    actor VARCHAR(64) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_send_log_channel_created
     ON notification_send_log(channel_id, created_at DESC);
+
+-- ============================================================================
+-- REFERENCE TABLES (added v1.3.0 — filter refactor)
+-- ============================================================================
+
+CREATE TABLE ref_agencies (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(32) NOT NULL UNIQUE,
+    label VARCHAR(128) NOT NULL,
+    kind VARCHAR(8) NOT NULL CHECK (kind IN ('police','fire','ems')),
+    ori VARCHAR(16),
+    fdid VARCHAR(10),
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order SMALLINT NOT NULL DEFAULT 100
+);
+CREATE INDEX idx_ref_agencies_kind ON ref_agencies (kind, active);
+CREATE INDEX idx_ref_agencies_ori  ON ref_agencies (ori);
+CREATE INDEX idx_ref_agencies_fdid ON ref_agencies (fdid);
+
+CREATE TABLE ref_oris (
+    ori VARCHAR(16) PRIMARY KEY,
+    label VARCHAR(128) NOT NULL,
+    kind VARCHAR(8) NOT NULL CHECK (kind IN ('police','fire','ems')),
+    agency_id INT REFERENCES ref_agencies(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_ref_oris_agency ON ref_oris (agency_id);
+
+CREATE TABLE ref_fdids (
+    fdid VARCHAR(10) PRIMARY KEY,
+    label VARCHAR(128) NOT NULL,
+    agency_id INT REFERENCES ref_agencies(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_ref_fdids_agency ON ref_fdids (agency_id);
+
+CREATE TABLE ref_beats (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(32) NOT NULL UNIQUE,
+    label VARCHAR(128) NOT NULL,
+    kind VARCHAR(32) NOT NULL,
+    jurisdiction VARCHAR(64),
+    active BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE INDEX idx_ref_beats_active ON ref_beats (active);
+
+CREATE TABLE ref_areas (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(32) NOT NULL UNIQUE,
+    label VARCHAR(128) NOT NULL,
+    kind VARCHAR(16) NOT NULL CHECK (kind IN ('fire_quad','ems_district')),
+    active BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE INDEX idx_ref_areas_kind ON ref_areas (kind, active);
+
+-- ============================================================================
+-- FILTER REFACTOR INDEXES (added v1.3.0)
+-- ============================================================================
+
+CREATE INDEX idx_calls_create_closed ON calls (create_datetime, closed_flag, canceled_flag);
+CREATE INDEX idx_ac_call_type   ON agency_contexts (call_type);
+CREATE INDEX idx_ac_fdid        ON agency_contexts (fdid);
+CREATE INDEX idx_loc_police_ori ON locations (police_ori);
+CREATE INDEX idx_loc_ems_ori    ON locations (ems_ori);
+CREATE INDEX idx_loc_fire_ori   ON locations (fire_ori);
+CREATE INDEX idx_loc_police_beat ON locations (police_beat);
+CREATE INDEX idx_loc_fire_quad  ON locations (fire_quadrant);
+CREATE INDEX idx_loc_ems_district ON locations (ems_district);
+CREATE INDEX idx_loc_city       ON locations (city);
+CREATE INDEX idx_inc_incident_type ON incidents (incident_type);

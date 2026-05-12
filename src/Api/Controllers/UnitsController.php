@@ -30,154 +30,65 @@ class UnitsController
     public function index(): void
     {
         try {
+            $criteria = \NwsCad\Api\Filtering\FilterCriteria::fromQuery(
+                $_GET,
+                \NwsCad\Api\Filtering\FilterRegistry::for('units')
+            );
+        } catch (\NwsCad\Api\Filtering\InvalidFilterException $e) {
+            Response::error($e->getMessage(), 400);
+            return;
+        }
+
+        try {
             $pagination = Request::pagination();
-            $sorting = Request::sorting('assigned_datetime', 'desc');
-            $filters = Request::filters([
-                'unit_number',
-                'unit_type',
-                'jurisdiction',
-                'agency_type',
-                'is_primary',
-                'call_id',
-                'date_from',
-                'date_to'
-            ]);
+            $sorting    = Request::sorting('assigned_datetime', 'desc');
+            $allowedSort = ['unit_number', 'unit_type', 'assigned_datetime', 'clear_datetime'];
+            $sortField   = in_array($sorting['sort'], $allowedSort, true) ? $sorting['sort'] : 'assigned_datetime';
 
-            // Build WHERE clause
-            $where = [];
-            $params = [];
+            $builder = new \NwsCad\Api\Filtering\FilterSqlBuilder();
+            $sql     = $builder->build(
+                $criteria,
+                new \NwsCad\Api\Filtering\FilterContext('units', ['units'], unitsBase: true)
+            );
 
-            if (isset($filters['unit_number'])) {
-                $where[] = "u.unit_number = :unit_number";
-                $params[':unit_number'] = $filters['unit_number'];
-            }
+            $joinsStr = implode(' ', $sql->joins);
 
-            if (isset($filters['unit_type'])) {
-                $where[] = "u.unit_type = :unit_type";
-                $params[':unit_type'] = $filters['unit_type'];
-            }
-
-            if (isset($filters['jurisdiction'])) {
-                $where[] = "u.jurisdiction = :jurisdiction";
-                $params[':jurisdiction'] = $filters['jurisdiction'];
-            }
-
-            if (isset($filters['agency_type'])) {
-                $where[] = "ac.agency_type = :agency_type";
-                $params[':agency_type'] = $filters['agency_type'];
-            }
-
-            if (isset($filters['is_primary'])) {
-                $where[] = "u.is_primary = :is_primary";
-                $params[':is_primary'] = $filters['is_primary'] === 'true' ? 1 : 0;
-            }
-
-            if (isset($filters['call_id'])) {
-                $where[] = "u.call_id = :call_id";
-                $params[':call_id'] = $filters['call_id'];
-            }
-
-            if (isset($filters['date_from'])) {
-                $where[] = "u.assigned_datetime >= :date_from";
-                $params[':date_from'] = $filters['date_from'];
-            }
-
-            if (isset($filters['date_to'])) {
-                $where[] = "u.assigned_datetime <= :date_to";
-                $params[':date_to'] = $filters['date_to'] . ' 23:59:59';
-            }
-
-            $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
-
-            // Validate sort field
-            $allowedSortFields = ['unit_number', 'unit_type', 'assigned_datetime', 'clear_datetime'];
-            $sortField = in_array($sorting['sort'], $allowedSortFields) ? $sorting['sort'] : 'assigned_datetime';
-
-            // Get total count
-            $countSql = "SELECT COUNT(*) FROM units u LEFT JOIN calls c ON u.call_id = c.id LEFT JOIN agency_contexts ac ON c.id = ac.call_id {$whereClause}";
+            $countSql  = 'SELECT COUNT(DISTINCT units.id) FROM units ' . $joinsStr . ' ' . $sql->whereClause;
             $countStmt = $this->db->prepare($countSql);
-            $countStmt->execute($params);
-            $total = (int)$countStmt->fetchColumn();
+            $countStmt->execute($sql->params);
+            $total = (int) $countStmt->fetchColumn();
 
-            // Get paginated results
             $offset = ($pagination['page'] - 1) * $pagination['per_page'];
-            $sql = "
-                SELECT 
-                    u.*,
-                    c.call_number,
-                    c.nature_of_call,
-                    c.create_datetime as call_create_datetime,
-                    (SELECT i.incident_number FROM incidents i WHERE i.call_id = u.call_id LIMIT 1) as incident_number,
-                    (SELECT l.latitude_y FROM locations l WHERE l.call_id = u.call_id LIMIT 1) as latitude_y,
-                    (SELECT l.longitude_x FROM locations l WHERE l.call_id = u.call_id LIMIT 1) as longitude_x,
-                    (SELECT l.full_address FROM locations l WHERE l.call_id = u.call_id LIMIT 1) as full_address,
-                    (SELECT l.city FROM locations l WHERE l.call_id = u.call_id LIMIT 1) as city,
-                    (SELECT l.state FROM locations l WHERE l.call_id = u.call_id LIMIT 1) as state,
-                    COUNT(DISTINCT up.id) as personnel_count,
-                    COUNT(DISTINCT ul.id) as log_count
-                FROM units u
-                LEFT JOIN calls c ON u.call_id = c.id
-                LEFT JOIN agency_contexts ac ON c.id = ac.call_id
-                LEFT JOIN unit_personnel up ON u.id = up.unit_id
-                LEFT JOIN unit_logs ul ON u.id = ul.unit_id
-                {$whereClause}
-                GROUP BY u.id, c.call_number, c.nature_of_call, c.create_datetime
-                ORDER BY u.{$sortField} {$sorting['order']}
-                LIMIT :limit OFFSET :offset
-            ";
 
-            $stmt = $this->db->prepare($sql);
-            foreach ($params as $key => $value) {
-                $stmt->bindValue($key, $value);
+            // Always join calls for the SELECT columns; skip if already in joins from builder
+            $callsJoin = str_contains($joinsStr, 'LEFT JOIN calls') ? '' : 'LEFT JOIN calls ON calls.id = units.call_id ';
+
+            $listSql = 'SELECT DISTINCT units.*, calls.call_number, calls.nature_of_call, calls.create_datetime AS call_create_datetime '
+                . 'FROM units '
+                . $callsJoin
+                . $joinsStr . ' '
+                . $sql->whereClause
+                . " ORDER BY units.{$sortField} {$sorting['order']}"
+                . ' LIMIT :limit OFFSET :offset';
+
+            $stmt = $this->db->prepare($listSql);
+            foreach ($sql->params as $k => $v) {
+                $stmt->bindValue(':' . $k, $v);
             }
-            $stmt->bindValue(':limit', $pagination['per_page'], PDO::PARAM_INT);
+            $stmt->bindValue(':limit',  $pagination['per_page'], PDO::PARAM_INT);
             $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
             $stmt->execute();
 
-            $units = $stmt->fetchAll();
-
-            // Format response
-            $formattedUnits = array_map(function ($unit) {
-                return [
-                    'id' => (int)$unit['id'],
-                    'call_id' => (int)$unit['call_id'],
-                    'unit_number' => $unit['unit_number'],
-                    'unit_type' => $unit['unit_type'],
-                    'is_primary' => (bool)$unit['is_primary'],
-                    'jurisdiction' => $unit['jurisdiction'],
-                    'call' => [
-                        'call_number' => $unit['call_number'],
-                        'incident_number' => $unit['incident_number'],
-                        'nature_of_call' => $unit['nature_of_call'],
-                        'create_datetime' => $unit['call_create_datetime']
-                    ],
-                    'latitude_y' => $unit['latitude_y'] ? (float)$unit['latitude_y'] : null,
-                    'longitude_x' => $unit['longitude_x'] ? (float)$unit['longitude_x'] : null,
-                    'full_address' => $unit['full_address'],
-                    'city' => $unit['city'],
-                    'state' => $unit['state'],
-                    'assigned_datetime' => $unit['assigned_datetime'],
-                    'enroute_datetime' => $unit['enroute_datetime'],
-                    'arrive_datetime' => $unit['arrive_datetime'],
-                    'clear_datetime' => $unit['clear_datetime'],
-                    'timestamps' => [
-                        'assigned' => $unit['assigned_datetime'],
-                        'dispatch' => $unit['dispatch_datetime'],
-                        'enroute' => $unit['enroute_datetime'],
-                        'arrive' => $unit['arrive_datetime'],
-                        'staged' => $unit['staged_datetime'],
-                        'at_patient' => $unit['at_patient_datetime'],
-                        'transport' => $unit['transport_datetime'],
-                        'at_hospital' => $unit['at_hospital_datetime'],
-                        'depart_hospital' => $unit['depart_hospital_datetime'],
-                        'clear' => $unit['clear_datetime']
-                    ],
-                    'personnel_count' => (int)$unit['personnel_count'],
-                    'log_count' => (int)$unit['log_count']
-                ];
-            }, $units);
-
-            Response::paginated($formattedUnits, $total, $pagination['page'], $pagination['per_page']);
+            Response::success([
+                'items'      => $stmt->fetchAll(),
+                'pagination' => [
+                    'total'        => $total,
+                    'per_page'     => $pagination['per_page'],
+                    'current_page' => $pagination['page'],
+                    'total_pages'  => $pagination['per_page'] > 0 ? (int) ceil($total / $pagination['per_page']) : 0,
+                ],
+                'filters'    => $criteria->toArray(),
+            ]);
         } catch (Exception $e) {
             Response::error('Failed to retrieve units: ' . $e->getMessage(), 500);
         }

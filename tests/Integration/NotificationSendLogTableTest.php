@@ -56,4 +56,16 @@ class NotificationSendLogTableTest extends TestCase
         $count = (int) self::$db->query("SELECT COUNT(*) FROM notification_send_log WHERE channel_id={$channelId}")->fetchColumn();
         $this->assertSame(0, $count);
     }
+
+    public function testHasActorColumn(): void
+    {
+        $row = self::$db->query(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'notification_send_log'
+             AND COLUMN_NAME = 'actor'"
+        )->fetch();
+
+        $this->assertNotFalse($row, 'notification_send_log.actor column missing');
+    }
 }

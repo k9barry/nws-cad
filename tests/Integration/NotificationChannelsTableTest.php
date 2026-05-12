@@ -47,4 +47,16 @@ class NotificationChannelsTableTest extends TestCase
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
             VALUES ('dup', 'pushover', 0, 'u', '{}')");
     }
+
+    public function testHasLastUpdatedActorColumn(): void
+    {
+        $row = self::$db->query(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+             AND TABLE_NAME = 'notification_channels'
+             AND COLUMN_NAME = 'last_updated_actor'"
+        )->fetch();
+
+        $this->assertNotFalse($row, 'notification_channels.last_updated_actor column missing');
+    }
 }

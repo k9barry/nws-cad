@@ -64,12 +64,24 @@ final class NotificationsController
                 return;
             }
 
+            // Aggregate child rows so multi-agency / multi-location calls
+            // don't inflate the send-log row count.
             $stmt = $this->db->prepare(
-                "SELECT id, channel_id, call_id, intent, topic, ok,
-                        http_status, duration_ms, error, created_at
-                 FROM notification_send_log
-                 WHERE channel_id = ?
-                 ORDER BY id DESC LIMIT ?"
+                "SELECT s.id, s.channel_id, s.call_id, s.intent, s.topic, s.ok,
+                        s.http_status, s.duration_ms, s.error, s.created_at,
+                        c.call_number, c.nature_of_call,
+                        MAX(ac.call_type) AS call_type,
+                        MAX(l.full_address) AS full_address,
+                        MAX(l.common_name) AS common_name
+                 FROM notification_send_log s
+                 LEFT JOIN calls c ON c.id = s.call_id
+                 LEFT JOIN agency_contexts ac ON ac.call_id = c.id
+                 LEFT JOIN locations l ON l.call_id = c.id
+                 WHERE s.channel_id = ?
+                 GROUP BY s.id, s.channel_id, s.call_id, s.intent, s.topic, s.ok,
+                          s.http_status, s.duration_ms, s.error, s.created_at,
+                          c.call_number, c.nature_of_call
+                 ORDER BY s.id DESC LIMIT ?"
             );
             $stmt->bindValue(1, $channelId, PDO::PARAM_INT);
             $stmt->bindValue(2, $limit, PDO::PARAM_INT);
@@ -94,7 +106,19 @@ final class NotificationsController
             $envKey  = strtoupper($type) . '_BASE_URL';
             $baseUrl = $_ENV[$envKey] ?? getenv($envKey) ?: '';
 
-            $name = "{$type}_primary";
+            if ($baseUrl !== '') {
+                $check = \NwsCad\Security\UrlValidator::validateChannelBaseUrl(
+                    $baseUrl,
+                    \NwsCad\Config::getInstance()
+                );
+                if (! $check['ok']) {
+                    Response::error("Invalid base_url: {$check['reason']}", 422);
+                    return;
+                }
+            }
+
+            $actor = \NwsCad\Security\Identity::current()->user;
+            $name  = "{$type}_primary";
 
             $stmt = $this->db->prepare("SELECT id, base_url FROM notification_channels WHERE name = ?");
             $stmt->execute([$name]);
@@ -110,22 +134,23 @@ final class NotificationsController
                     : '{"token_env":"PUSHOVER_TOKEN","user_env":"PUSHOVER_USER"}';
 
                 $ins = $this->db->prepare(
-                    "INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-                     VALUES (?, ?, 1, ?, ?)"
+                    "INSERT INTO notification_channels (name, type, enabled, base_url, config_json, last_updated_actor)
+                     VALUES (?, ?, 1, ?, ?, ?)"
                 );
-                $ins->execute([$name, $type, $baseUrl, $defaultConfig]);
+                $ins->execute([$name, $type, $baseUrl, $defaultConfig, $actor]);
             } else {
                 $upd = $this->db->prepare(
                     "UPDATE notification_channels
-                     SET enabled = 1, updated_at = CURRENT_TIMESTAMP
+                     SET enabled = 1, updated_at = CURRENT_TIMESTAMP, last_updated_actor = ?
                      WHERE name = ?"
                 );
-                $upd->execute([$name]);
+                $upd->execute([$actor, $name]);
             }
 
             $row = $this->db->prepare(
                 "SELECT id, name, type, enabled, base_url,
-                        last_error_at, last_error_message, created_at, updated_at
+                        last_error_at, last_error_message, last_updated_actor,
+                        created_at, updated_at
                  FROM notification_channels WHERE name = ?"
             );
             $row->execute([$name]);
@@ -143,12 +168,13 @@ final class NotificationsController
                 Response::error("Unknown channel type: {$type}", 404);
                 return;
             }
+            $actor = \NwsCad\Security\Identity::current()->user;
             $stmt = $this->db->prepare(
                 "UPDATE notification_channels
-                 SET enabled = 0, updated_at = CURRENT_TIMESTAMP
+                 SET enabled = 0, updated_at = CURRENT_TIMESTAMP, last_updated_actor = ?
                  WHERE type = ?"
             );
-            $stmt->execute([$type]);
+            $stmt->execute([$actor, $type]);
             Response::success(['updated' => $stmt->rowCount()]);
         } catch (Exception $e) {
             Response::error('Failed to disable channel: ' . $e->getMessage(), 500);
@@ -212,6 +238,21 @@ final class NotificationsController
                 $this->repo->recordSend((int) $row['id'], null, 'test', $r);
             }
 
+            $actor = \NwsCad\Security\Identity::current()->user;
+            if ($actor !== null) {
+                $count = count($results);
+                $upd = $this->db->prepare(
+                    "UPDATE notification_send_log SET actor = ?
+                     WHERE channel_id = ? AND id IN (
+                        SELECT id FROM (
+                            SELECT id FROM notification_send_log
+                            WHERE channel_id = ? ORDER BY id DESC LIMIT {$count}
+                        ) recent
+                     )"
+                );
+                $upd->execute([$actor, (int) $row['id'], (int) $row['id']]);
+            }
+
             // Retrieve the ID of the most recently inserted log row for this channel
             $idStmt = $this->db->prepare(
                 "SELECT id FROM notification_send_log WHERE channel_id = ? ORDER BY id DESC LIMIT 1"
@@ -231,6 +272,72 @@ final class NotificationsController
             ]);
         } catch (Exception $e) {
             Response::error('Failed to send test: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /** DELETE /api/notifications/log/{id} — dismiss a single send-log row */
+    public function dismissLogEntry(string $id): void
+    {
+        try {
+            if (! ctype_digit($id)) {
+                Response::error('Invalid log id', 400);
+                return;
+            }
+            $stmt = $this->db->prepare("DELETE FROM notification_send_log WHERE id = ?");
+            $stmt->execute([(int) $id]);
+            if ($stmt->rowCount() === 0) {
+                Response::error('Log entry not found', 404);
+                return;
+            }
+            Response::success(['deleted' => 1, 'id' => (int) $id]);
+        } catch (Exception $e) {
+            Response::error('Failed to dismiss log entry: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /** POST /api/notifications/channels/{type}/clear-error — clear sticky channel error banner */
+    public function clearChannelError(string $type): void
+    {
+        try {
+            if (! $this->validateType($type)) {
+                Response::error("Unknown channel type: {$type}", 404);
+                return;
+            }
+            $actor = \NwsCad\Security\Identity::current()->user;
+            $stmt = $this->db->prepare(
+                "UPDATE notification_channels
+                 SET last_error_at = NULL, last_error_message = NULL,
+                     updated_at = CURRENT_TIMESTAMP, last_updated_actor = ?
+                 WHERE type = ?"
+            );
+            $stmt->execute([$actor, $type]);
+            Response::success(['cleared' => $stmt->rowCount()]);
+        } catch (Exception $e) {
+            Response::error('Failed to clear channel error: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /** POST /api/notifications/log/clear-failed?channel=<id|name> — dismiss all failed rows */
+    public function clearFailed(): void
+    {
+        try {
+            $channel = $_GET['channel'] ?? $_POST['channel'] ?? null;
+            if ($channel === null || $channel === '') {
+                Response::error('channel parameter required', 400);
+                return;
+            }
+            $channelId = $this->resolveChannelId((string) $channel);
+            if ($channelId === null) {
+                Response::error('Unknown channel', 404);
+                return;
+            }
+            $stmt = $this->db->prepare(
+                "DELETE FROM notification_send_log WHERE channel_id = ? AND ok = 0"
+            );
+            $stmt->execute([$channelId]);
+            Response::success(['deleted' => $stmt->rowCount(), 'channel_id' => $channelId]);
+        } catch (Exception $e) {
+            Response::error('Failed to clear failed entries: ' . $e->getMessage(), 500);
         }
     }
 
