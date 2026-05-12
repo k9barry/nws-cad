@@ -69,4 +69,60 @@ final class OutboxRepositoryTest extends TestCase
         $this->assertNull($row['claimed_by']);
         $this->assertNull($row['last_error']);
     }
+
+    public function testMarkDone(): void
+    {
+        $id = $this->insertPending();
+        $this->repo->markDone($id);
+
+        $row = self::$db->query("SELECT status, last_error FROM notification_outbox WHERE id = {$id}")
+            ->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('done', $row['status']);
+        $this->assertNull($row['last_error']);
+    }
+
+    public function testMarkRetry(): void
+    {
+        $id = $this->insertPending();
+        $this->repo->markRetry(
+            rowId:         $id,
+            attempts:      2,
+            nextAttemptAt: new DateTimeImmutable('2026-05-07 13:00:00'),
+            errorMessage:  'HTTP 503',
+        );
+
+        $row = self::$db->query("SELECT status, attempts, next_attempt_at, claimed_by, claimed_at, last_error
+                                  FROM notification_outbox WHERE id = {$id}")
+            ->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('pending', $row['status']);
+        $this->assertSame(2, (int) $row['attempts']);
+        $this->assertSame('2026-05-07 13:00:00', $row['next_attempt_at']);
+        $this->assertNull($row['claimed_by']);
+        $this->assertNull($row['claimed_at']);
+        $this->assertSame('HTTP 503', $row['last_error']);
+    }
+
+    public function testMarkFailed(): void
+    {
+        $id = $this->insertPending();
+        $this->repo->markFailed($id, 5, 'retries exhausted');
+
+        $row = self::$db->query("SELECT status, attempts, last_error FROM notification_outbox WHERE id = {$id}")
+            ->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('failed', $row['status']);
+        $this->assertSame(5, (int) $row['attempts']);
+        $this->assertSame('retries exhausted', $row['last_error']);
+    }
+
+    private function insertPending(): int
+    {
+        return $this->repo->insert(
+            callId:         $this->callId,
+            channelId:      $this->channelId,
+            intent:         Intent::Created,
+            resendAll:      true,
+            addedTopics:    [],
+            createDateTime: new DateTimeImmutable('2026-05-07 12:00:00'),
+        );
+    }
 }

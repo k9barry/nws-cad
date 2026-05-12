@@ -74,7 +74,16 @@ final class OutboxRepository implements OutboxRepositoryInterface
 
     public function markDone(int $rowId): void
     {
-        throw new \LogicException('not implemented');
+        $this->exec(function (PDO $db) use ($rowId): void {
+            $stmt = $db->prepare(
+                "UPDATE notification_outbox
+                 SET status = 'done', last_error = NULL,
+                     claimed_at = NULL, claimed_by = NULL,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?"
+            );
+            $stmt->execute([$rowId]);
+        });
     }
 
     public function markRetry(
@@ -83,11 +92,39 @@ final class OutboxRepository implements OutboxRepositoryInterface
         DateTimeImmutable $nextAttemptAt,
         string $errorMessage,
     ): void {
-        throw new \LogicException('not implemented');
+        $this->exec(function (PDO $db) use ($rowId, $attempts, $nextAttemptAt, $errorMessage): void {
+            $stmt = $db->prepare(
+                "UPDATE notification_outbox
+                 SET status = 'pending',
+                     attempts = ?,
+                     next_attempt_at = ?,
+                     claimed_at = NULL,
+                     claimed_by = NULL,
+                     last_error = ?,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?"
+            );
+            $stmt->execute([
+                $attempts,
+                $nextAttemptAt->format('Y-m-d H:i:s'),
+                $errorMessage,
+                $rowId,
+            ]);
+        });
     }
 
     public function markFailed(int $rowId, int $attempts, string $errorMessage): void
     {
-        throw new \LogicException('not implemented');
+        $this->exec(function (PDO $db) use ($rowId, $attempts, $errorMessage): void {
+            $stmt = $db->prepare(
+                "UPDATE notification_outbox
+                 SET status = 'failed',
+                     attempts = ?,
+                     last_error = ?,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?"
+            );
+            $stmt->execute([$attempts, $errorMessage, $rowId]);
+        });
     }
 }
