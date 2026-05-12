@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.2] - 2026-05-12
+
+### Changes
+- fix(deploy): document new security env vars; revert loopback-only API bind (#23) (7c35d60)
+
 ## [1.1.1] - 2026-05-12
 
 ### Changes
