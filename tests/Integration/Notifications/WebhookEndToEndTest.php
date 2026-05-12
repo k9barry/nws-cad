@@ -5,16 +5,22 @@ declare(strict_types=1);
 namespace NwsCad\Tests\Integration\Notifications;
 
 use DateTimeImmutable;
+use NwsCad\Database;
 use NwsCad\Notifications\ChannelDescriptor;
 use NwsCad\Notifications\ChannelFactory;
 use NwsCad\Notifications\ChannelFactoryInterface;
 use NwsCad\Notifications\ChannelRegistry;
+use NwsCad\Notifications\ChannelRepository;
 use NwsCad\Notifications\Channels\WebhookChannel;
 use NwsCad\Notifications\Events\CallProcessedEvent;
 use NwsCad\Notifications\Events\Intent;
 use NwsCad\Notifications\IncidentDto;
-use NwsCad\Notifications\NotificationDispatcher;
+use NwsCad\Notifications\Outbox\OutboxProcessor;
+use NwsCad\Notifications\Outbox\OutboxRepository;
+use NwsCad\Notifications\Outbox\OutboxWriter;
 use NwsCad\Notifications\SendResult;
+use NwsCad\Notifications\TopicResolver;
+use PDO;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
@@ -25,13 +31,29 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(ChannelDescriptor::class)]
 #[UsesClass(ChannelFactory::class)]
 #[UsesClass(ChannelFactoryInterface::class)]
-#[UsesClass(NotificationDispatcher::class)]
+#[UsesClass(ChannelRepository::class)]
+#[UsesClass(OutboxWriter::class)]
+#[UsesClass(OutboxProcessor::class)]
+#[UsesClass(OutboxRepository::class)]
+#[UsesClass(TopicResolver::class)]
 #[UsesClass(IncidentDto::class)]
 #[UsesClass(SendResult::class)]
 final class WebhookEndToEndTest extends TestCase
 {
+    private static PDO $db;
+
+    public static function setUpBeforeClass(): void
+    {
+        try {
+            self::$db = Database::getConnection();
+        } catch (\Throwable $e) {
+            self::markTestSkipped('Database not available');
+        }
+    }
+
     protected function setUp(): void
     {
+        cleanTestDatabase();
         ChannelRegistry::clear();
     }
 
@@ -40,66 +62,73 @@ final class WebhookEndToEndTest extends TestCase
         ChannelRegistry::clear();
     }
 
-    public function testDispatcherDeliversToWebhookOnce(): void
+    public function testProducerThenConsumerDeliversToWebhookOnce(): void
     {
         ChannelRegistry::clear();
         ChannelRegistry::register(WebhookChannel::descriptor());
 
         $server = $this->startCaptureServer();
         try {
-            $row = [
-                'id'          => 1,
-                'name'        => 'test',
-                'type'        => 'webhook',
-                'enabled'     => 1,
-                'base_url'    => "http://127.0.0.1:{$server['port']}/",
-                'config_json' => json_encode([
-                    'template' => [
-                        'intent'  => '{intent}',
-                        'address' => '{full_address}',
-                        'topics'  => '${topics}',
-                    ],
-                ]),
-                'last_error'  => null,
-            ];
+            self::$db->exec("INSERT INTO calls (call_id, call_number, create_datetime) VALUES (1, 'CN-1', '2026-05-12 11:00:00')");
+            $callId = (int) self::$db->lastInsertId();
 
-            $repo = $this->channelRepoWithRows([$row]);
-            $factory = new ChannelFactory(\NwsCad\Config::getInstance());
-
-            $dispatcher = new NotificationDispatcher(
-                channelRepo: $repo,
-                incidentLoader: fn (int $id): IncidentDto => IncidentDto::fromRow([
-                    'id'                   => $id,
-                    'call_id'              => (string) $id,
-                    'call_number'          => 'CN-1',
-                    'call_type'            => 'EMS',
-                    'agency_type'          => 'EMS',
-                    'jurisdiction'         => 'CityA',
-                    'units'                => 'M1',
-                    'common_name'          => null,
-                    'full_address'         => '5 Oak Lane',
-                    'nearest_cross_streets'=> null,
-                    'police_beat'          => null,
-                    'fire_quadrant'        => null,
-                    'nature_of_call'       => null,
-                    'narrative'            => '',
-                    'alarm_level'          => 1,
-                    'create_datetime'      => '2026-05-12T11:00:00Z',
-                    'latitude'             => null,
-                    'longitude'            => null,
-                ]),
-                channelFactory: fn (array $r) => $factory->create($r),
-                deltaSeconds: 9999,
+            $configJson = json_encode([
+                'template' => [
+                    'intent'  => '{intent}',
+                    'address' => '{full_address}',
+                    'topics'  => '${topics}',
+                ],
+            ]);
+            $stmt = self::$db->prepare(
+                "INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
+                 VALUES ('test', 'webhook', 1, ?, ?)"
             );
+            $stmt->execute(["http://127.0.0.1:{$server['port']}/", $configJson]);
+            $channelId = (int) self::$db->lastInsertId();
 
+            $outboxRepo  = new OutboxRepository(self::$db);
+            $channelRepo = new ChannelRepository(self::$db);
+            $factory     = new ChannelFactory(\NwsCad\Config::getInstance());
+
+            $writer = new OutboxWriter($outboxRepo, $channelRepo, 9999);
             $event = new CallProcessedEvent(
-                dbCallId: 1,
+                dbCallId: $callId,
                 intent: Intent::Created,
                 changedFields: [],
                 createDateTime: new DateTimeImmutable(),
                 addedTopics: [],
             );
-            $dispatcher->handle($event);
+            $writer->handle($event);
+
+            $incidentLoader = static fn (int $id): IncidentDto => IncidentDto::fromRow([
+                'id'                   => $id,
+                'call_id'              => (string) $id,
+                'call_number'          => 'CN-1',
+                'call_type'            => 'EMS',
+                'agency_type'          => 'EMS',
+                'jurisdiction'         => 'CityA',
+                'units'                => 'M1',
+                'common_name'          => null,
+                'full_address'         => '5 Oak Lane',
+                'nearest_cross_streets'=> null,
+                'police_beat'          => null,
+                'fire_quadrant'        => null,
+                'nature_of_call'       => null,
+                'narrative'            => '',
+                'alarm_level'          => 1,
+                'create_datetime'      => '2026-05-12T11:00:00Z',
+                'latitude'             => null,
+                'longitude'            => null,
+            ]);
+
+            $processor = new OutboxProcessor(
+                $outboxRepo,
+                $factory,
+                $channelRepo,
+                $incidentLoader,
+                batchSize: 10, maxAttempts: 5, workerId: 'test:1:1',
+            );
+            $processor->tick();
 
             $captured = $this->readCapture($server['capturePath']);
             $this->assertCount(1, $captured, 'webhook should be POSTed exactly once');
@@ -107,6 +136,9 @@ final class WebhookEndToEndTest extends TestCase
             $this->assertSame('Created', $decoded['intent']);
             $this->assertSame('5 Oak Lane', $decoded['address']);
             $this->assertSame(['EMS', 'CityA', 'M1'], $decoded['topics']);
+
+            $status = self::$db->query("SELECT status FROM notification_outbox WHERE channel_id = {$channelId}")->fetchColumn();
+            $this->assertSame('done', $status);
         } finally {
             $this->stopCaptureServer($server);
             ChannelRegistry::clear();
@@ -164,15 +196,5 @@ final class WebhookEndToEndTest extends TestCase
         socket_getsockname($sock, $addr, $port);
         socket_close($sock);
         return (int) $port;
-    }
-
-    private function channelRepoWithRows(array $rows): \NwsCad\Notifications\ChannelRepositoryInterface
-    {
-        return new class($rows) implements \NwsCad\Notifications\ChannelRepositoryInterface {
-            public function __construct(private array $rows) {}
-            public function listEnabled(): array { return $this->rows; }
-            public function recordSend(int $channelId, ?int $callId, ?string $intent, SendResult $result): void {}
-            public function markFailure(int $channelId, string $message): void {}
-        };
     }
 }
