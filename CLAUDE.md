@@ -42,7 +42,7 @@ Two HTTP entry points sit in `public/` and dispatch to two distinct stacks:
 /*      →  public/index.php →  Mobile detection  →  Dashboard/Views/{dashboard.php | dashboard-mobile.php | notifications.php}
 ```
 
-The file watcher (`src/watcher.php` / `FileWatcher.php`) is a separate long-lived process: it ingests XML via `AegisXmlParser`, writes to the database, and — after commit — dispatches a `CallProcessedEvent` that `NotificationDispatcher` consumes to fan out to ntfy/Pushover.
+The file watcher (`src/watcher.php` / `FileWatcher.php`) is a separate long-lived process: it ingests XML via `AegisXmlParser`, writes to the database, and — after commit — dispatches a `CallProcessedEvent` that `OutboxWriter` consumes to queue per-channel rows in `notification_outbox`. The watcher loop drives `OutboxProcessor::tick()` to drain the queue and fan out to ntfy/Pushover/webhook.
 
 ### Core classes (PSR-4 `NwsCad\*` from `src/`)
 

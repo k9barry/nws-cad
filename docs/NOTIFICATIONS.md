@@ -1,6 +1,6 @@
 # Notifications
 
-The notifications module turns parsed CAD calls into ntfy.sh / Pushover pushes. It runs in-process inside the file-watcher daemon: after `AegisXmlParser` commits, a `CallProcessedEvent` is dispatched, `NotificationDispatcher` decides whether to send (delta-time gate + intent rules), and each enabled channel posts the alert.
+The notifications module turns parsed CAD calls into ntfy.sh / Pushover / webhook pushes. It runs in-process inside the file-watcher daemon: after `AegisXmlParser` commits, a `CallProcessedEvent` is dispatched, `OutboxWriter` applies the delta-time + intent rules and inserts one `notification_outbox` row per enabled channel, and `OutboxProcessor::tick()` (driven from the watcher loop) drains the queue with bounded backoff retries — each row's send result lands in `notification_send_log`.
 
 ## Quick start
 
