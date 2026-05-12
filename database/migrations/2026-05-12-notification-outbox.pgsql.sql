@@ -6,7 +6,7 @@
 -- consumed by FileWatcher's outbox tick.
 CREATE TABLE IF NOT EXISTS notification_outbox (
     id                  BIGSERIAL PRIMARY KEY,
-    db_call_id          INTEGER NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+    db_call_id          BIGINT NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
     channel_id          BIGINT NOT NULL REFERENCES notification_channels(id) ON DELETE CASCADE,
     intent              VARCHAR(16) NOT NULL,
     resend_all          BOOLEAN NOT NULL DEFAULT FALSE,
