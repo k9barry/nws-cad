@@ -157,6 +157,54 @@ final class OutboxRepositoryTest extends TestCase
         $this->assertNull($other['claimed_by']);
     }
 
+    public function testClaimReturnsPendingRowsAndTransitionsThem(): void
+    {
+        $id1 = $this->insertPending();
+        $id2 = $this->insertPending();
+
+        $now = new DateTimeImmutable('2026-05-07 14:00:00');
+        $claimed = $this->repo->claim('me:1:111', 10, $now);
+
+        $this->assertCount(2, $claimed);
+        $this->assertSame([$id1, $id2], array_map(static fn ($r) => (int) $r['id'], $claimed));
+        foreach ([$id1, $id2] as $id) {
+            $row = self::$db->query("SELECT status, claimed_by, claimed_at FROM notification_outbox WHERE id={$id}")
+                ->fetch(PDO::FETCH_ASSOC);
+            $this->assertSame('in_flight', $row['status']);
+            $this->assertSame('me:1:111', $row['claimed_by']);
+            $this->assertSame('2026-05-07 14:00:00', $row['claimed_at']);
+        }
+    }
+
+    public function testClaimRespectsBatchSize(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->insertPending();
+        }
+        $claimed = $this->repo->claim('me:1:111', 2, new DateTimeImmutable('2026-05-07 14:00:00'));
+        $this->assertCount(2, $claimed);
+    }
+
+    public function testClaimRespectsNextAttemptAt(): void
+    {
+        $ready   = $this->insertPending();
+        $waiting = $this->insertPending();
+        self::$db->exec(
+            "UPDATE notification_outbox SET next_attempt_at = '2026-05-07 15:00:00' WHERE id = {$waiting}"
+        );
+
+        $claimed = $this->repo->claim('me:1:111', 10, new DateTimeImmutable('2026-05-07 14:00:00'));
+
+        $this->assertCount(1, $claimed);
+        $this->assertSame($ready, (int) $claimed[0]['id']);
+    }
+
+    public function testClaimReturnsEmptyWhenNoPending(): void
+    {
+        $claimed = $this->repo->claim('me:1:111', 10, new DateTimeImmutable());
+        $this->assertSame([], $claimed);
+    }
+
     private function insertPending(): int
     {
         return $this->repo->insert(

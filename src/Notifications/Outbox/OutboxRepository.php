@@ -88,7 +88,43 @@ final class OutboxRepository implements OutboxRepositoryInterface
 
     public function claim(string $workerId, int $batchSize, DateTimeImmutable $now): array
     {
-        throw new \LogicException('not implemented');
+        return $this->exec(function (PDO $db) use ($workerId, $batchSize, $now): array {
+            $nowStr = $now->format('Y-m-d H:i:s');
+
+            $sel = $db->prepare(
+                "SELECT id FROM notification_outbox
+                 WHERE status = 'pending'
+                   AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+                 ORDER BY id ASC
+                 LIMIT ?"
+            );
+            $sel->bindValue(1, $nowStr);
+            $sel->bindValue(2, $batchSize, PDO::PARAM_INT);
+            $sel->execute();
+            $ids = array_map(static fn ($r): int => (int) $r['id'], $sel->fetchAll(PDO::FETCH_ASSOC));
+            if ($ids === []) {
+                return [];
+            }
+
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $upd = $db->prepare(
+                "UPDATE notification_outbox
+                 SET status = 'in_flight',
+                     claimed_at = ?,
+                     claimed_by = ?,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id IN ({$placeholders}) AND status = 'pending'"
+            );
+            $upd->execute([$nowStr, $workerId, ...$ids]);
+
+            $reSel = $db->prepare(
+                "SELECT * FROM notification_outbox
+                 WHERE id IN ({$placeholders}) AND claimed_by = ? AND status = 'in_flight'
+                 ORDER BY id ASC"
+            );
+            $reSel->execute([...$ids, $workerId]);
+            return $reSel->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        });
     }
 
     public function markDone(int $rowId): void
