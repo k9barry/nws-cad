@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.14] - 2026-05-13
+
+### Changes
+- Add SVG favicon and wire it into web entry points (#36) (65abc95)
+
 ## [1.1.13] - 2026-05-13
 
 ### Changes
