@@ -190,7 +190,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" onclick="viewCallDetails(window.currentModalCallId)">
+                <button type="button" id="map-modal-view-details-btn" class="btn btn-primary" data-popup-action="view-call">
                     <i class="bi bi-eye"></i> View Full Details
                 </button>
             </div>

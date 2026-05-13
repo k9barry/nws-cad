@@ -233,6 +233,30 @@ body:has(.dashboard-row-fill) > footer {
     margin-right: 0.25rem;
 }
 
+/* Map markers — class-based so CSP style-src can drop 'unsafe-inline'.
+   Leaflet's L.divIcon wraps html in a div with className 'custom-marker'. */
+.custom-marker .marker-circle {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.custom-marker .marker-circle i {
+    color: #fff;
+    font-size: 14px;
+}
+
+.custom-marker .marker-circle--red    { background-color: #dc3545; }
+.custom-marker .marker-circle--yellow { background-color: #ffc107; }
+.custom-marker .marker-circle--blue   { background-color: #0dcaf0; }
+.custom-marker .marker-circle--green  { background-color: #198754; }
+.custom-marker .marker-circle--gray   { background-color: #6c757d; }
+
 /* Recent Calls List */
 .recent-call-item {
     padding: 1rem;

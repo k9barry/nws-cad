@@ -1303,18 +1303,16 @@ const MobileMaps = {
                 if (isNaN(callId)) return;
                 
                 const popupContent = `
-                    <div style="min-width: 200px;">
-                        <strong style="font-size: 1rem;">${MobileDashboard.escapeHtml(callType)}</strong><br>
-                        <small style="color: #6c757d;">#${MobileDashboard.escapeHtml(String(callNumber))}</small><br>
-                        <div style="margin: 8px 0;">
+                    <div class="mobile-map-popup">
+                        <strong class="popup-call-type">${MobileDashboard.escapeHtml(callType)}</strong><br>
+                        <small class="popup-call-number">#${MobileDashboard.escapeHtml(String(callNumber))}</small><br>
+                        <div class="popup-location">
                             <i class="bi bi-geo-alt"></i> ${MobileDashboard.escapeHtml(locationText)}
                         </div>
-                        <div style="margin-bottom: 8px;">
+                        <div class="popup-status">
                             <span class="badge ${(call.closed_flag || call.is_stale) ? 'bg-success' : 'bg-warning text-dark'}">${statusBadge}</span>
                         </div>
-                        <button 
-                            class="btn btn-primary btn-sm w-100" 
-                            onclick="MobileDashboard.openCallDetails(${callId}); return false;">
+                        <button class="btn btn-primary btn-sm w-100" data-popup-action="mobile-view-call" data-call-id="${callId}">
                             <i class="bi bi-info-circle"></i> View Details
                         </button>
                     </div>
@@ -1332,6 +1330,20 @@ const MobileMaps = {
         }
     }
 };
+
+// Click delegation for mobile map popup buttons. CSP no longer permits inline
+// onclick handlers — see SecurityHeaders::setContentSecurityPolicy. Uses a
+// distinct action name from the desktop maps.js delegator so the two stay
+// independent on pages that load both bundles.
+document.addEventListener('click', (event) => {
+    const target = event.target.closest('[data-popup-action="mobile-view-call"]');
+    if (!target) return;
+
+    const id = parseInt(target.dataset.callId, 10);
+    if (Number.isFinite(id)) {
+        MobileDashboard.openCallDetails(id);
+    }
+});
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
