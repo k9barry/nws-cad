@@ -45,6 +45,7 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="NWS CAD Dashboard - Computer-Aided Dispatch Data Visualization">
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
     <title><?= htmlspecialchars($pageTitle) ?> - NWS CAD Dashboard</title>
     
     <!-- Bootstrap 5 CSS -->
