@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.13] - 2026-05-13
+
+### Changes
+- feat(security, notifications): style-src nonces + outbox per-row inspector (#34) (386b497)
+
 ## [1.1.12] - 2026-05-12
 
 ### Changes
