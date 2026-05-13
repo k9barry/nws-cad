@@ -233,6 +233,30 @@ body:has(.dashboard-row-fill) > footer {
     margin-right: 0.25rem;
 }
 
+/* Map markers — class-based so CSP style-src can drop 'unsafe-inline'.
+   Leaflet's L.divIcon wraps html in a div with className 'custom-marker'. */
+.custom-marker .marker-circle {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.custom-marker .marker-circle i {
+    color: #fff;
+    font-size: 14px;
+}
+
+.custom-marker .marker-circle--red    { background-color: #dc3545; }
+.custom-marker .marker-circle--yellow { background-color: #ffc107; }
+.custom-marker .marker-circle--blue   { background-color: #0dcaf0; }
+.custom-marker .marker-circle--green  { background-color: #198754; }
+.custom-marker .marker-circle--gray   { background-color: #6c757d; }
+
 /* Recent Calls List */
 .recent-call-item {
     padding: 1rem;
@@ -747,4 +771,27 @@ Timestamp: Wed Jan 28 01:35:28 UTC 2026
 @keyframes row-flash {
     0%   { background-color: #fef9c3; }
     100% { background-color: transparent; }
+}
+
+/* Replacements for inline style="..." attributes (style-src CSP hardening) */
+.stat-title-compact    { font-size: 1.2rem; }
+.stat-title-compact-sm { font-size: 0.9rem; }
+
+/* Width helpers for recent-calls table headers */
+.col-w-9  { width: 9%; }
+.col-w-10 { width: 10%; }
+.col-w-13 { width: 13%; }
+.col-w-19 { width: 19%; }
+.col-w-20 { width: 20%; }
+
+/* Modal map sizing — was inline style="height: 600px; width: 100%;" */
+#modal-map { height: 600px; width: 100%; }
+
+/* Floating info card overlaid on the modal map */
+.map-info-overlay {
+    bottom: 20px;
+    left: 20px;
+    max-width: 350px;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }

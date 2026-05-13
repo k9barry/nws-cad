@@ -498,3 +498,10 @@ body.mobile-view {
     animation: pulse 2s infinite;
     color: #198754 !important;
 }
+
+/* Mobile map popup — class-based so CSP style-src can drop 'unsafe-inline'. */
+.mobile-map-popup            { min-width: 200px; }
+.mobile-map-popup .popup-call-type   { font-size: 1rem; }
+.mobile-map-popup .popup-call-number { color: #6c757d; }
+.mobile-map-popup .popup-location    { margin: 8px 0; }
+.mobile-map-popup .popup-status      { margin-bottom: 8px; }

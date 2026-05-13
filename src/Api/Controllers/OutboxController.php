@@ -64,6 +64,82 @@ final class OutboxController
         }
     }
 
+    private const HISTORY_LIMIT = 20;
+
+    /** GET /api/notifications/outbox/{id} — row detail plus send-attempt history */
+    public function show(string $id): void
+    {
+        try {
+            if (! ctype_digit($id)) {
+                Response::error('Invalid outbox id', 400);
+                return;
+            }
+            $row = $this->repo->findById((int) $id);
+            if ($row === null) {
+                Response::error('Outbox row not found', 404);
+                return;
+            }
+            $history = $this->repo->listSendHistory(
+                (int) $row['channel_id'],
+                (int) $row['db_call_id'],
+                (string) $row['intent'],
+                self::HISTORY_LIMIT,
+            );
+            Response::success(['row' => $row, 'history' => $history]);
+        } catch (Exception $e) {
+            Response::error('Failed to load outbox row: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * POST /api/notifications/outbox/{id}/schedule
+     * Body (JSON or form): { "next_attempt_at": "YYYY-MM-DD HH:MM:SS" }
+     *
+     * Reschedules a pending or failed row to retry at the supplied time. Keeps
+     * attempts/last_error intact; failed rows transition back to pending.
+     */
+    public function schedule(string $id): void
+    {
+        try {
+            if (! ctype_digit($id)) {
+                Response::error('Invalid outbox id', 400);
+                return;
+            }
+
+            $body = json_decode((string) file_get_contents('php://input'), true);
+            $when = is_array($body) ? ($body['next_attempt_at'] ?? null) : null;
+            if (! is_string($when) || $when === '') {
+                $when = (string) ($_POST['next_attempt_at'] ?? '');
+            }
+            if (! is_string($when) || $when === '') {
+                Response::error('Missing next_attempt_at', 400);
+                return;
+            }
+
+            // Accept both 'Y-m-d H:i:s' and ISO 8601 ('Y-m-d\TH:i:s' or with timezone).
+            // DateTimeImmutable throws on invalid input → caught below.
+            $parsed = null;
+            try {
+                $parsed = new \DateTimeImmutable((string) $when);
+            } catch (\Throwable $e) {
+                Response::error('Invalid next_attempt_at: ' . $e->getMessage(), 400);
+                return;
+            }
+
+            $ok = $this->repo->reschedule((int) $id, $parsed);
+            if (! $ok) {
+                Response::error('Outbox row not found or not reschedulable (must be pending or failed)', 404);
+                return;
+            }
+            Response::success([
+                'id'              => (int) $id,
+                'next_attempt_at' => $parsed->format('Y-m-d H:i:s'),
+            ]);
+        } catch (Exception $e) {
+            Response::error('Failed to reschedule outbox row: ' . $e->getMessage(), 500);
+        }
+    }
+
     /** DELETE /api/notifications/outbox/{id} */
     public function dismiss(string $id): void
     {

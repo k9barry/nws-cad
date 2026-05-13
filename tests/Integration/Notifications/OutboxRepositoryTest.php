@@ -311,6 +311,100 @@ final class OutboxRepositoryTest extends TestCase
         $this->assertSame(1, $remaining);
     }
 
+    public function testFindByIdReturnsJoinedRow(): void
+    {
+        $id = $this->insertPending();
+
+        $row = $this->repo->findById($id);
+        $this->assertIsArray($row);
+        $this->assertSame($id, (int) $row['id']);
+        $this->assertSame('ntfy_primary', $row['channel_name']);
+        $this->assertSame('ntfy', $row['channel_type']);
+        $this->assertSame('C-1', $row['call_number']);
+    }
+
+    public function testFindByIdReturnsNullForMissingRow(): void
+    {
+        $this->assertNull($this->repo->findById(99999));
+    }
+
+    public function testListSendHistoryFiltersByChannelCallAndIntent(): void
+    {
+        // Two matching entries plus one mismatching channel.
+        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Created', 't1', 1, 200, 42, NULL)");
+        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Created', 't1', 0, 503, 91, 'HTTP 503')");
+        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Updated', 't1', 1, 200, 50, NULL)");
+
+        // Different channel.
+        self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json) VALUES ('other', 'pushover', 1, 'https://x', '{}')");
+        $otherChannelId = (int) self::$db->lastInsertId();
+        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$otherChannelId}, {$this->callId}, 'Created', 't1', 1, 200, 30, NULL)");
+
+        $history = $this->repo->listSendHistory($this->channelId, $this->callId, 'Created', 50);
+        $this->assertCount(2, $history);
+        // Newest first.
+        $this->assertSame(0, (int) $history[0]['ok']);
+        $this->assertSame('HTTP 503', $history[0]['error']);
+    }
+
+    public function testListSendHistoryHonorsLimit(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Created', 't1', 1, 200, 10, NULL)");
+        }
+        $history = $this->repo->listSendHistory($this->channelId, $this->callId, 'Created', 3);
+        $this->assertCount(3, $history);
+    }
+
+    public function testRescheduleSetsNextAttemptAndKeepsAttemptsAndError(): void
+    {
+        $id = $this->insertPending();
+        $this->repo->markFailed($id, 5, 'retries exhausted');
+
+        $ok = $this->repo->reschedule($id, new DateTimeImmutable('2026-05-08 09:00:00'));
+        $this->assertTrue($ok);
+
+        $row = self::$db->query("SELECT status, attempts, next_attempt_at, last_error FROM notification_outbox WHERE id={$id}")
+            ->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('pending', $row['status']);
+        $this->assertSame(5, (int) $row['attempts']);
+        $this->assertSame('2026-05-08 09:00:00', $row['next_attempt_at']);
+        $this->assertSame('retries exhausted', $row['last_error']);
+    }
+
+    public function testRescheduleAllowedForPendingRow(): void
+    {
+        $id = $this->insertPending();
+        $ok = $this->repo->reschedule($id, new DateTimeImmutable('2026-05-08 09:00:00'));
+        $this->assertTrue($ok);
+        $row = self::$db->query("SELECT next_attempt_at FROM notification_outbox WHERE id={$id}")
+            ->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('2026-05-08 09:00:00', $row['next_attempt_at']);
+    }
+
+    public function testRescheduleRejectsInFlightRow(): void
+    {
+        $id = $this->insertPending();
+        self::$db->exec("UPDATE notification_outbox SET status='in_flight', claimed_by='w:1', claimed_at=NOW() WHERE id={$id}");
+
+        $ok = $this->repo->reschedule($id, new DateTimeImmutable('2026-05-08 09:00:00'));
+        $this->assertFalse($ok);
+        $row = self::$db->query("SELECT status FROM notification_outbox WHERE id={$id}")->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('in_flight', $row['status']);
+    }
+
+    public function testRescheduleRejectsDoneRow(): void
+    {
+        $id = $this->insertPending();
+        $this->repo->markDone($id);
+        $this->assertFalse($this->repo->reschedule($id, new DateTimeImmutable('2026-05-08 09:00:00')));
+    }
+
+    public function testRescheduleReturnsFalseForMissingRow(): void
+    {
+        $this->assertFalse($this->repo->reschedule(99999, new DateTimeImmutable('2026-05-08 09:00:00')));
+    }
+
     private function insertPending(): int
     {
         return $this->repo->insert(

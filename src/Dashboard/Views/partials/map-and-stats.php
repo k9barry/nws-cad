@@ -1,7 +1,7 @@
 <!-- Statistics Cards Row - 4 across at the top -->
 <div class="row mb-0" id="stats-cards">
     <div class="col-lg-3 col-md-6 col-sm-6 mb-2">
-        <div class="card stat-card-v2 is-total clickable-stat" data-bs-toggle="modal" data-bs-target="#filters-modal" style="cursor: pointer;">
+        <div class="card stat-card-v2 is-total clickable-stat" data-bs-toggle="modal" data-bs-target="#filters-modal">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -20,7 +20,7 @@
     </div>
 
     <div class="col-lg-3 col-md-6 col-sm-6 mb-2">
-        <div class="card stat-card-v2 is-active clickable-stat" onclick="filterDashboard('active')" style="cursor: pointer;">
+        <div class="card stat-card-v2 is-active clickable-stat" onclick="filterDashboard('active')">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -39,7 +39,7 @@
     </div>
 
     <div class="col-lg-3 col-md-6 col-sm-6 mb-2">
-        <div class="card stat-card-v2 is-closed clickable-stat" onclick="filterDashboard('closed')" style="cursor: pointer;">
+        <div class="card stat-card-v2 is-closed clickable-stat" onclick="filterDashboard('closed')">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -58,12 +58,12 @@
     </div>
 
     <div class="col-lg-3 col-md-6 col-sm-6 mb-2">
-        <div class="card stat-card-v2 is-analytics clickable-stat" data-bs-toggle="modal" data-bs-target="#analytics-modal" style="cursor: pointer;">
+        <div class="card stat-card-v2 is-analytics clickable-stat" data-bs-toggle="modal" data-bs-target="#analytics-modal">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <h6 class="text-muted mb-1">Analytics</h6>
-                        <h2 class="mb-0" style="font-size: 1.2rem;">
+                        <h2 class="mb-0 stat-title-compact">
                             <i class="bi bi-graph-up"></i> View Charts
                         </h2>
                         <span class="summary-chips mt-1" id="stat-analytics-pill"></span>
@@ -108,14 +108,14 @@
                     <table class="table table-hover mb-0">
                         <thead class="table-light sticky-top">
                             <tr>
-                                <th style="width: 9%;">Call ID</th>
-                                <th style="width: 13%;">Received</th>
-                                <th style="width: 20%;">Call Type</th>
-                                <th style="width: 19%;">Location</th>
-                                <th style="width: 10%;">Priority</th>
-                                <th style="width: 10%;">Status</th>
-                                <th style="width: 9%;">Units</th>
-                                <th style="width: 10%;">Map</th>
+                                <th class="col-w-9">Call ID</th>
+                                <th class="col-w-13">Received</th>
+                                <th class="col-w-20">Call Type</th>
+                                <th class="col-w-19">Location</th>
+                                <th class="col-w-10">Priority</th>
+                                <th class="col-w-10">Status</th>
+                                <th class="col-w-9">Units</th>
+                                <th class="col-w-10">Map</th>
                             </tr>
                         </thead>
                         <tbody id="recent-calls-body">
@@ -131,7 +131,7 @@
                     </table>
                 </div>
                 <!-- Pagination Controls -->
-                <div class="d-flex justify-content-between align-items-center p-3 border-top" id="calls-pagination-container" style="display: none !important;">
+                <div class="d-flex justify-content-between align-items-center p-3 border-top d-none" id="calls-pagination-container">
                     <div>
                         <small class="text-muted">
                             Showing <span id="calls-showing-start">0</span>-<span id="calls-showing-end">0</span> 
@@ -167,10 +167,10 @@
             </div>
             <div class="modal-body p-0">
                 <!-- Map Container -->
-                <div id="modal-map" style="height: 600px; width: 100%;"></div>
-                
+                <div id="modal-map"></div>
+
                 <!-- Call Info Card (Overlay) -->
-                <div class="card position-absolute" style="bottom: 20px; left: 20px; max-width: 350px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                <div class="card position-absolute map-info-overlay">
                     <div class="card-body p-3">
                         <h6 class="card-title mb-2" id="map-modal-call-type">Loading...</h6>
                         <p class="card-text small mb-1">
@@ -190,7 +190,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" onclick="viewCallDetails(window.currentModalCallId)">
+                <button type="button" id="map-modal-view-details-btn" class="btn btn-primary" data-popup-action="view-call">
                     <i class="bi bi-eye"></i> View Full Details
                 </button>
             </div>

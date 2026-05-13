@@ -481,7 +481,7 @@
             // when there's just one (or none), we still want the result count
             // visible to the user, so show the container whenever there are
             // results at all.
-            container.style.display = total > 0 ? 'flex' : 'none';
+            container.classList.toggle('d-none', total <= 0);
         }
         
         /**
@@ -1395,9 +1395,14 @@ window.zoomToCallOnMap = async function(callId, latitude, longitude) {
     }
     
     try {
-        // Store call ID globally for "View Full Details" button
-        window.currentModalCallId = callId;
-        
+        // Bind the call id onto the "View Full Details" button so the maps.js
+        // [data-popup-action="view-call"] click delegator can pick it up. Inline
+        // onclick handlers aren't allowed under the current CSP.
+        const viewDetailsBtn = document.getElementById('map-modal-view-details-btn');
+        if (viewDetailsBtn) {
+            viewDetailsBtn.dataset.callId = String(callId);
+        }
+
         // Fetch call details
         console.log('[Dashboard Main] Fetching call details...');
         const call = await Dashboard.apiRequest(`/calls/${callId}`);
@@ -1495,7 +1500,9 @@ window.zoomToCallOnMap = async function(callId, latitude, longitude) {
         // Cleanup when modal is hidden
         modalEl.addEventListener('hidden.bs.modal', function() {
             console.log('[Dashboard Main] Modal hidden');
-            window.currentModalCallId = null;
+            if (viewDetailsBtn) {
+                delete viewDetailsBtn.dataset.callId;
+            }
         }, { once: true });
         
     } catch (error) {

@@ -80,13 +80,12 @@ const MapManager = {
         
         console.log('[MapManager] Creating marker at:', lat, lon);
         
-        // Choose marker icon based on priority
-        const iconColor = this.getCallIconColor(call.priority);
+        // Choose marker color class based on priority. Styles live in dashboard.css
+        // because CSP style-src no longer allows inline style="" attributes.
+        const colorClass = this.getCallIconColorClass(call.priority);
         const icon = L.divIcon({
             className: 'custom-marker',
-            html: `<div style="background-color: ${iconColor}; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
-                <i class="bi bi-telephone-fill" style="color: white; font-size: 14px;"></i>
-            </div>`,
+            html: `<div class="marker-circle ${colorClass}"><i class="bi bi-telephone-fill"></i></div>`,
             iconSize: [30, 30],
             iconAnchor: [15, 15]
         });
@@ -100,66 +99,20 @@ const MapManager = {
     },
     
     /**
-     * Add a unit marker to the map
+     * Get call marker color class based on priority.
+     * Concrete colors live in dashboard.css under .marker-circle--{name}.
      */
-    addUnitMarker(containerId, unit) {
-        if (!this.maps[containerId]) {
-            return;
-        }
-
-        const lat = parseFloat(unit.latitude);
-        const lon = parseFloat(unit.longitude);
-
-        // Same -361 sentinel guard as addCallMarker
-        if (!Number.isFinite(lat) || !Number.isFinite(lon)
-            || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-            return;
-        }
-        
-        // Choose marker icon based on status
-        const iconColor = this.getUnitIconColor(unit.status);
-        const icon = L.divIcon({
-            className: 'custom-marker',
-            html: `<div style="background-color: ${iconColor}; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
-                <i class="bi bi-truck" style="color: white; font-size: 14px;"></i>
-            </div>`,
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
-        });
-        
-        const marker = L.marker([lat, lon], { icon })
-            .bindPopup(this.createUnitPopup(unit))
-            .addTo(this.markers[containerId]);
-        
-        return marker;
-    },
-    
-    /**
-     * Get call marker color based on priority
-     */
-    getCallIconColor(priority) {
-        const colors = {
-            1: '#dc3545', // Red - High priority
-            2: '#ffc107', // Yellow - Medium-high
-            3: '#0dcaf0', // Blue - Medium
-            4: '#198754'  // Green - Low
+    getCallIconColorClass(priority) {
+        const classes = {
+            1: 'marker-circle--red',     // High priority
+            2: 'marker-circle--yellow',  // Medium-high
+            3: 'marker-circle--blue',    // Medium
+            4: 'marker-circle--green'    // Low
         };
-        return colors[priority] || '#6c757d';
+        return classes[priority] || 'marker-circle--gray';
     },
-    
-    /**
-     * Get unit marker color based on status
-     */
-    getUnitIconColor(status) {
-        const colors = {
-            'available': '#198754',  // Green
-            'enroute': '#ffc107',    // Yellow
-            'onscene': '#dc3545',    // Red
-            'offduty': '#6c757d'     // Gray
-        };
-        return colors[status?.toLowerCase()] || '#6c757d';
-    },
-    
+
+
     /**
      * Create popup HTML for a call
      */
@@ -180,27 +133,7 @@ const MapManager = {
                     <strong>Location:</strong> ${Dashboard.escapeHtml(call.address || call.location?.address || 'N/A')}<br>
                     <strong>Time:</strong> ${Dashboard.formatTime(time)}
                 </div>
-                <button class="btn btn-sm btn-primary" onclick="viewCallDetails(${call.id || call.call_id})">
-                    View Details
-                </button>
-            </div>
-        `;
-    },
-    
-    /**
-     * Create popup HTML for a unit
-     */
-    createUnitPopup(unit) {
-        return `
-            <div class="map-popup">
-                <h6><i class="bi bi-truck"></i> ${Dashboard.escapeHtml(unit.unit_id || unit.badge_number)}</h6>
-                <div class="mb-2">
-                    <strong>Type:</strong> ${Dashboard.escapeHtml(unit.unit_type || 'N/A')}<br>
-                    <strong>Status:</strong> ${Dashboard.getStatusBadge(unit.status)}<br>
-                    <strong>Agency:</strong> ${Dashboard.escapeHtml(unit.agency || 'N/A')}<br>
-                    <strong>Current Call:</strong> ${Dashboard.escapeHtml(unit.current_call || 'None')}
-                </div>
-                <button class="btn btn-sm btn-primary" onclick="viewUnitDetails(${unit.id})">
+                <button class="btn btn-sm btn-primary" data-popup-action="view-call" data-call-id="${call.id || call.call_id}">
                     View Details
                 </button>
             </div>
@@ -261,23 +194,6 @@ const MapManager = {
     },
     
     /**
-     * Add multiple unit markers and fit map
-     */
-    showUnits(containerId, units) {
-        this.clearMarkers(containerId);
-        
-        if (!units || units.length === 0) {
-            return;
-        }
-        
-        units.forEach(unit => {
-            this.addUnitMarker(containerId, unit);
-        });
-        
-        this.fitToMarkers(containerId);
-    },
-    
-    /**
      * Resize map (useful after container size changes)
      */
     resize(containerId) {
@@ -289,3 +205,19 @@ const MapManager = {
 
 // Make globally available
 window.MapManager = MapManager;
+
+// Click delegation for popup action buttons. Leaflet popups are reattached to the
+// DOM each time they open, so binding handlers per-popup would leak listeners;
+// one document-level listener covers every popup the MapManager renders.
+// CSP no longer permits inline onclick handlers — see SecurityHeaders::setContentSecurityPolicy.
+document.addEventListener('click', (event) => {
+    const target = event.target.closest('[data-popup-action]');
+    if (!target) return;
+
+    if (target.dataset.popupAction === 'view-call') {
+        const id = parseInt(target.dataset.callId, 10);
+        if (Number.isFinite(id) && typeof window.viewCallDetails === 'function') {
+            window.viewCallDetails(id);
+        }
+    }
+});

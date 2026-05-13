@@ -4,223 +4,7 @@ declare(strict_types=1);
 
 /** @var bool $isMobile */
 ?>
-<style>
-/* === Notifications page polish (banner/live-pill come from dashboard.css) === */
-
-/* Lock the notifications page to exactly one viewport tall so the
-   channel cards fill all available space without overflowing.
-   - min-height: 100vh on body alone wasn't enough: it's only a floor,
-     so the cards' natural content (10 log entries each) pushed body
-     past 100vh and forced a scrollbar.
-   - The footer's page-default .mt-5 and main's .py-4 bottom padding
-     use !important (Bootstrap utilities), so the overrides do too. */
-@media (min-width: 768px) {
-    body:has(#notifications-channels-container) {
-        height: 100vh;
-        overflow: hidden;
-    }
-}
-body:has(#notifications-channels-container) {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-}
-body:has(#notifications-channels-container) > main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    padding-bottom: 0 !important;
-}
-body:has(#notifications-channels-container) > footer {
-    margin-top: 0 !important;
-}
-#notifications-channels-container {
-    flex: 1;
-    align-items: stretch;
-    min-height: 0;
-}
-/* Bootstrap rows are flex-wrap: wrap; with a single line, the wrap'd line's
-   cross-axis size collapses to its tallest item rather than stretching to
-   the row's full height (per CSS Align spec). Switch to nowrap above sm
-   where the two cols sit side-by-side so .channel-card can stretch. */
-@media (min-width: 768px) {
-    #notifications-channels-container { flex-wrap: nowrap; }
-}
-#notifications-channels-container > [class*="col-"] {
-    display: flex;
-}
-
-/* Channel cards — gradient header strip mirrors the dashboard's stat cards */
-.channel-card {
-    border: none;
-    border-radius: 0.75rem;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-.channel-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
-}
-.channel-card .card-header {
-    border-bottom: none;
-    padding: 0.65rem 0.95rem;
-    color: #fff;
-    background: linear-gradient(135deg, #475569, #1e293b);
-}
-.channel-card .card-body {
-    padding: 0.75rem 0.95rem;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
-.channel-card[data-type="ntfy"] .card-header {
-    background: linear-gradient(135deg, #2563eb, #4f46e5);
-}
-.channel-card[data-type="pushover"] .card-header {
-    background: linear-gradient(135deg, #db2777, #c026d3);
-}
-.channel-card .channel-type {
-    background: rgba(255,255,255,0.25) !important;
-    color: #fff;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 0.65rem;
-}
-.channel-card .form-check-input {
-    cursor: pointer;
-}
-.channel-card.is-disabled .card-header {
-    background: linear-gradient(135deg, #94a3b8, #64748b);
-}
-
-.channel-state-badge {
-    display: inline-block;
-    padding: 0.2rem 0.55rem;
-    border-radius: 999px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-.channel-state-badge.is-on  { background: #d1fae5; color: #065f46; }
-.channel-state-badge.is-off { background: #e2e8f0; color: #475569; }
-
-/* Log entries — flex-grow inside the card body and scroll internally */
-.channel-log {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-}
-.channel-log .list-group-item {
-    border-left: 4px solid transparent;
-    padding: 0.5rem 0.65rem;
-    transition: background 0.15s ease;
-}
-.channel-log .list-group-item.row-success {
-    border-left-color: #10b981;
-    background: linear-gradient(90deg, #ecfdf5, transparent 60%);
-}
-.channel-log .list-group-item.row-failed {
-    border-left-color: #ef4444;
-    background: linear-gradient(90deg, #fef2f2, transparent 60%);
-}
-.channel-log .list-group-item.row-new {
-    animation: notif-flash 1.2s ease;
-}
-@keyframes notif-flash {
-    0%   { background-color: #fef9c3; }
-    100% { background-color: transparent; }
-}
-.channel-log .status-icon {
-    width: 1.4rem; height: 1.4rem;
-    border-radius: 50%;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 0.75rem;
-    color: #fff;
-    flex-shrink: 0;
-}
-.channel-log .status-icon.ok   { background: #10b981; }
-.channel-log .status-icon.fail { background: #ef4444; }
-.channel-log .http-pill {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.7rem;
-    padding: 0.15rem 0.5rem;
-    border-radius: 0.35rem;
-    background: #f1f5f9;
-    color: #475569;
-}
-.channel-log .http-pill.ok   { background: #d1fae5; color: #065f46; }
-.channel-log .http-pill.fail { background: #fee2e2; color: #991b1b; }
-
-.channel-log .dismiss-btn {
-    border: none;
-    background: transparent;
-    color: #94a3b8;
-    padding: 0.15rem 0.4rem;
-    border-radius: 0.35rem;
-    line-height: 1;
-}
-.channel-log .dismiss-btn:hover { color: #ef4444; background: #fee2e2; }
-
-.channel-error {
-    background: #fef2f2;
-    border-left: 3px solid #ef4444;
-    border-radius: 0.35rem;
-    padding: 0.5rem 0.75rem;
-    color: #991b1b;
-}
-
-.clear-failed-btn { font-size: 0.75rem; }
-
-/* Outbox queue card */
-#outbox-queue-card {
-    margin-top: 1rem;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-}
-#outbox-queue-card .card-header {
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
-}
-#outbox-queue-table {
-    font-size: 0.85rem;
-}
-#outbox-queue-table th {
-    font-weight: 600;
-    color: #475569;
-    text-transform: uppercase;
-    font-size: 0.7rem;
-    letter-spacing: 0.04em;
-}
-#outbox-queue-table td.error-cell {
-    max-width: 24em;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: ui-monospace, SFMono-Regular, monospace;
-    font-size: 0.75rem;
-    color: #991b1b;
-}
-.outbox-status-pill {
-    display: inline-block;
-    font-size: 0.7rem;
-    padding: 0.15rem 0.5rem;
-    border-radius: 999px;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-.outbox-status-pill.pending   { background: #fef3c7; color: #92400e; }
-.outbox-status-pill.in_flight { background: #dbeafe; color: #1e40af; }
-.outbox-status-pill.done      { background: #dcfce7; color: #166534; }
-.outbox-status-pill.failed    { background: #fee2e2; color: #991b1b; }
-</style>
+<link rel="stylesheet" href="/assets/css/notifications.css?v=<?= time() ?>">
 
 <div class="dashboard-banner d-flex justify-content-between align-items-center flex-wrap gap-2">
     <div>
@@ -371,6 +155,74 @@ body:has(#notifications-channels-container) > footer {
         </dl>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="outbox-inspector-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          Outbox row <span id="inspector-row-id" class="text-muted"></span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="inspector-loading" class="text-center text-muted py-4">
+          <div class="spinner-border spinner-border-sm"></div> Loading&hellip;
+        </div>
+        <div id="inspector-content" hidden>
+          <dl class="row small inspector-summary mb-3">
+            <dt class="col-4">Status</dt>      <dd class="col-8" id="inspector-status"></dd>
+            <dt class="col-4">Channel</dt>     <dd class="col-8" id="inspector-channel"></dd>
+            <dt class="col-4">Call</dt>        <dd class="col-8" id="inspector-call"></dd>
+            <dt class="col-4">Intent</dt>      <dd class="col-8" id="inspector-intent"></dd>
+            <dt class="col-4">Attempts</dt>    <dd class="col-8" id="inspector-attempts"></dd>
+            <dt class="col-4">Next attempt</dt><dd class="col-8" id="inspector-next-attempt"></dd>
+            <dt class="col-4">Created</dt>     <dd class="col-8" id="inspector-created"></dd>
+            <dt class="col-4">Updated</dt>     <dd class="col-8" id="inspector-updated"></dd>
+          </dl>
+
+          <div id="inspector-error-wrap" class="mb-3" hidden>
+            <h6 class="small text-uppercase text-muted mb-1">Last error</h6>
+            <div class="inspector-error" id="inspector-error"></div>
+          </div>
+
+          <div id="inspector-schedule-wrap" class="mb-3" hidden>
+            <h6 class="small text-uppercase text-muted mb-1">Reschedule retry</h6>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+              <input type="datetime-local" class="form-control form-control-sm" id="inspector-schedule-input" step="60">
+              <button type="button" class="btn btn-sm btn-primary" id="inspector-schedule-btn">
+                <i class="bi bi-clock"></i> Save
+              </button>
+            </div>
+            <div class="schedule-feedback text-muted mt-1" id="inspector-schedule-feedback"></div>
+          </div>
+
+          <h6 class="small text-uppercase text-muted mb-1">Send-attempt history</h6>
+          <div class="table-responsive">
+            <table class="table table-sm history-table mb-0">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>OK</th>
+                  <th>HTTP</th>
+                  <th>Topic</th>
+                  <th>Duration</th>
+                  <th>Error</th>
+                </tr>
+              </thead>
+              <tbody id="inspector-history-tbody">
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div id="inspector-load-error" class="alert alert-danger small" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
     </div>
   </div>
 </div>
@@ -866,6 +718,12 @@ body:has(#notifications-channels-container) > footer {
         document.getElementById('outbox-refresh-btn').addEventListener('click', refresh);
         document.getElementById('outbox-clear-btn').addEventListener('click', clearAll);
 
+        // Inspector save button — bound once; reads currentInspectId at click time.
+        const scheduleBtn = document.getElementById('inspector-schedule-btn');
+        if (scheduleBtn) {
+            scheduleBtn.addEventListener('click', () => saveSchedule(currentInspectId));
+        }
+
         refresh();
     }
 
@@ -951,6 +809,17 @@ body:has(#notifications-channels-container) > footer {
         const td = document.createElement('td');
         td.className = 'text-end';
 
+        const inspectBtn = document.createElement('button');
+        inspectBtn.type = 'button';
+        inspectBtn.className = 'btn btn-sm btn-outline-secondary me-1';
+        inspectBtn.innerHTML = '<i class="bi bi-eye"></i>';
+        inspectBtn.title = 'Inspect this row';
+        inspectBtn.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            openInspector(row.id);
+        });
+        td.appendChild(inspectBtn);
+
         if (row.status === 'failed') {
             const retryBtn = document.createElement('button');
             retryBtn.type = 'button';
@@ -1015,6 +884,191 @@ body:has(#notifications-channels-container) > footer {
         } catch (err) {
             alert('Clear failed: ' + (err?.message ?? 'unknown'));
         }
+    }
+
+    /* ---------------- Inspector modal ---------------- */
+
+    let currentInspectId = null;
+
+    async function openInspector(id) {
+        currentInspectId = Number(id);
+        const modalEl = document.getElementById('outbox-inspector-modal');
+
+        document.getElementById('inspector-row-id').textContent = '#' + id;
+        document.getElementById('inspector-loading').hidden = false;
+        document.getElementById('inspector-content').hidden = true;
+        document.getElementById('inspector-load-error').hidden = true;
+
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+        try {
+            const data = await Dashboard.apiRequest(`/notifications/outbox/${id}`);
+            renderInspector(data?.row ?? null, data?.history ?? []);
+        } catch (err) {
+            document.getElementById('inspector-loading').hidden = true;
+            const errEl = document.getElementById('inspector-load-error');
+            errEl.hidden = false;
+            errEl.textContent = err?.message ?? 'Failed to load row';
+        }
+    }
+
+    function renderInspector(row, history) {
+        document.getElementById('inspector-loading').hidden = true;
+        if (!row) {
+            const errEl = document.getElementById('inspector-load-error');
+            errEl.hidden = false;
+            errEl.textContent = 'Row not found.';
+            return;
+        }
+        document.getElementById('inspector-content').hidden = false;
+
+        const statusEl = document.getElementById('inspector-status');
+        statusEl.textContent = '';
+        const pill = document.createElement('span');
+        pill.className = `outbox-status-pill ${row.status}`;
+        pill.textContent = row.status;
+        statusEl.appendChild(pill);
+
+        document.getElementById('inspector-channel').textContent =
+            (row.channel_name ?? `#${row.channel_id}`) + (row.channel_type ? ` (${row.channel_type})` : '');
+        document.getElementById('inspector-call').textContent =
+            row.call_number ?? `#${row.db_call_id}`;
+        document.getElementById('inspector-intent').textContent = row.intent ?? '—';
+        document.getElementById('inspector-attempts').textContent = String(row.attempts ?? 0);
+        document.getElementById('inspector-next-attempt').textContent =
+            row.next_attempt_at ? Dashboard.formatTime(row.next_attempt_at) : '—';
+        document.getElementById('inspector-created').textContent =
+            row.created_at ? Dashboard.formatTime(row.created_at) : '—';
+        document.getElementById('inspector-updated').textContent =
+            row.updated_at ? Dashboard.formatTime(row.updated_at) : '—';
+
+        const errWrap = document.getElementById('inspector-error-wrap');
+        const errEl = document.getElementById('inspector-error');
+        if (row.last_error) {
+            errWrap.hidden = false;
+            errEl.textContent = row.last_error;
+        } else {
+            errWrap.hidden = true;
+            errEl.textContent = '';
+        }
+
+        // Reschedule control: only pending or failed rows can be rescheduled.
+        const scheduleWrap = document.getElementById('inspector-schedule-wrap');
+        const scheduleInput = document.getElementById('inspector-schedule-input');
+        const scheduleFb = document.getElementById('inspector-schedule-feedback');
+        scheduleFb.textContent = '';
+        scheduleFb.classList.remove('text-success', 'text-danger');
+        if (row.status === 'pending' || row.status === 'failed') {
+            scheduleWrap.hidden = false;
+            scheduleInput.value = toLocalDatetimeInputValue(row.next_attempt_at);
+        } else {
+            scheduleWrap.hidden = true;
+        }
+
+        renderHistory(history);
+    }
+
+    function renderHistory(history) {
+        const tbody = document.getElementById('inspector-history-tbody');
+        tbody.replaceChildren();
+        if (!history || history.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 6;
+            td.className = 'text-center text-muted py-2 small';
+            td.textContent = 'No send attempts recorded.';
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+            return;
+        }
+        history.forEach((h) => {
+            const tr = document.createElement('tr');
+            appendHistoryCell(tr, Dashboard.formatTime(h.created_at));
+            const okTd = document.createElement('td');
+            const okSpan = document.createElement('span');
+            const isOk = !!Number(h.ok);
+            okSpan.className = 'http-pill ' + (isOk ? 'ok' : 'fail');
+            okSpan.textContent = isOk ? '✓' : '✗';
+            okTd.appendChild(okSpan);
+            tr.appendChild(okTd);
+            appendHistoryCell(tr, h.http_status != null ? String(h.http_status) : '—');
+            appendHistoryCell(tr, h.topic ?? '—');
+            appendHistoryCell(tr, `${h.duration_ms ?? 0} ms`);
+            const errTd = document.createElement('td');
+            errTd.className = 'history-error';
+            if (h.error) {
+                errTd.title = h.error;
+                errTd.textContent = h.error;
+            } else {
+                errTd.textContent = '—';
+            }
+            tr.appendChild(errTd);
+            tbody.appendChild(tr);
+        });
+    }
+
+    function appendHistoryCell(tr, text) {
+        const td = document.createElement('td');
+        td.textContent = text;
+        tr.appendChild(td);
+    }
+
+    async function saveSchedule(id) {
+        if (id == null) return;
+        const input = document.getElementById('inspector-schedule-input');
+        const fb = document.getElementById('inspector-schedule-feedback');
+        fb.classList.remove('text-success', 'text-danger');
+
+        const raw = (input.value ?? '').trim();
+        if (!raw) {
+            fb.classList.add('text-danger');
+            fb.textContent = 'Pick a date and time.';
+            return;
+        }
+        const when = fromLocalDatetimeInputValue(raw);
+        const btn = document.getElementById('inspector-schedule-btn');
+        btn.disabled = true;
+        try {
+            // Dashboard.apiRequest JSON.stringifies options.body itself — pass the object.
+            await Dashboard.apiRequest(`/notifications/outbox/${id}/schedule`, {
+                method: 'POST',
+                body: { next_attempt_at: when },
+            });
+            fb.classList.add('text-success');
+            fb.textContent = `Rescheduled to ${Dashboard.formatTime(when)}.`;
+            refresh();
+        } catch (err) {
+            fb.classList.add('text-danger');
+            fb.textContent = err?.message ?? 'Failed to reschedule.';
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    /**
+     * Format a server-supplied datetime (UTC 'Y-m-d H:i:s' or null) as the local
+     * 'YYYY-MM-DDTHH:MM' string expected by <input type="datetime-local">.
+     * Empty input → default to "now + 1 minute" so the picker isn't blank.
+     */
+    function toLocalDatetimeInputValue(serverDt) {
+        let d;
+        if (serverDt) {
+            d = new Date(String(serverDt).replace(' ', 'T') + 'Z');
+            if (isNaN(d)) d = new Date(Date.now() + 60_000);
+        } else {
+            d = new Date(Date.now() + 60_000);
+        }
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    /**
+     * Convert a 'YYYY-MM-DDTHH:MM' (local) value back to ISO 8601 with the
+     * client's offset, which DateTimeImmutable on the server parses correctly.
+     */
+    function fromLocalDatetimeInputValue(local) {
+        const d = new Date(local);
+        return isNaN(d) ? local : d.toISOString();
     }
 
     if (document.readyState === 'loading') {

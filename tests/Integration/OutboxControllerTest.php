@@ -224,4 +224,112 @@ class OutboxControllerTest extends TestCase
         $this->assertFalse($payload['success']);
         $this->assertSame(400, http_response_code());
     }
+
+    public function testShowReturnsRowAndHistory(): void
+    {
+        $id = $this->insertPending();
+        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Created', 't1', 0, 503, 99, 'HTTP 503')");
+
+        $controller = new OutboxController($this->repo);
+        ob_start();
+        $controller->show((string) $id);
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertTrue($payload['success']);
+        $this->assertSame($id, (int) $payload['data']['row']['id']);
+        $this->assertSame('ntfy_primary', $payload['data']['row']['channel_name']);
+        $this->assertCount(1, $payload['data']['history']);
+        $this->assertSame('HTTP 503', $payload['data']['history'][0]['error']);
+    }
+
+    public function testShowReturns400ForNonNumericId(): void
+    {
+        $controller = new OutboxController($this->repo);
+        ob_start();
+        $controller->show('abc');
+        $payload = json_decode((string) ob_get_clean(), true);
+        $this->assertFalse($payload['success']);
+        $this->assertSame(400, http_response_code());
+    }
+
+    public function testShowReturns404ForMissingId(): void
+    {
+        $controller = new OutboxController($this->repo);
+        ob_start();
+        $controller->show('99999');
+        $payload = json_decode((string) ob_get_clean(), true);
+        $this->assertFalse($payload['success']);
+        $this->assertSame(404, http_response_code());
+    }
+
+    public function testScheduleUpdatesNextAttemptForFailedRow(): void
+    {
+        $id = $this->insertPending();
+        $this->repo->markFailed($id, 5, 'retries exhausted');
+
+        $_POST['next_attempt_at'] = '2026-05-08 09:00:00';
+        $controller = new OutboxController($this->repo);
+        ob_start();
+        $controller->schedule((string) $id);
+        $payload = json_decode((string) ob_get_clean(), true);
+
+        $this->assertTrue($payload['success']);
+        $this->assertSame('2026-05-08 09:00:00', $payload['data']['next_attempt_at']);
+
+        $row = self::$db->query("SELECT status, next_attempt_at, attempts FROM notification_outbox WHERE id={$id}")
+            ->fetch(\PDO::FETCH_ASSOC);
+        $this->assertSame('pending', $row['status']);
+        $this->assertSame('2026-05-08 09:00:00', $row['next_attempt_at']);
+        $this->assertSame(5, (int) $row['attempts']);
+    }
+
+    public function testScheduleReturns400OnMissingBody(): void
+    {
+        $id = $this->insertPending();
+
+        $controller = new OutboxController($this->repo);
+        ob_start();
+        $controller->schedule((string) $id);
+        $payload = json_decode((string) ob_get_clean(), true);
+        $this->assertFalse($payload['success']);
+        $this->assertSame(400, http_response_code());
+    }
+
+    public function testScheduleReturns400OnInvalidDateTime(): void
+    {
+        $id = $this->insertPending();
+        $_POST['next_attempt_at'] = 'not a date';
+
+        $controller = new OutboxController($this->repo);
+        ob_start();
+        $controller->schedule((string) $id);
+        $payload = json_decode((string) ob_get_clean(), true);
+        $this->assertFalse($payload['success']);
+        $this->assertSame(400, http_response_code());
+    }
+
+    public function testScheduleReturns400OnNonNumericId(): void
+    {
+        $_POST['next_attempt_at'] = '2026-05-08 09:00:00';
+        $controller = new OutboxController($this->repo);
+        ob_start();
+        $controller->schedule('abc');
+        $payload = json_decode((string) ob_get_clean(), true);
+        $this->assertFalse($payload['success']);
+        $this->assertSame(400, http_response_code());
+    }
+
+    public function testScheduleReturns404OnInFlightRow(): void
+    {
+        $id = $this->insertPending();
+        self::$db->exec("UPDATE notification_outbox SET status='in_flight', claimed_by='w:1', claimed_at=NOW() WHERE id={$id}");
+
+        $_POST['next_attempt_at'] = '2026-05-08 09:00:00';
+        $controller = new OutboxController($this->repo);
+        ob_start();
+        $controller->schedule((string) $id);
+        $payload = json_decode((string) ob_get_clean(), true);
+        $this->assertFalse($payload['success']);
+        $this->assertSame(404, http_response_code());
+    }
 }

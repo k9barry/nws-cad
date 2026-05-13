@@ -216,6 +216,69 @@ final class OutboxRepository implements OutboxRepositoryInterface
         });
     }
 
+    public function findById(int $rowId): ?array
+    {
+        return $this->exec(function (PDO $db) use ($rowId): ?array {
+            $stmt = $db->prepare(
+                "SELECT o.id, o.db_call_id, o.channel_id, o.intent, o.resend_all,
+                        o.added_topics_json, o.create_datetime,
+                        o.status, o.attempts, o.next_attempt_at, o.claimed_at,
+                        o.claimed_by, o.last_error, o.created_at, o.updated_at,
+                        nc.name AS channel_name, nc.type AS channel_type,
+                        c.call_number
+                 FROM notification_outbox o
+                 LEFT JOIN notification_channels nc ON nc.id = o.channel_id
+                 LEFT JOIN calls c ON c.id = o.db_call_id
+                 WHERE o.id = ?
+                 LIMIT 1"
+            );
+            $stmt->execute([$rowId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $row === false ? null : $row;
+        });
+    }
+
+    public function listSendHistory(int $channelId, int $callId, string $intent, int $limit): array
+    {
+        return $this->exec(function (PDO $db) use ($channelId, $callId, $intent, $limit): array {
+            $stmt = $db->prepare(
+                "SELECT id, channel_id, call_id, intent, topic, ok, http_status,
+                        duration_ms, error, actor, created_at
+                 FROM notification_send_log
+                 WHERE channel_id = ? AND call_id = ? AND intent = ?
+                 ORDER BY id DESC
+                 LIMIT ?"
+            );
+            $stmt->bindValue(1, $channelId, PDO::PARAM_INT);
+            $stmt->bindValue(2, $callId, PDO::PARAM_INT);
+            $stmt->bindValue(3, $intent);
+            $stmt->bindValue(4, $limit, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        });
+    }
+
+    public function reschedule(int $rowId, DateTimeImmutable $nextAttemptAt): bool
+    {
+        return $this->exec(function (PDO $db) use ($rowId, $nextAttemptAt): bool {
+            $stmt = $db->prepare(
+                "UPDATE notification_outbox
+                 SET status = 'pending',
+                     next_attempt_at = ?,
+                     claimed_at = NULL,
+                     claimed_by = NULL,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?
+                   AND status IN ('pending', 'failed')"
+            );
+            $stmt->execute([
+                $nextAttemptAt->format('Y-m-d H:i:s'),
+                $rowId,
+            ]);
+            return $stmt->rowCount() > 0;
+        });
+    }
+
     public function retry(int $rowId): bool
     {
         return $this->exec(function (PDO $db) use ($rowId): bool {

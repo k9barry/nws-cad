@@ -85,7 +85,7 @@
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
                                         <h6 class="text-muted mb-1">Top Call Type</h6>
-                                        <h2 class="mb-0" id="analytics-stat-toptype" style="font-size: 0.9rem;">
+                                        <h2 class="mb-0 stat-title-compact-sm" id="analytics-stat-toptype">
                                             <span class="spinner-border spinner-border-sm"></span>
                                         </h2>
                                         <span class="summary-chips mt-1" id="analytics-stat-toptype-pill"></span>

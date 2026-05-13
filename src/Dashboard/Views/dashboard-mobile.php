@@ -63,8 +63,8 @@
     </div>
     
     <!-- Map View (Hidden by default) -->
-    <div id="mobile-map-view" style="display: none;">
-        <div id="calls-map" style="height: calc(100vh - var(--mobile-header-height) - var(--mobile-bottom-nav-height) - 24px);"></div>
+    <div id="mobile-map-view" class="d-none">
+        <div id="calls-map"></div>
     </div>
 </div>
 
