@@ -38,11 +38,12 @@ const MobileDashboard = {
     async init() {
         console.log('[Mobile] Initializing mobile dashboard');
 
-        // Pre-populate URL with sensible defaults (last 7 days + open) when
-        // there's no existing URL state and no saved state.
-        if (!window.location.search && !localStorage.getItem('filter-panel:last-state')) {
+        // Pre-populate URL with sensible defaults (today + open) on any fresh
+        // page load. Matches the desktop dispatcher's default view; FilterPanel's
+        // "Restore last filter?" banner still lets users recover a saved state.
+        if (!window.location.search) {
             const url = new URL(window.location);
-            url.searchParams.set('preset', 'last_7_days');
+            url.searchParams.set('preset', 'today');
             url.searchParams.set('status', 'open');
             window.history.replaceState({}, '', url);
         }
@@ -221,7 +222,7 @@ const MobileDashboard = {
                     <i class="bi bi-exclamation-triangle"></i>
                     <h4>Error Loading Calls</h4>
                     <p>${this.escapeHtml(error.message)}</p>
-                    <button class="btn btn-primary mt-3" onclick="MobileDashboard.loadCallsList()">
+                    <button class="btn btn-primary mt-3" data-mobile-action="retry-calls-list">
                         Try Again
                     </button>
                 </div>
@@ -276,7 +277,7 @@ const MobileDashboard = {
         }
         
         return `
-            <div class="mobile-call-item" onclick="MobileDashboard.openCallDetails(${callId})">
+            <div class="mobile-call-item" data-mobile-action="open-call" data-call-id="${callId}" role="button" tabindex="0">
                 <div class="mobile-call-header">
                     <span class="mobile-call-id">#${this.escapeHtml(String(call.call_number || call.call_id))}</span>
                     <span class="mobile-call-time">${this.formatTime(call.create_datetime)}</span>
@@ -1241,7 +1242,22 @@ const MobileAnalytics = {
 const MobileMaps = {
     map: null,
     markers: [],
-    
+
+    /**
+     * Map numeric priority to the marker-circle color class defined in
+     * dashboard.css. Mirrors MapManager.getCallIconColorClass from maps.js
+     * (not loaded on mobile, so duplicated here).
+     */
+    getCallIconColorClass(priority) {
+        const classes = {
+            1: 'marker-circle--red',
+            2: 'marker-circle--yellow',
+            3: 'marker-circle--blue',
+            4: 'marker-circle--green'
+        };
+        return classes[priority] || 'marker-circle--gray';
+    },
+
     /**
      * Initialize map
      */
@@ -1299,9 +1315,10 @@ const MobileMaps = {
                 const locationText = call.location?.address || 'No location';
                 const callNumber = call.call_number || call.call_id;
                 const callId = parseInt(call.id, 10);
-                
+                const priority = Array.isArray(call.priorities) ? call.priorities[0] : call.priority;
+
                 if (isNaN(callId)) return;
-                
+
                 const popupContent = `
                     <div class="mobile-map-popup">
                         <strong class="popup-call-type">${MobileDashboard.escapeHtml(callType)}</strong><br>
@@ -1317,8 +1334,20 @@ const MobileMaps = {
                         </button>
                     </div>
                 `;
-                
-                const marker = L.marker([lat, lng])
+
+                // CSP img-src forbids unpkg.com, so default Leaflet PNG markers
+                // (https://unpkg.com/leaflet@.../images/marker-icon.png) are blocked.
+                // Use the same HTML-only divIcon scheme as the desktop MapManager;
+                // .custom-marker / .marker-circle classes live in dashboard.css.
+                const colorClass = MobileMaps.getCallIconColorClass(priority);
+                const icon = L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div class="marker-circle ${colorClass}"><i class="bi bi-telephone-fill"></i></div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+
+                const marker = L.marker([lat, lng], { icon })
                     .bindPopup(popupContent);
                 marker.addTo(this.map);
                 this.markers.push(marker);
@@ -1331,14 +1360,47 @@ const MobileMaps = {
     }
 };
 
-// Click delegation for mobile map popup buttons. CSP no longer permits inline
-// onclick handlers — see SecurityHeaders::setContentSecurityPolicy. Uses a
-// distinct action name from the desktop maps.js delegator so the two stay
-// independent on pages that load both bundles.
+// Click delegation. CSP no longer permits inline onclick handlers — see
+// SecurityHeaders::setContentSecurityPolicy. Single document-level listener
+// covers map popups, call-list rows, and stat-card filters. Uses distinct
+// action names from the desktop maps.js delegator so the two stay independent
+// on pages that load both bundles.
 document.addEventListener('click', (event) => {
-    const target = event.target.closest('[data-popup-action="mobile-view-call"]');
-    if (!target) return;
+    const popupBtn = event.target.closest('[data-popup-action="mobile-view-call"]');
+    if (popupBtn) {
+        const id = parseInt(popupBtn.dataset.callId, 10);
+        if (Number.isFinite(id)) {
+            MobileDashboard.openCallDetails(id);
+        }
+        return;
+    }
 
+    const actionEl = event.target.closest('[data-mobile-action]');
+    if (!actionEl) return;
+
+    switch (actionEl.dataset.mobileAction) {
+        case 'open-call': {
+            const id = parseInt(actionEl.dataset.callId, 10);
+            if (Number.isFinite(id)) {
+                MobileDashboard.openCallDetails(id);
+            }
+            break;
+        }
+        case 'filter-status':
+            MobileDashboard.filterByStatus(actionEl.dataset.status);
+            break;
+        case 'retry-calls-list':
+            MobileDashboard.loadCallsList();
+            break;
+    }
+});
+
+// Keyboard accessibility for the role="button" call-list items.
+document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const target = event.target.closest('[data-mobile-action="open-call"]');
+    if (!target) return;
+    event.preventDefault();
     const id = parseInt(target.dataset.callId, 10);
     if (Number.isFinite(id)) {
         MobileDashboard.openCallDetails(id);

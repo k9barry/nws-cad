@@ -26,14 +26,14 @@
             </h2>
         </div>
         
-        <div class="mobile-stat-card border-danger" onclick="MobileDashboard.filterByStatus('active')">
+        <div class="mobile-stat-card border-danger" data-mobile-action="filter-status" data-status="active" role="button" tabindex="0">
             <h6>Active</h6>
             <h2 class="text-danger" id="stat-active">
                 <span class="spinner-border spinner-border-sm"></span>
             </h2>
         </div>
-        
-        <div class="mobile-stat-card border-success" onclick="MobileDashboard.filterByStatus('closed')">
+
+        <div class="mobile-stat-card border-success" data-mobile-action="filter-status" data-status="closed" role="button" tabindex="0">
             <h6>Closed</h6>
             <h2 class="text-success" id="stat-closed">
                 <span class="spinner-border spinner-border-sm"></span>
