@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.16] - 2026-05-16
+
+### Changes
+- fix(mobile): keep header above map zoom and keep live dot pulsing (#40) (4d5dd57)
+
 ## [1.1.15] - 2026-05-16
 
 ### Changes
