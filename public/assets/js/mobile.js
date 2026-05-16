@@ -1143,12 +1143,17 @@ const MobileDashboard = {
     },
     
     /**
-     * Update live indicator with pulse animation
+     * Update live indicator with pulse animation.
+     *
+     * The .pulse class is applied to the inner <i> (the dot), not the
+     * container, so it doesn't pick up dashboard.css's global
+     * `.pulse { animation: pulse 2s infinite; }` rule on the whole indicator
+     * and fade the "Live" text along with the dot.
      */
     updateLiveIndicator() {
-        const indicator = document.querySelector('.mobile-live-indicator');
-        if (indicator) {
-            indicator.classList.add('pulse');
+        const dot = document.querySelector('.mobile-live-indicator i');
+        if (dot) {
+            dot.classList.add('pulse');
         }
     }
 };

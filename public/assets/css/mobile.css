@@ -514,8 +514,10 @@ body.mobile-view {
     font-size: 0.6rem;
 }
 
-.mobile-live-indicator.pulse i {
-    animation: pulse 2s infinite;
+/* Animation comes from the global .pulse rule in dashboard.css; this rule
+   only paints the dot green while pulsing. The .pulse class lives on the
+   <i> (not the container) so the "Live" text stays opaque. */
+.mobile-live-indicator i.pulse {
     color: #198754 !important;
 }
 
