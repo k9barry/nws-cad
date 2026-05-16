@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.15] - 2026-05-16
+
+### Changes
+- fix(mobile): restore pins, click-to-open, defaults, and add pager (#39) (93fd715)
+
 ## [1.1.14] - 2026-05-13
 
 ### Changes
