@@ -60,6 +60,16 @@
         <div id="mobile-calls-list">
             <!-- Calls will be loaded here -->
         </div>
+
+        <nav id="mobile-calls-pagination" class="mobile-pagination d-none" aria-label="Calls pagination">
+            <button type="button" class="btn btn-outline-primary btn-sm" data-mobile-action="prev-page" disabled>
+                <i class="bi bi-chevron-left"></i> Prev
+            </button>
+            <span class="mobile-pagination-info" id="mobile-page-info">Page 1</span>
+            <button type="button" class="btn btn-outline-primary btn-sm" data-mobile-action="next-page" disabled>
+                Next <i class="bi bi-chevron-right"></i>
+            </button>
+        </nav>
     </div>
     
     <!-- Map View (Hidden by default) -->

@@ -28,6 +28,7 @@ const MobileDashboard = {
     currentPage: 1,
     perPage: MOBILE_CONFIG.DEFAULT_PER_PAGE,
     totalCalls: 0,
+    totalPages: 1,
     refreshInterval: null,
     panel: null,
     currentQs: '',
@@ -211,9 +212,13 @@ const MobileDashboard = {
             }
 
             const data = await Dashboard.apiRequest(`/calls?${baseParams.toString()}`);
-            
+
             this.totalCalls = data.pagination?.total || 0;
+            this.totalPages = Math.max(1, data.pagination?.total_pages || 1);
+            // Server may clamp the page; reflect what was actually returned.
+            this.currentPage = data.pagination?.current_page || this.currentPage;
             this.renderCallsList(data.items || []);
+            this.updatePagination();
             
         } catch (error) {
             console.error('[Mobile] Error loading calls:', error);
@@ -246,6 +251,9 @@ const MobileDashboard = {
                     <p>Try adjusting your filters</p>
                 </div>
             `;
+            this.updateShowingText();
+            const pager = document.getElementById('mobile-calls-pagination');
+            if (pager) pager.classList.add('d-none');
             return;
         }
         
@@ -335,12 +343,47 @@ const MobileDashboard = {
      * Update showing text
      */
     updateShowingText() {
-        const start = (this.currentPage - 1) * this.perPage + 1;
+        const start = this.totalCalls === 0 ? 0 : (this.currentPage - 1) * this.perPage + 1;
         const end = Math.min(this.currentPage * this.perPage, this.totalCalls);
-        
+
         const showingEl = document.getElementById('mobile-showing-text');
         if (showingEl) {
             showingEl.textContent = `Showing ${start}-${end} of ${this.totalCalls}`;
+        }
+    },
+
+    /**
+     * Update the prev/next pager state.
+     */
+    updatePagination() {
+        const pager = document.getElementById('mobile-calls-pagination');
+        if (!pager) return;
+
+        const hasMultiplePages = this.totalPages > 1;
+        pager.classList.toggle('d-none', !hasMultiplePages);
+        if (!hasMultiplePages) return;
+
+        const prev = pager.querySelector('[data-mobile-action="prev-page"]');
+        const next = pager.querySelector('[data-mobile-action="next-page"]');
+        const info = document.getElementById('mobile-page-info');
+
+        if (prev) prev.disabled = this.currentPage <= 1;
+        if (next) next.disabled = this.currentPage >= this.totalPages;
+        if (info) info.textContent = `Page ${this.currentPage} of ${this.totalPages}`;
+    },
+
+    /**
+     * Move to a specific page and reload.
+     */
+    goToPage(page) {
+        const target = Math.max(1, Math.min(this.totalPages, parseInt(page, 10) || 1));
+        if (target === this.currentPage) return;
+        this.currentPage = target;
+        this.loadCallsList();
+        // Scroll the list into view so the next page starts at the top.
+        const callsView = document.getElementById('mobile-calls-view');
+        if (callsView && callsView.scrollIntoView) {
+            callsView.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     },
     
@@ -993,7 +1036,9 @@ const MobileDashboard = {
             this.currentQs = qs;
         }
 
-        // Refresh data
+        // Changing the filter set should always restart at page 1; otherwise
+        // the previous page index leaks into the new result set.
+        this.currentPage = 1;
         this.refreshData();
     },
     
@@ -1391,6 +1436,12 @@ document.addEventListener('click', (event) => {
             break;
         case 'retry-calls-list':
             MobileDashboard.loadCallsList();
+            break;
+        case 'prev-page':
+            MobileDashboard.goToPage(MobileDashboard.currentPage - 1);
+            break;
+        case 'next-page':
+            MobileDashboard.goToPage(MobileDashboard.currentPage + 1);
             break;
     }
 });
