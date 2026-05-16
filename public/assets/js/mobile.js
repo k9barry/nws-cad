@@ -28,6 +28,7 @@ const MobileDashboard = {
     currentPage: 1,
     perPage: MOBILE_CONFIG.DEFAULT_PER_PAGE,
     totalCalls: 0,
+    totalPages: 1,
     refreshInterval: null,
     panel: null,
     currentQs: '',
@@ -38,14 +39,11 @@ const MobileDashboard = {
     async init() {
         console.log('[Mobile] Initializing mobile dashboard');
 
-        // Pre-populate URL with sensible defaults (last 7 days + open) when
-        // there's no existing URL state and no saved state.
-        if (!window.location.search && !localStorage.getItem('filter-panel:last-state')) {
-            const url = new URL(window.location);
-            url.searchParams.set('preset', 'last_7_days');
-            url.searchParams.set('status', 'open');
-            window.history.replaceState({}, '', url);
-        }
+        // Whether this load arrived with a bare URL. Captured before mount so
+        // we can inject sensible defaults AFTER FilterPanel has had a chance
+        // to render its "Restore last filter?" banner, which exits early when
+        // window.location.search is non-empty.
+        const wasFreshLoad = !window.location.search;
 
         // Initialize FilterPanel (compact mode). The panel lives inside an
         // offcanvas drawer that's toggled by the filter stat-card; no explicit
@@ -63,6 +61,20 @@ const MobileDashboard = {
                 },
             });
             await this.panel.mount();
+
+            // Now that mount() has rendered any restore banner, inject the
+            // dispatcher's default view (today + open) and sync FilterPanel
+            // via a synthetic popstate — its popstate handler rebuilds state
+            // from the URL. Users still have ~6s to click "Restore" before
+            // the banner auto-dismisses.
+            if (wasFreshLoad) {
+                const url = new URL(window.location);
+                url.searchParams.set('preset', 'today');
+                url.searchParams.set('status', 'open');
+                window.history.replaceState({}, '', url);
+                window.dispatchEvent(new PopStateEvent('popstate'));
+            }
+
             this.currentQs = this.panel.getState().toQueryString();
         }
 
@@ -210,9 +222,28 @@ const MobileDashboard = {
             }
 
             const data = await Dashboard.apiRequest(`/calls?${baseParams.toString()}`);
-            
-            this.totalCalls = data.pagination?.total || 0;
+
+            const total      = data.pagination?.total || 0;
+            const totalPages = Math.max(1, data.pagination?.total_pages || 1);
+
+            // CallsController returns the requested page verbatim — it does
+            // NOT clamp to total_pages. If live updates shrank the result set,
+            // we may be holding a now-invalid page index. Re-request the last
+            // real page once (guarded against loops).
+            if (total > 0 && this.currentPage > totalPages && !this._clampingPage) {
+                this._clampingPage = true;
+                this.currentPage = totalPages;
+                this.totalPages  = totalPages;
+                this.totalCalls  = total;
+                return this.loadCallsList();
+            }
+            this._clampingPage = false;
+
+            this.totalCalls = total;
+            this.totalPages = totalPages;
+            this.currentPage = data.pagination?.current_page || this.currentPage;
             this.renderCallsList(data.items || []);
+            this.updatePagination();
             
         } catch (error) {
             console.error('[Mobile] Error loading calls:', error);
@@ -221,7 +252,7 @@ const MobileDashboard = {
                     <i class="bi bi-exclamation-triangle"></i>
                     <h4>Error Loading Calls</h4>
                     <p>${this.escapeHtml(error.message)}</p>
-                    <button class="btn btn-primary mt-3" onclick="MobileDashboard.loadCallsList()">
+                    <button class="btn btn-primary mt-3" data-mobile-action="retry-calls-list">
                         Try Again
                     </button>
                 </div>
@@ -245,6 +276,9 @@ const MobileDashboard = {
                     <p>Try adjusting your filters</p>
                 </div>
             `;
+            this.updateShowingText();
+            const pager = document.getElementById('mobile-calls-pagination');
+            if (pager) pager.classList.add('d-none');
             return;
         }
         
@@ -276,7 +310,7 @@ const MobileDashboard = {
         }
         
         return `
-            <div class="mobile-call-item" onclick="MobileDashboard.openCallDetails(${callId})">
+            <div class="mobile-call-item" data-mobile-action="open-call" data-call-id="${callId}" role="button" tabindex="0">
                 <div class="mobile-call-header">
                     <span class="mobile-call-id">#${this.escapeHtml(String(call.call_number || call.call_id))}</span>
                     <span class="mobile-call-time">${this.formatTime(call.create_datetime)}</span>
@@ -334,12 +368,47 @@ const MobileDashboard = {
      * Update showing text
      */
     updateShowingText() {
-        const start = (this.currentPage - 1) * this.perPage + 1;
+        const start = this.totalCalls === 0 ? 0 : (this.currentPage - 1) * this.perPage + 1;
         const end = Math.min(this.currentPage * this.perPage, this.totalCalls);
-        
+
         const showingEl = document.getElementById('mobile-showing-text');
         if (showingEl) {
             showingEl.textContent = `Showing ${start}-${end} of ${this.totalCalls}`;
+        }
+    },
+
+    /**
+     * Update the prev/next pager state.
+     */
+    updatePagination() {
+        const pager = document.getElementById('mobile-calls-pagination');
+        if (!pager) return;
+
+        const hasMultiplePages = this.totalPages > 1;
+        pager.classList.toggle('d-none', !hasMultiplePages);
+        if (!hasMultiplePages) return;
+
+        const prev = pager.querySelector('[data-mobile-action="prev-page"]');
+        const next = pager.querySelector('[data-mobile-action="next-page"]');
+        const info = document.getElementById('mobile-page-info');
+
+        if (prev) prev.disabled = this.currentPage <= 1;
+        if (next) next.disabled = this.currentPage >= this.totalPages;
+        if (info) info.textContent = `Page ${this.currentPage} of ${this.totalPages}`;
+    },
+
+    /**
+     * Move to a specific page and reload.
+     */
+    goToPage(page) {
+        const target = Math.max(1, Math.min(this.totalPages, parseInt(page, 10) || 1));
+        if (target === this.currentPage) return;
+        this.currentPage = target;
+        this.loadCallsList();
+        // Scroll the list into view so the next page starts at the top.
+        const callsView = document.getElementById('mobile-calls-view');
+        if (callsView && callsView.scrollIntoView) {
+            callsView.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     },
     
@@ -992,7 +1061,9 @@ const MobileDashboard = {
             this.currentQs = qs;
         }
 
-        // Refresh data
+        // Changing the filter set should always restart at page 1; otherwise
+        // the previous page index leaks into the new result set.
+        this.currentPage = 1;
         this.refreshData();
     },
     
@@ -1241,7 +1312,22 @@ const MobileAnalytics = {
 const MobileMaps = {
     map: null,
     markers: [],
-    
+
+    /**
+     * Map numeric priority to the marker-circle color class defined in
+     * dashboard.css. Mirrors MapManager.getCallIconColorClass from maps.js
+     * (not loaded on mobile, so duplicated here).
+     */
+    getCallIconColorClass(priority) {
+        const classes = {
+            1: 'marker-circle--red',
+            2: 'marker-circle--yellow',
+            3: 'marker-circle--blue',
+            4: 'marker-circle--green'
+        };
+        return classes[priority] || 'marker-circle--gray';
+    },
+
     /**
      * Initialize map
      */
@@ -1299,9 +1385,10 @@ const MobileMaps = {
                 const locationText = call.location?.address || 'No location';
                 const callNumber = call.call_number || call.call_id;
                 const callId = parseInt(call.id, 10);
-                
+                const priority = Array.isArray(call.priorities) ? call.priorities[0] : call.priority;
+
                 if (isNaN(callId)) return;
-                
+
                 const popupContent = `
                     <div class="mobile-map-popup">
                         <strong class="popup-call-type">${MobileDashboard.escapeHtml(callType)}</strong><br>
@@ -1317,8 +1404,20 @@ const MobileMaps = {
                         </button>
                     </div>
                 `;
-                
-                const marker = L.marker([lat, lng])
+
+                // CSP img-src forbids unpkg.com, so default Leaflet PNG markers
+                // (https://unpkg.com/leaflet@.../images/marker-icon.png) are blocked.
+                // Use the same HTML-only divIcon scheme as the desktop MapManager;
+                // .custom-marker / .marker-circle classes live in dashboard.css.
+                const colorClass = MobileMaps.getCallIconColorClass(priority);
+                const icon = L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div class="marker-circle ${colorClass}"><i class="bi bi-telephone-fill"></i></div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+
+                const marker = L.marker([lat, lng], { icon })
                     .bindPopup(popupContent);
                 marker.addTo(this.map);
                 this.markers.push(marker);
@@ -1331,18 +1430,58 @@ const MobileMaps = {
     }
 };
 
-// Click delegation for mobile map popup buttons. CSP no longer permits inline
-// onclick handlers — see SecurityHeaders::setContentSecurityPolicy. Uses a
-// distinct action name from the desktop maps.js delegator so the two stay
-// independent on pages that load both bundles.
+// Click delegation. CSP no longer permits inline onclick handlers — see
+// SecurityHeaders::setContentSecurityPolicy. Single document-level listener
+// covers map popups, call-list rows, and stat-card filters. Uses distinct
+// action names from the desktop maps.js delegator so the two stay independent
+// on pages that load both bundles.
 document.addEventListener('click', (event) => {
-    const target = event.target.closest('[data-popup-action="mobile-view-call"]');
-    if (!target) return;
-
-    const id = parseInt(target.dataset.callId, 10);
-    if (Number.isFinite(id)) {
-        MobileDashboard.openCallDetails(id);
+    const popupBtn = event.target.closest('[data-popup-action="mobile-view-call"]');
+    if (popupBtn) {
+        const id = parseInt(popupBtn.dataset.callId, 10);
+        if (Number.isFinite(id)) {
+            MobileDashboard.openCallDetails(id);
+        }
+        return;
     }
+
+    const actionEl = event.target.closest('[data-mobile-action]');
+    if (!actionEl) return;
+
+    switch (actionEl.dataset.mobileAction) {
+        case 'open-call': {
+            const id = parseInt(actionEl.dataset.callId, 10);
+            if (Number.isFinite(id)) {
+                MobileDashboard.openCallDetails(id);
+            }
+            break;
+        }
+        case 'filter-status':
+            MobileDashboard.filterByStatus(actionEl.dataset.status);
+            break;
+        case 'retry-calls-list':
+            MobileDashboard.loadCallsList();
+            break;
+        case 'prev-page':
+            MobileDashboard.goToPage(MobileDashboard.currentPage - 1);
+            break;
+        case 'next-page':
+            MobileDashboard.goToPage(MobileDashboard.currentPage + 1);
+            break;
+    }
+});
+
+// Keyboard accessibility for every role="button" element that carries a
+// data-mobile-action (call rows, stat cards, etc.). Real <button> elements
+// like the pager controls already activate on Enter/Space natively, so we
+// scope this to role="button" to avoid double-firing. Dispatching a synthetic
+// click reuses the click delegator above — single source of truth.
+document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const target = event.target.closest('[data-mobile-action][role="button"]');
+    if (!target) return;
+    event.preventDefault();
+    target.click();
 });
 
 // Initialize when DOM is ready

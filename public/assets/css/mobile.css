@@ -352,6 +352,22 @@ body.mobile-view {
     border-radius: 12px;
 }
 
+/* Mobile Pager */
+.mobile-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 16px 0 24px;
+}
+
+.mobile-pagination-info {
+    font-size: 0.875rem;
+    color: #6c757d;
+    flex: 1;
+    text-align: center;
+}
+
 /* Mobile Empty State */
 .mobile-empty-state {
     text-align: center;

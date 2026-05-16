@@ -26,14 +26,14 @@
             </h2>
         </div>
         
-        <div class="mobile-stat-card border-danger" onclick="MobileDashboard.filterByStatus('active')">
+        <div class="mobile-stat-card border-danger" data-mobile-action="filter-status" data-status="active" role="button" tabindex="0">
             <h6>Active</h6>
             <h2 class="text-danger" id="stat-active">
                 <span class="spinner-border spinner-border-sm"></span>
             </h2>
         </div>
-        
-        <div class="mobile-stat-card border-success" onclick="MobileDashboard.filterByStatus('closed')">
+
+        <div class="mobile-stat-card border-success" data-mobile-action="filter-status" data-status="closed" role="button" tabindex="0">
             <h6>Closed</h6>
             <h2 class="text-success" id="stat-closed">
                 <span class="spinner-border spinner-border-sm"></span>
@@ -60,6 +60,16 @@
         <div id="mobile-calls-list">
             <!-- Calls will be loaded here -->
         </div>
+
+        <nav id="mobile-calls-pagination" class="mobile-pagination d-none" aria-label="Calls pagination">
+            <button type="button" class="btn btn-outline-primary btn-sm" data-mobile-action="prev-page" disabled>
+                <i class="bi bi-chevron-left"></i> Prev
+            </button>
+            <span class="mobile-pagination-info" id="mobile-page-info">Page 1</span>
+            <button type="button" class="btn btn-outline-primary btn-sm" data-mobile-action="next-page" disabled>
+                Next <i class="bi bi-chevron-right"></i>
+            </button>
+        </nav>
     </div>
     
     <!-- Map View (Hidden by default) -->
