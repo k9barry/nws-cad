@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.17] - 2026-05-16
+
+### Changes
+- fix(mobile): scope live-dot pulse to the <i>, not the container (#41) (6f77666)
+
 ## [1.1.16] - 2026-05-16
 
 ### Changes
