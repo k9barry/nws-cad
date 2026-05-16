@@ -39,15 +39,11 @@ const MobileDashboard = {
     async init() {
         console.log('[Mobile] Initializing mobile dashboard');
 
-        // Pre-populate URL with sensible defaults (today + open) on any fresh
-        // page load. Matches the desktop dispatcher's default view; FilterPanel's
-        // "Restore last filter?" banner still lets users recover a saved state.
-        if (!window.location.search) {
-            const url = new URL(window.location);
-            url.searchParams.set('preset', 'today');
-            url.searchParams.set('status', 'open');
-            window.history.replaceState({}, '', url);
-        }
+        // Whether this load arrived with a bare URL. Captured before mount so
+        // we can inject sensible defaults AFTER FilterPanel has had a chance
+        // to render its "Restore last filter?" banner, which exits early when
+        // window.location.search is non-empty.
+        const wasFreshLoad = !window.location.search;
 
         // Initialize FilterPanel (compact mode). The panel lives inside an
         // offcanvas drawer that's toggled by the filter stat-card; no explicit
@@ -65,6 +61,20 @@ const MobileDashboard = {
                 },
             });
             await this.panel.mount();
+
+            // Now that mount() has rendered any restore banner, inject the
+            // dispatcher's default view (today + open) and sync FilterPanel
+            // via a synthetic popstate — its popstate handler rebuilds state
+            // from the URL. Users still have ~6s to click "Restore" before
+            // the banner auto-dismisses.
+            if (wasFreshLoad) {
+                const url = new URL(window.location);
+                url.searchParams.set('preset', 'today');
+                url.searchParams.set('status', 'open');
+                window.history.replaceState({}, '', url);
+                window.dispatchEvent(new PopStateEvent('popstate'));
+            }
+
             this.currentQs = this.panel.getState().toQueryString();
         }
 
@@ -213,9 +223,24 @@ const MobileDashboard = {
 
             const data = await Dashboard.apiRequest(`/calls?${baseParams.toString()}`);
 
-            this.totalCalls = data.pagination?.total || 0;
-            this.totalPages = Math.max(1, data.pagination?.total_pages || 1);
-            // Server may clamp the page; reflect what was actually returned.
+            const total      = data.pagination?.total || 0;
+            const totalPages = Math.max(1, data.pagination?.total_pages || 1);
+
+            // CallsController returns the requested page verbatim — it does
+            // NOT clamp to total_pages. If live updates shrank the result set,
+            // we may be holding a now-invalid page index. Re-request the last
+            // real page once (guarded against loops).
+            if (total > 0 && this.currentPage > totalPages && !this._clampingPage) {
+                this._clampingPage = true;
+                this.currentPage = totalPages;
+                this.totalPages  = totalPages;
+                this.totalCalls  = total;
+                return this.loadCallsList();
+            }
+            this._clampingPage = false;
+
+            this.totalCalls = total;
+            this.totalPages = totalPages;
             this.currentPage = data.pagination?.current_page || this.currentPage;
             this.renderCallsList(data.items || []);
             this.updatePagination();
@@ -1446,16 +1471,17 @@ document.addEventListener('click', (event) => {
     }
 });
 
-// Keyboard accessibility for the role="button" call-list items.
+// Keyboard accessibility for every role="button" element that carries a
+// data-mobile-action (call rows, stat cards, etc.). Real <button> elements
+// like the pager controls already activate on Enter/Space natively, so we
+// scope this to role="button" to avoid double-firing. Dispatching a synthetic
+// click reuses the click delegator above — single source of truth.
 document.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
-    const target = event.target.closest('[data-mobile-action="open-call"]');
+    const target = event.target.closest('[data-mobile-action][role="button"]');
     if (!target) return;
     event.preventDefault();
-    const id = parseInt(target.dataset.callId, 10);
-    if (Number.isFinite(id)) {
-        MobileDashboard.openCallDetails(id);
-    }
+    target.click();
 });
 
 // Initialize when DOM is ready
