@@ -1149,9 +1149,6 @@ const MobileDashboard = {
         const indicator = document.querySelector('.mobile-live-indicator');
         if (indicator) {
             indicator.classList.add('pulse');
-            setTimeout(() => {
-                indicator.classList.remove('pulse');
-            }, 2000);
         }
     }
 };
