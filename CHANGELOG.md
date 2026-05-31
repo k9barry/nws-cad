@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.18] - 2026-05-31
+
+### Changes
+- docs(claude): document PR merge protocol (wait for qodo + Copilot bots) (#42) (932f36c)
+
 ## [1.1.17] - 2026-05-16
 
 ### Changes
