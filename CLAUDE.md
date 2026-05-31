@@ -144,6 +144,15 @@ After `AegisXmlParser::processFile()` commits, it dispatches a `CallProcessedEve
 - Never `extract($row)` from DB rows. Use explicit DTO mapping (see `IncidentDto::fromRow()` for the pattern).
 - Notification secrets are referenced by **env-var name** (`auth_token_env`) in `notification_channels.config_json`, never by literal value. Read them at send time with `Config::secret($envName)`.
 
+## PR merge protocol
+
+Every push to `main` triggers `.github/workflows/release.yml`, which unconditionally bumps `VERSION`, appends `CHANGELOG.md`, tags `v<next>`, and creates a GitHub Release. There is no "draft" stage — anything merged ships. Two bot reviewers run on every PR and must be respected before merging:
+
+- **qodo-code-review** — posts a walkthrough summary plus a "Code Review by Qodo" comment with a `🐞 Bugs (N)` count. `N > 0` means there are findings to address; walkthrough-only summaries with no findings are fine to skip.
+- **copilot-pull-request-reviewer[bot]** — posts an overview review and (sometimes) inline `discussion_r…` diff comments. Inline comments are actionable.
+
+After `gh pr create`, wait for both bots (typically ≤ 2 minutes), then `gh pr view <num> --comments` and `gh api repos/k9barry/nws-cad/pulls/<num>/comments` to read them. Push fixes to the same branch (bots re-review on new commits) and only merge once both bots have posted and there are no unaddressed concerns. This rule was established after v1.1.16 (PR #40) shipped a regression that both bots had flagged but that was merged before their reviews appeared, forcing v1.1.17 (PR #41) the same day.
+
 ## Test conventions (load-bearing for CI)
 
 `phpunit.xml` sets `requireCoverageMetadata="true"`, `beStrictAboutCoverageMetadata="true"`, `failOnRisky="true"`, `failOnWarning="true"`. Several gotchas follow from those:
