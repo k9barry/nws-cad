@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     unzip \
     curl \
     libpq-dev \
+    gosu \
     && docker-php-ext-install pdo pdo_mysql pdo_pgsql \
     && rm -rf /var/lib/apt/lists/*
 
@@ -33,7 +34,13 @@ COPY . .
 
 # Set permissions
 RUN chown -R www-data:www-data /var/www
+COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 8080
 
+# Drop root at runtime: the entrypoint fixes ownership of bind-mounted paths as
+# root, then execs the API server as www-data via gosu. Port 8080 (> 1024)
+# needs no privileged binding.
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["php", "-S", "0.0.0.0:8080", "-t", "/var/www/public", "/var/www/public/router.php"]

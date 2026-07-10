@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     unzip \
     inotify-tools \
     ca-certificates \
+    gosu \
     && update-ca-certificates \
     && docker-php-ext-install pdo pdo_mysql pdo_pgsql xml simplexml \
     && pecl install pcov \
@@ -35,7 +36,6 @@ COPY composer.json composer.lock* /var/www/
 ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN composer config -g repos.packagist composer https://packagist.org && \
     composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts --no-dev 2>&1 || \
-    (composer config -g disable-tls true && composer config -g secure-http false && composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts --no-dev) || \
     echo "Composer install skipped or failed - will install in running container"
 
 # Copy rest of application files
@@ -47,4 +47,13 @@ RUN mkdir -p /var/www/watch /var/www/logs /var/www/tmp \
 RUN echo "memory_limit = 512M" > /usr/local/etc/php/conf.d/memory-limit.ini \
     && echo "date.timezone = ${TZ}" > /usr/local/etc/php/conf.d/timezone.ini
 
+# Drop root at runtime: the entrypoint (running as root) fixes ownership of the
+# writable paths — including host bind mounts used by docker-compose — then
+# execs the watcher as www-data via gosu. The watcher must be able to write
+# logs/heartbeat and rename ingested files into watch/processed|failed.
+RUN chown -R www-data:www-data /var/www
+COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["php", "/var/www/src/watcher.php"]

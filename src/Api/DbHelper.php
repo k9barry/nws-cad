@@ -32,7 +32,7 @@ class DbHelper
      * @param string $name Human-readable name for error messages
      * @throws InvalidArgumentException If identifier is invalid
      */
-    private static function validateIdentifier(string $identifier, string $name = 'identifier'): void
+    public static function validateIdentifier(string $identifier, string $name = 'identifier'): void
     {
         if (!preg_match(self::IDENTIFIER_PATTERN, $identifier)) {
             throw new InvalidArgumentException(

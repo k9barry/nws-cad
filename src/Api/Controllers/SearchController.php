@@ -282,7 +282,7 @@ class SearchController
 
             Response::paginated($formattedCalls, $total, $pagination['page'], $pagination['per_page']);
         } catch (Exception $e) {
-            Response::error('Search failed: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Search failed');
         }
     }
 
@@ -467,7 +467,7 @@ class SearchController
 
             Response::paginated($formattedResults, $total, $pagination['page'], $pagination['per_page']);
         } catch (Exception $e) {
-            Response::error('Location search failed: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Location search failed');
         }
     }
 
@@ -617,7 +617,7 @@ class SearchController
 
             Response::paginated($formattedUnits, $total, $pagination['page'], $pagination['per_page']);
         } catch (Exception $e) {
-            Response::error('Unit search failed: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Unit search failed');
         }
     }
 }

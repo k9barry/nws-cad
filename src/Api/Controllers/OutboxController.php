@@ -41,7 +41,7 @@ final class OutboxController
             $rows  = $this->repo->listByStatus($status, $limit);
             Response::success(['items' => $rows, 'status' => $status, 'limit' => $limit]);
         } catch (Exception $e) {
-            Response::error('Failed to list outbox: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to list outbox');
         }
     }
 
@@ -60,7 +60,7 @@ final class OutboxController
             }
             Response::success(['retried' => 1, 'id' => (int) $id]);
         } catch (Exception $e) {
-            Response::error('Failed to retry outbox row: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retry outbox row');
         }
     }
 
@@ -87,7 +87,7 @@ final class OutboxController
             );
             Response::success(['row' => $row, 'history' => $history]);
         } catch (Exception $e) {
-            Response::error('Failed to load outbox row: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to load outbox row');
         }
     }
 
@@ -136,7 +136,7 @@ final class OutboxController
                 'next_attempt_at' => $parsed->format('Y-m-d H:i:s'),
             ]);
         } catch (Exception $e) {
-            Response::error('Failed to reschedule outbox row: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to reschedule outbox row');
         }
     }
 
@@ -155,7 +155,7 @@ final class OutboxController
             }
             Response::success(['deleted' => 1, 'id' => (int) $id]);
         } catch (Exception $e) {
-            Response::error('Failed to dismiss outbox row: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to dismiss outbox row');
         }
     }
 
@@ -173,7 +173,7 @@ final class OutboxController
             $count = $this->repo->deleteByStatus($status);
             Response::success(['deleted' => $count, 'status' => $status]);
         } catch (Exception $e) {
-            Response::error('Failed to clear outbox: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to clear outbox');
         }
     }
 }

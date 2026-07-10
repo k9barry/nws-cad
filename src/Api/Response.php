@@ -129,6 +129,32 @@ class Response
     }
 
     /**
+     * Send a 500 response derived from a caught exception WITHOUT leaking the
+     * exception detail to the client. The full exception (message, class,
+     * origin) is written to the server error log; the client receives only
+     * the generic $publicMessage. Use this instead of concatenating
+     * $e->getMessage() into a Response::error(..., 500) call — driver errors,
+     * SQL fragments, and file paths must never reach API clients.
+     */
+    public static function serverErrorFromException(\Throwable $e, string $publicMessage = 'Internal server error'): void
+    {
+        // Strip CR/LF (and other control chars) from the exception message so a
+        // crafted message cannot forge additional log lines (log injection).
+        $safeMessage = preg_replace('/[\x00-\x1F\x7F]+/', ' ', $e->getMessage()) ?? '';
+
+        error_log(sprintf(
+            '%s: %s [%s] at %s:%d',
+            $publicMessage,
+            $safeMessage,
+            get_class($e),
+            $e->getFile(),
+            $e->getLine()
+        ));
+
+        self::error($publicMessage, 500);
+    }
+
+    /**
      * Send paginated response
      */
     public static function paginated(array $data, int $total, int $page, int $perPage): void

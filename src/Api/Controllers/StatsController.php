@@ -80,7 +80,7 @@ class StatsController
 
             Response::success($aggregateStats);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve aggregate statistics: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve aggregate statistics');
         }
     }
 
@@ -489,7 +489,7 @@ class StatsController
                 'average_duration_minutes' => round($avgDuration, 2)
             ]);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve call statistics: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve call statistics');
         }
     }
 
@@ -646,7 +646,7 @@ class StatsController
                 ]
             ]);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve unit statistics: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve unit statistics');
         }
     }
 
@@ -857,7 +857,7 @@ class StatsController
                 ]
             ]);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve response time analytics: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve response time analytics');
         }
     }
 

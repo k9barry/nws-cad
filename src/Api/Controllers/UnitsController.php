@@ -42,8 +42,21 @@ class UnitsController
         try {
             $pagination = Request::pagination();
             $sorting    = Request::sorting('assigned_datetime', 'desc');
-            $allowedSort = ['unit_number', 'unit_type', 'assigned_datetime', 'clear_datetime'];
-            $sortField   = in_array($sorting['sort'], $allowedSort, true) ? $sorting['sort'] : 'assigned_datetime';
+            // Map the user-supplied sort key to a hardcoded column expression so
+            // no user-derived string is ever interpolated into SQL. Direction is
+            // a literal ASC/DESC ternary. Unknown keys fall back to the default.
+            $sortColumns = [
+                'unit_number'       => 'units.unit_number',
+                'unit_type'         => 'units.unit_type',
+                'assigned_datetime' => 'units.assigned_datetime',
+                'clear_datetime'    => 'units.clear_datetime',
+            ];
+            $sortColumn = $sortColumns[$sorting['sort']] ?? 'units.assigned_datetime';
+            $sortDir    = $sorting['order'] === 'ASC' ? 'ASC' : 'DESC';
+            // Defensive: enforce the identifier-validation convention even though
+            // $sortColumn comes from a hardcoded map, so a future map edit cannot
+            // reach the interpolated ORDER BY unchecked.
+            \NwsCad\Api\DbHelper::validateIdentifier($sortColumn, 'sort column');
 
             $builder = new \NwsCad\Api\Filtering\FilterSqlBuilder();
             $sql     = $builder->build(
@@ -68,7 +81,7 @@ class UnitsController
                 . $callsJoin
                 . $joinsStr . ' '
                 . $sql->whereClause
-                . " ORDER BY units.{$sortField} {$sorting['order']}"
+                . " ORDER BY {$sortColumn} {$sortDir}"
                 . ' LIMIT :limit OFFSET :offset';
 
             $stmt = $this->db->prepare($listSql);
@@ -90,7 +103,7 @@ class UnitsController
                 'filters'    => $criteria->toArray(),
             ]);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve units: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve units');
         }
     }
 
@@ -191,7 +204,7 @@ class UnitsController
 
             Response::success($response);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve unit: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve unit');
         }
     }
 
@@ -224,7 +237,7 @@ class UnitsController
 
             Response::success($logs);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve unit logs: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve unit logs');
         }
     }
 
@@ -277,7 +290,7 @@ class UnitsController
 
             Response::success($formattedPersonnel);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve unit personnel: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve unit personnel');
         }
     }
 
@@ -310,7 +323,7 @@ class UnitsController
 
             Response::success($dispositions);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve unit dispositions: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve unit dispositions');
         }
     }
 }

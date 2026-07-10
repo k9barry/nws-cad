@@ -44,7 +44,7 @@ final class NotificationsController
 
             Response::success(['items' => $rows]);
         } catch (Exception $e) {
-            Response::error('Failed to list channels: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to list channels');
         }
     }
 
@@ -92,7 +92,7 @@ final class NotificationsController
 
             Response::success(['items' => $rows, 'channel_id' => $channelId, 'limit' => $limit]);
         } catch (Exception $e) {
-            Response::error('Failed to read send log: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to read send log');
         }
     }
 
@@ -159,7 +159,7 @@ final class NotificationsController
             $row->execute([$name]);
             Response::success($row->fetch(\PDO::FETCH_ASSOC));
         } catch (Exception $e) {
-            Response::error('Failed to enable channel: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to enable channel');
         }
     }
 
@@ -182,7 +182,7 @@ final class NotificationsController
             $stmt->execute([$actor, $type]);
             Response::success(['updated' => $stmt->rowCount()]);
         } catch (Exception $e) {
-            Response::error('Failed to disable channel: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to disable channel');
         }
     }
 
@@ -278,7 +278,7 @@ final class NotificationsController
                 'topic'       => $first->topic,
             ]);
         } catch (Exception $e) {
-            Response::error('Failed to send test: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to send test');
         }
     }
 
@@ -298,7 +298,7 @@ final class NotificationsController
             }
             Response::success(['deleted' => 1, 'id' => (int) $id]);
         } catch (Exception $e) {
-            Response::error('Failed to dismiss log entry: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to dismiss log entry');
         }
     }
 
@@ -322,7 +322,7 @@ final class NotificationsController
             $stmt->execute([$actor, $type]);
             Response::success(['cleared' => $stmt->rowCount()]);
         } catch (Exception $e) {
-            Response::error('Failed to clear channel error: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to clear channel error');
         }
     }
 
@@ -346,7 +346,7 @@ final class NotificationsController
             $stmt->execute([$channelId]);
             Response::success(['deleted' => $stmt->rowCount(), 'channel_id' => $channelId]);
         } catch (Exception $e) {
-            Response::error('Failed to clear failed entries: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to clear failed entries');
         }
     }
 
