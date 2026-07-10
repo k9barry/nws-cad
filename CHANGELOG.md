@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0] - 2026-07-10
+
+## Features
+
+- feat(security): rate limiting, vendored assets + CSP lockdown, safeHtml helper (#54) (b255d92)
+
+
 ## [1.1.19] - 2026-07-10
 
 ## Fixes
