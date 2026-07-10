@@ -79,10 +79,14 @@ class SecurityHeaders
             $nonce  = self::nonce();
             $policy = implode('; ', [
                 "default-src 'self'",
-                "script-src 'self' 'nonce-{$nonce}' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://*.cloudflare.com",
-                "style-src 'self' 'nonce-{$nonce}' https://cdn.jsdelivr.net https://unpkg.com https://fonts.googleapis.com",
-                "img-src 'self' data: https://cdn.jsdelivr.net https://*.tile.openstreetmap.org",
-                "font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com",
+                // All third-party libraries (Bootstrap, Bootstrap Icons, Chart.js,
+                // Leaflet, Choices.js, Flatpickr) are vendored under
+                // public/assets/vendor, so no CDN hosts or 'unsafe-eval' are needed.
+                "script-src 'self' 'nonce-{$nonce}'",
+                "style-src 'self' 'nonce-{$nonce}'",
+                // OpenStreetMap tile images are still fetched at runtime by Leaflet.
+                "img-src 'self' data: https://*.tile.openstreetmap.org",
+                "font-src 'self' data:",
                 "connect-src 'self'",
                 "frame-ancestors 'none'",
                 "base-uri 'self'",

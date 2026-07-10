@@ -374,7 +374,7 @@
         // Update top call types list
         const topCallsEl = document.getElementById('top-call-types');
         if (topCallsEl && stats.top_call_types && stats.top_call_types.length > 0) {
-            topCallsEl.innerHTML = stats.top_call_types.map((type, idx) => `
+            topCallsEl.innerHTML = stats.top_call_types.map((type, idx) => Dashboard.safeHtml`
                 <div class="list-group-item">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>

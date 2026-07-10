@@ -49,13 +49,13 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
     <title><?= htmlspecialchars($pageTitle) ?> - NWS CAD Dashboard</title>
     
     <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     
     <!-- Bootstrap Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
     
     <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/assets/vendor/leaflet/leaflet.css" />
     
     <!-- Custom CSS -->
     <link href="/assets/css/dashboard.css?v=<?= time() ?>" rel="stylesheet">
@@ -130,13 +130,13 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
     </footer>
 
     <!-- Bootstrap JS Bundle -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
     
     <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="/assets/vendor/chartjs/chart.umd.min.js"></script>
     
     <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/assets/vendor/leaflet/leaflet.js"></script>
     
     <!-- Custom JS -->
     <script nonce="<?= htmlspecialchars(\NwsCad\Security\SecurityHeaders::nonce(), ENT_QUOTES) ?>">

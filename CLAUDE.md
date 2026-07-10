@@ -128,6 +128,7 @@ ref_agencies, ref_areas, ref_beats, ref_fdids, ref_oris (filter-dropdown referen
 
 - `Dashboard.apiRequest(endpoint)` — fetch wrapper with consistent error handling.
 - `Dashboard.escapeHtml(text)` — XSS prevention; **must wrap any user-derived value rendered into HTML**. The `notifications.php` view builds list items via `createElement` + `textContent` since the source data (CAD field names, agency/jurisdiction strings) is untrusted.
+- `Dashboard.safeHtml\`…${value}…\`` — tagged-template helper that HTML-escapes **every** interpolation automatically; prefer it over hand-wrapping each value in `escapeHtml`. Wrap an intentionally-trusted fragment (e.g. a badge built by another helper) in `Dashboard.raw(html)` to opt it out of escaping. New `innerHTML` assignments that interpolate CAD-derived data should use `safeHtml`; existing hand-escaped sites are being migrated incrementally.
 - `Dashboard.formatTime(datetime)`, `Dashboard.buildQueryString(params)`.
 - `FilterPanel` (`public/assets/js/filters/FilterPanel.js`) — universal filter component. Mount via `<div data-filter-panel data-fields="...">`. Owns URL sync, restore-banner, Choices.js + Flatpickr widgets.
 

@@ -27,7 +27,42 @@ const Dashboard = {
         div.textContent = String(text);
         return div.innerHTML;
     },
-    
+
+    /**
+     * Marker for a pre-trusted HTML fragment inside a safeHtml`` template, so
+     * safeHtml does NOT re-escape it (e.g. a badge built by another helper that
+     * already escaped its own inputs). Use sparingly and only with markup you
+     * produced — never with raw CAD-derived values.
+     * @param {string} html Already-safe HTML
+     */
+    raw(html) {
+        return { __safeHtml: String(html) };
+    },
+
+    /**
+     * Tagged-template helper that HTML-escapes every interpolation by default,
+     * so CAD-derived values (call types, addresses, unit names) can never break
+     * out into markup. Wrap an intentionally-trusted fragment in Dashboard.raw()
+     * to opt it out of escaping.
+     *
+     *   el.innerHTML = Dashboard.safeHtml`<span>${call.type}</span>`;
+     *   el.innerHTML = Dashboard.safeHtml`<td>${Dashboard.raw(badgeHtml)}</td>`;
+     *
+     * @param {TemplateStringsArray} strings
+     * @param {...*} values
+     * @returns {string}
+     */
+    safeHtml(strings, ...values) {
+        return strings.reduce((out, str, i) => {
+            if (i >= values.length) return out + str;
+            const v = values[i];
+            if (v && typeof v === 'object' && typeof v.__safeHtml === 'string') {
+                return out + str + v.__safeHtml;
+            }
+            return out + str + Dashboard.escapeHtml(v);
+        }, '');
+    },
+
     /**
      * Make API request
      * 
