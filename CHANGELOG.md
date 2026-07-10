@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0] - 2026-07-10
+
+## Breaking Changes
+
+- feat(ops)!: migrate runtime state into var/ (#55) (ecac4f0)
+
+
 ## [1.2.0] - 2026-07-10
 
 ## Features
