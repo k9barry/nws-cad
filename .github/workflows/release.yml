@@ -138,6 +138,17 @@ jobs:
             exit 0
           fi
 
+          # Guard the arithmetic below: BASE must be a clean X.Y.Z. A tag
+          # with a pre-release/build suffix (v1.2.3-rc1) or any malformed
+          # value would otherwise crash `$((...))` under `set -e` and abort
+          # the release. Strip a leading suffix, then hard-fail if it is
+          # still not three numeric components.
+          BASE="${BASE%%[-+]*}"
+          if ! printf '%s' "$BASE" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Cannot compute next version: base '$BASE' is not X.Y.Z"
+            exit 1
+          fi
+
           IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
           case "$BUMP" in
             3) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
@@ -154,6 +165,13 @@ jobs:
           if [ -n "$FIXES" ]; then printf '## Fixes\n\n%s\n' "$FIXES" >> "$NOTES"; fi
           if [ -n "$PERF" ]; then printf '## Performance\n\n%s\n' "$PERF" >> "$NOTES"; fi
           if [ -n "$REFACTOR" ]; then printf '## Refactoring\n\n%s\n' "$REFACTOR" >> "$NOTES"; fi
+
+          # A forced bump (workflow_dispatch force_bump) can release a range
+          # that contains only no-release commit types, leaving every section
+          # empty. Emit a minimal note so the release still has an audit trail.
+          if [ ! -s "$NOTES" ]; then
+            printf '## Notes\n\nForced release (no releasable conventional commits detected).\n' >> "$NOTES"
+          fi
 
           echo "--- release notes ---"
           cat "$NOTES"
@@ -208,9 +226,12 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add VERSION CHANGELOG.md
           git commit -m "chore(release): v$VERSION [skip ci]"
-          git push origin main
+          # Tag locally first, then push the commit and its tag in a single
+          # operation (--follow-tags). This avoids the partial-publish window
+          # where main carries a release commit but the v* tag is missing,
+          # which would corrupt the git-describe version source of truth.
           git tag -a "v$VERSION" -m "Release v$VERSION"
-          git push origin "v$VERSION"
+          git push origin main --follow-tags
 
       - name: Create GitHub Release
         if: steps.detect.outputs.bump != 'none' && github.event.inputs.dry_run != 'true'
@@ -218,6 +239,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.detect.outputs.version }}
         run: |
-          gh release create "v$VERSION" \
-            --title "v$VERSION" \
-            --notes-file "$RUNNER_TEMP/release-notes.md"
+          set -euo pipefail
+          # Idempotent: if a prior run already published the tag but died
+          # before creating the Release, a rerun heals it instead of failing.
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "Release v$VERSION already exists - skipping creation."
+          else
+            gh release create "v$VERSION" \
+              --title "v$VERSION" \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
