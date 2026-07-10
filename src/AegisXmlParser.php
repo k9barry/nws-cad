@@ -155,7 +155,19 @@ class AegisXmlParser
                 $this->logger->error("File does not exist: {$filePath}");
                 return false;
             }
-            
+
+            // DoS guard: reject oversized files before reading them into memory.
+            // Configurable via XML_MAX_BYTES (default 10 MB). An oversized file
+            // is rejected here so the caller moves it to failed/.
+            $maxBytes = (int) (getenv('XML_MAX_BYTES') ?: 10 * 1024 * 1024);
+            $fileSize = filesize($filePath);
+            if ($fileSize !== false && $fileSize > $maxBytes) {
+                $this->logger->error(
+                    "File exceeds XML_MAX_BYTES ({$maxBytes}): {$filePath} is {$fileSize} bytes"
+                );
+                return false;
+            }
+
             // Read file content and strip BOM if present
             $this->logger->debug("Reading file contents...");
             $content = file_get_contents($filePath);
@@ -169,7 +181,17 @@ class AegisXmlParser
             // Many NWS CAD XML exports include BOM which can cause parsing issues
             $this->logger->debug("Checking for and stripping BOM...");
             $content = $this->stripBOM($content);
-            
+
+            // XXE / entity-expansion guard: reject any document that declares a
+            // DOCTYPE. libxml2 >= 2.9 disables external entity loading by default
+            // and LIBXML_NOENT is never set, but a DOCTYPE is never legitimate in
+            // an Aegis CAD export, so refuse it outright rather than relying on
+            // parser defaults. (LIBXML_NODDTD does not exist in PHP.)
+            if (preg_match('/<!DOCTYPE/i', $content) === 1) {
+                $this->logger->error("Rejected XML containing a DOCTYPE declaration: {$filePath}");
+                return false;
+            }
+
             // XXE Protection: In PHP 8.0+, external entity loading is disabled by default
             // LIBXML_NONET prevents network access during XML parsing
             $this->logger->debug("Parsing XML with XXE protection (LIBXML_NONET)...");

@@ -36,4 +36,7 @@ RUN chown -R www-data:www-data /var/www
 
 EXPOSE 8080
 
+# Drop root: the API listens on 8080 (> 1024), so it needs no privileged port.
+USER www-data
+
 CMD ["php", "-S", "0.0.0.0:8080", "-t", "/var/www/public", "/var/www/public/router.php"]

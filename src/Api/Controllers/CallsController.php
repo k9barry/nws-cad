@@ -44,8 +44,16 @@ class CallsController
             $pagination = Request::pagination();
             $sorting    = Request::sorting('create_datetime', 'desc');
 
-            $allowedSort = ['create_datetime', 'close_datetime', 'call_number'];
-            $sortField   = in_array($sorting['sort'], $allowedSort, true) ? $sorting['sort'] : 'create_datetime';
+            // Map the user-supplied sort key to a hardcoded column expression so
+            // no user-derived string is ever interpolated into SQL. Direction is
+            // a literal ASC/DESC ternary. Unknown keys fall back to the default.
+            $sortColumns = [
+                'create_datetime' => 'calls.create_datetime',
+                'close_datetime'  => 'calls.close_datetime',
+                'call_number'     => 'calls.call_number',
+            ];
+            $sortColumn = $sortColumns[$sorting['sort']] ?? 'calls.create_datetime';
+            $sortDir    = $sorting['order'] === 'ASC' ? 'ASC' : 'DESC';
 
             // FilterSqlBuilder will add `LEFT JOIN locations` only when a filter
             // actually targets a location column (city/beat/area/ori/location).
@@ -91,7 +99,7 @@ class CallsController
                 . implode(' ', $sql->joins) . ' '
                 . $sql->whereClause
                 . ' GROUP BY calls.id'
-                . " ORDER BY calls.{$sortField} {$sorting['order']}, calls.id {$sorting['order']}"
+                . " ORDER BY {$sortColumn} {$sortDir}, calls.id {$sortDir}"
                 . ' LIMIT :limit OFFSET :offset';
             $idStmt = $this->db->prepare($idSql);
             foreach ($sql->params as $k => $v) {
@@ -112,7 +120,7 @@ class CallsController
                     . 'FROM calls '
                     . $locationsJoin
                     . " WHERE calls.id IN ({$placeholders})"
-                    . " ORDER BY calls.{$sortField} {$sorting['order']}, calls.id {$sorting['order']}";
+                    . " ORDER BY {$sortColumn} {$sortDir}, calls.id {$sortDir}";
                 $stmt = $this->db->prepare($listSql);
                 $stmt->execute($ids);
                 $rows = $stmt->fetchAll();
@@ -182,7 +190,7 @@ class CallsController
                 'filters'    => $criteria->toArray(),
             ]);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve calls: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve calls');
         }
     }
 
@@ -306,7 +314,7 @@ class CallsController
 
             Response::success($response);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve call: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve call');
         }
     }
 
@@ -369,7 +377,7 @@ class CallsController
 
             Response::success($formattedUnits);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve units: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve units');
         }
     }
 
@@ -414,7 +422,7 @@ class CallsController
 
             Response::paginated($narratives, $total, $pagination['page'], $pagination['per_page']);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve narratives: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve narratives');
         }
     }
 
@@ -447,7 +455,7 @@ class CallsController
 
             Response::success($persons);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve persons: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve persons');
         }
     }
 
@@ -475,7 +483,7 @@ class CallsController
 
             Response::success($location);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve location: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve location');
         }
     }
 
@@ -508,7 +516,7 @@ class CallsController
 
             Response::success($incidents);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve incidents: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve incidents');
         }
     }
 
@@ -541,7 +549,7 @@ class CallsController
 
             Response::success($dispositions);
         } catch (Exception $e) {
-            Response::error('Failed to retrieve dispositions: ' . $e->getMessage(), 500);
+            Response::serverErrorFromException($e, 'Failed to retrieve dispositions');
         }
     }
     

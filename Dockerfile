@@ -35,7 +35,6 @@ COPY composer.json composer.lock* /var/www/
 ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN composer config -g repos.packagist composer https://packagist.org && \
     composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts --no-dev 2>&1 || \
-    (composer config -g disable-tls true && composer config -g secure-http false && composer install --no-interaction --prefer-dist --optimize-autoloader --no-scripts --no-dev) || \
     echo "Composer install skipped or failed - will install in running container"
 
 # Copy rest of application files
@@ -46,5 +45,10 @@ RUN mkdir -p /var/www/watch /var/www/logs /var/www/tmp \
 # Set PHP configuration
 RUN echo "memory_limit = 512M" > /usr/local/etc/php/conf.d/memory-limit.ini \
     && echo "date.timezone = ${TZ}" > /usr/local/etc/php/conf.d/timezone.ini
+
+# Drop root: run the watcher as www-data. It must own the app tree so it can
+# write logs/heartbeat and rename ingested files into watch/processed|failed.
+RUN chown -R www-data:www-data /var/www
+USER www-data
 
 CMD ["php", "/var/www/src/watcher.php"]

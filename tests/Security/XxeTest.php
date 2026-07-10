@@ -313,14 +313,80 @@ XML;
         // Test that proper LIBXML options are used
         $xmlPath = $this->tempDir . '/secure.xml';
         file_put_contents($xmlPath, '<?xml version="1.0"?><root><value>test</value></root>');
-        
+
         libxml_use_internal_errors(true);
-        
+
         // These are the secure options that should be used
         $secureOptions = LIBXML_NONET; // Disable network access
-        
+
         $xml = simplexml_load_file($xmlPath, 'SimpleXMLElement', $secureOptions);
-        
+
         $this->assertNotFalse($xml);
+    }
+
+    public function testDoctypeDeclarationIsRejectedBeforeParsing(): void
+    {
+        if (!getenv('MYSQL_HOST')) {
+            $this->markTestSkipped('Database not configured for testing');
+        }
+
+        // A well-formed Aegis call that also carries a DOCTYPE. The parser must
+        // refuse it outright rather than relying on parser entity defaults.
+        $xml = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE CallExport>
+<CallExport xmlns="http://www.newworldsystems.com/Aegis/CAD/Peripheral/CallExport/2011/02">
+    <CallId>99001</CallId>
+    <CallNumber>DOCTYPE-001</CallNumber>
+    <CreateDateTime>2024-01-01T10:00:00</CreateDateTime>
+    <ClosedFlag>false</ClosedFlag>
+    <CanceledFlag>false</CanceledFlag>
+</CallExport>
+XML;
+        $xmlPath = $this->tempDir . '/doctype.xml';
+        file_put_contents($xmlPath, $xml);
+
+        cleanTestDatabase();
+        $parser = new AegisXmlParser();
+        $result = $parser->processFile($xmlPath);
+
+        $this->assertFalse($result, 'XML declaring a DOCTYPE must be rejected');
+    }
+
+    public function testOversizedFileIsRejectedByByteCap(): void
+    {
+        if (!getenv('MYSQL_HOST')) {
+            $this->markTestSkipped('Database not configured for testing');
+        }
+
+        $previous = getenv('XML_MAX_BYTES');
+        putenv('XML_MAX_BYTES=64'); // a valid CallExport is well over 64 bytes
+
+        try {
+            $xml = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<CallExport xmlns="http://www.newworldsystems.com/Aegis/CAD/Peripheral/CallExport/2011/02">
+    <CallId>99002</CallId>
+    <CallNumber>SIZE-001</CallNumber>
+    <CreateDateTime>2024-01-01T10:00:00</CreateDateTime>
+    <ClosedFlag>false</ClosedFlag>
+    <CanceledFlag>false</CanceledFlag>
+</CallExport>
+XML;
+            $xmlPath = $this->tempDir . '/oversized.xml';
+            file_put_contents($xmlPath, $xml);
+
+            cleanTestDatabase();
+            $parser = new AegisXmlParser();
+            $result = $parser->processFile($xmlPath);
+
+            $this->assertFalse($result, 'File exceeding XML_MAX_BYTES must be rejected');
+        } finally {
+            if ($previous === false) {
+                putenv('XML_MAX_BYTES');
+            } else {
+                putenv('XML_MAX_BYTES=' . $previous);
+            }
+        }
     }
 }

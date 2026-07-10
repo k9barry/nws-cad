@@ -7,6 +7,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use NwsCad\Config;
 use NwsCad\Security\CorsPolicy;
 use NwsCad\Security\Identity;
+use NwsCad\Security\SameOriginGuard;
 use NwsCad\Security\SecurityHeaders;
 use NwsCad\Security\TrustedProxy;
 
@@ -20,6 +21,7 @@ use NwsCad\Security\TrustedProxy;
 
     CorsPolicy::apply($config);
     TrustedProxy::guard($config);
+    SameOriginGuard::guard($config);
 
     $GLOBALS['__identity'] = Identity::extract($config);
 })();
