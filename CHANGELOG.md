@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.19] - 2026-07-10
+
+## Fixes
+
+- fix(security): XML limits, error-leak sweep, ORDER BY maps, non-root containers (#53) (b882b4b)
+
+
 ## [1.1.18] - 2026-05-31
 
 ### Changes
