@@ -249,7 +249,7 @@ container:
 
 ```bash
 git pull
-./stack.sh rebuild
+./scripts/stack.sh rebuild
 # or, without the script:
 COMPOSE_PROFILES=mysql docker compose up -d mysql
 ```
@@ -265,7 +265,7 @@ docker compose exec mysql sh -c \
 
 **Tuning further:** if the warning recurs under heavier ingest, raise the
 value in `docker/mysql/my.cnf` to 2 GiB (`2147483648`) or 4 GiB
-(`4294967296`) and run `./stack.sh restart` (or `docker compose up -d mysql`).
+(`4294967296`) and run `./scripts/stack.sh restart` (or `docker compose up -d mysql`).
 The `#innodb_redo/` directory grows on demand — disk is not preallocated
 to the cap.
 

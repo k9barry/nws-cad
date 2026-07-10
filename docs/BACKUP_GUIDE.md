@@ -7,7 +7,7 @@ The NWS CAD system now includes automated database backup and restore capabiliti
 
 ### Create a Backup
 ```bash
-./backup-database.sh
+./scripts/backup-database.sh
 ```
 
 This creates a timestamped, compressed backup in the `backups/` directory:
@@ -16,7 +16,7 @@ This creates a timestamped, compressed backup in the `backups/` directory:
 
 ### Restore from Backup
 ```bash
-./restore-database.sh
+./scripts/restore-database.sh
 ```
 
 This will:
@@ -32,10 +32,10 @@ Add to your crontab (`crontab -e`):
 
 ```bash
 # Daily backup at 2 AM
-0 2 * * * cd /home/jcleaver/nws-cad && ./backup-database.sh >> /home/jcleaver/nws-cad/logs/backup.log 2>&1
+0 2 * * * cd /home/jcleaver/nws-cad && ./scripts/backup-database.sh >> /home/jcleaver/nws-cad/logs/backup.log 2>&1
 
 # Weekly backup on Sunday at 3 AM
-0 3 * * 0 cd /home/jcleaver/nws-cad && ./backup-database.sh >> /home/jcleaver/nws-cad/logs/backup.log 2>&1
+0 3 * * 0 cd /home/jcleaver/nws-cad && ./scripts/backup-database.sh >> /home/jcleaver/nws-cad/logs/backup.log 2>&1
 ```
 
 ### Backup Before Reset
@@ -94,9 +94,10 @@ When running in CI/CD or automated scripts, `reset-repo.sh` will **skip database
 
 ```
 nws-cad/
-├── backup-database.sh          # Create backups
-├── restore-database.sh         # Restore from backup
-├── reset-repo.sh               # Enhanced with protection
+├── scripts/
+│   ├── backup-database.sh      # Create backups
+│   ├── restore-database.sh     # Restore from backup
+│   └── reset-repo.sh           # Enhanced with protection
 ├── backups/                    # Backup storage
 │   ├── .gitkeep
 │   ├── mysql_nws_cad_*.sql.gz
@@ -109,7 +110,7 @@ nws-cad/
 
 ### Manual Backup
 ```bash
-$ ./backup-database.sh
+$ ./scripts/backup-database.sh
 
 ════════════════════════════════════════════════
   NWS CAD Database Backup
@@ -132,7 +133,7 @@ backups/mysql_nws_cad_20260131_210000.sql.gz (1.2M)
 
 ### Restore Backup
 ```bash
-$ ./restore-database.sh
+$ ./scripts/restore-database.sh
 
 ════════════════════════════════════════════════
   NWS CAD Database Restore
@@ -171,7 +172,7 @@ Safety backup: backups/pre_restore_20260201_153900.sql.gz
 
 ### Enhanced Reset Script
 ```bash
-$ ./reset-repo.sh
+$ ./scripts/reset-repo.sh
 
 🔄 Resetting nws-cad repository to fresh state...
 
@@ -245,22 +246,22 @@ find backups/ -name "*.sql.gz" -mtime +7 -delete
 If you accidentally ran `reset-repo.sh` and deleted the database:
 
 1. Check `backups/` for the automatic backup created during reset
-2. Run `./restore-database.sh`
+2. Run `./scripts/restore-database.sh`
 3. Select the most recent backup (should be pre_delete_*.sql.gz)
 
 ### Scenario 2: Corrupted Database
 If the database becomes corrupted:
 
-1. Run `./backup-database.sh` (creates a backup of corrupted state, just in case)
-2. Run `./restore-database.sh`
+1. Run `./scripts/backup-database.sh` (creates a backup of corrupted state, just in case)
+2. Run `./scripts/restore-database.sh`
 3. Select a backup from before the corruption occurred
 
 ### Scenario 3: Testing/Development
 If you need to test with production-like data:
 
-1. Backup production: `./backup-database.sh`
+1. Backup production: `./scripts/backup-database.sh`
 2. Copy backup to development environment
-3. Restore: `./restore-database.sh`
+3. Restore: `./scripts/restore-database.sh`
 
 ## Security Notes
 
@@ -284,4 +285,4 @@ gpg --decrypt backups/mysql_nws_cad_*.sql.gz.gpg > backup.sql.gz
 For issues or questions:
 1. Check logs: `tail -f logs/backup.log`
 2. Test database connection: `docker exec -it nws-cad-mysql mysql -u nws_user -p`
-3. Review documentation: `docs/DOCUMENTATION.md`
+3. Review documentation: `docs/README.md`

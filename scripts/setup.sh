@@ -5,6 +5,11 @@
 
 set -e
 
+# Resolve the repository root (parent of scripts/) and run from there so all
+# repo-root-relative paths (.env, docker-compose.yml, composer) resolve.
+REPO_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
+cd "$REPO_ROOT"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'

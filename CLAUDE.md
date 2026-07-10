@@ -105,7 +105,7 @@ Endpoints address calls by the internal `id` field (`/api/calls/{id}`), **not** 
 
 ### Database schema
 
-15 normalized tables: 13 anchored on `calls` plus 2 for the notifications module.
+21 normalized tables: 13 anchored on `calls`, `processed_files`, 3 for the notifications module, and 5 `ref_*` reference tables.
 
 ```
 calls (1) → agency_contexts (N), locations (1), incidents (N), narratives (N),
@@ -113,6 +113,8 @@ calls (1) → agency_contexts (N), locations (1), incidents (N), narratives (N),
             units (N) → unit_personnel (N), unit_logs (N), unit_dispositions (N)
 processed_files (file processing history)
 notification_channels (N) → notification_send_log (N, ON DELETE CASCADE)
+notification_outbox (transactional per-channel notification queue)
+ref_agencies, ref_areas, ref_beats, ref_fdids, ref_oris (filter-dropdown reference data)
 ```
 
 **Schema files — three of them, must be kept in sync:**
@@ -156,19 +158,20 @@ Every push to `main` triggers `.github/workflows/release.yml`, which derives the
 | `chore:` / `docs:` / `test:` / `ci:` / `style:` / `build:` | **no release** |
 | non-conventional subject | patch + workflow warning |
 
-The latest `v*` tag is the version source of truth; the `VERSION` file is derived output written by the release commit (`chore(release): vX.Y.Z [skip ci]`). Release notes and `CHANGELOG.md` entries are grouped by type. A `workflow_dispatch` run with `dry_run: true` prints the computed bump without releasing; `force_bump` overrides detection. There is still no draft stage — any releasable merge ships, so keep PRs coherent. Two bot reviewers run on every PR and must be respected before merging:
+The latest `v*` tag is the version source of truth; the `VERSION` file is derived output written by the release commit (`chore(release): vX.Y.Z [skip ci]`). Release notes and `CHANGELOG.md` entries are grouped by type. A `workflow_dispatch` run with `dry_run: true` prints the computed bump without releasing; `force_bump` overrides detection. There is still no draft stage — any releasable merge ships, so keep PRs coherent.
+
+**Reviews run through qodo only** (Copilot review is not used):
 
 - **qodo-code-review** — posts a walkthrough summary plus a "Code Review by Qodo" comment with a `🐞 Bugs (N)` count. `N > 0` means there are findings to address; walkthrough-only summaries with no findings are fine to skip.
-- **copilot-pull-request-reviewer[bot]** — posts an overview review and (sometimes) inline `discussion_r…` diff comments. Inline comments are actionable.
 
-After `gh pr create`, wait for both bots (typically ≤ 2 minutes), then `gh pr view <num> --comments` and `gh api repos/k9barry/nws-cad/pulls/<num>/comments` to read them. Push fixes to the same branch (bots re-review on new commits) and only merge once both bots have posted and there are no unaddressed concerns. This rule was established after v1.1.16 (PR #40) shipped a regression that both bots had flagged but that was merged before their reviews appeared, forcing v1.1.17 (PR #41) the same day.
+After `gh pr create`, wait for qodo (typically ≤ 2 minutes), then run the qodo review loop (`qodo-skills:qodo-pr-resolver`): read the findings, fix genuine ones and push to the same branch (qodo re-reviews on new commits), reply to any false positives with justification, and only merge once qodo is clean. Do **not** request or wait for the Copilot reviewer. The wait-for-review discipline was established after v1.1.16 (PR #40) shipped a regression a reviewer had flagged but that was merged before the review appeared, forcing v1.1.17 (PR #41) the same day.
 
 ## Test conventions (load-bearing for CI)
 
 `phpunit.xml` sets `requireCoverageMetadata="true"`, `beStrictAboutCoverageMetadata="true"`, `failOnRisky="true"`, `failOnWarning="true"`. Several gotchas follow from those:
 
 - **Every test class needs `@covers <Class>`** (or `@coversNothing` for performance tests). Without it, every test method is risky.
-- **Every class transitively executed by a test must be `@covers`'d or `@uses`'d** at the class level, *only when running with the coverage driver* (CI has pcov; local docker container does not by default — install via `pecl install pcov` if you want to reproduce strict-coverage failures locally). For a controller test, `@uses \NwsCad\Api\Response`, `\NwsCad\Database`, `\NwsCad\Config`, `\NwsCad\Logger`, `\NwsCad\Logging\RedactingProcessor`, `\NwsCad\Logging\SecretRegistry` is the typical minimum set.
+- **Every class transitively executed by a test must be `@covers`'d or `@uses`'d** at the class level, *only when running with the coverage driver* (CI (`tests.yml`) uses xdebug; the local docker container installs pcov via `Dockerfile`, so strict-coverage failures reproduce there by default). For a controller test, `@uses \NwsCad\Api\Response`, `\NwsCad\Database`, `\NwsCad\Config`, `\NwsCad\Logger`, `\NwsCad\Logging\RedactingProcessor`, `\NwsCad\Logging\SecretRegistry` is the typical minimum set.
 - **Tests that call a controller** must call `Response::resetForTesting()` in `setUp()` because `Response::json()` no-ops on the second call within a request in testing mode.
 - **`cleanTestDatabase()` uses `DELETE FROM` + `ALTER TABLE ... AUTO_INCREMENT = 1`** — not `TRUNCATE`. Some MySQL versions reject `TRUNCATE` on a parent table referenced by a FK even with `FOREIGN_KEY_CHECKS=0`. Resetting auto-increment is required because several integration tests hard-code primary-key values.
 - **Test DB user** — CI uses `test_user` / `test_pass`; local docker uses `nws_user` / the compose-supplied password. The PHPUnit `<env>` tags in `phpunit.xml` only apply when the env var isn't already set, so the docker container's pre-baked env wins inside it.
@@ -192,7 +195,7 @@ After `gh pr create`, wait for both bots (typically ≤ 2 minutes), then `gh pr 
 
 ## Further docs
 
-- `README.md`, `DOCUMENTATION.md`, `CHANGELOG.md`
+- `README.md`, `docs/README.md` (documentation index), `CHANGELOG.md`
 - `docs/API.md`, `docs/DASHBOARD.md`, `docs/TESTING.md`, `docs/TROUBLESHOOTING.md`, `docs/BACKUP_GUIDE.md`, `docs/NOTIFICATIONS.md`
 - `docs/superpowers/specs/2026-05-07-nws-endpoints-consolidation-design.md`, `docs/superpowers/plans/2026-05-07-nws-endpoints-consolidation.md` — design + implementation plan for the v1.2.0 notifications consolidation
 - `.github/copilot-instructions.md` — overlapping conventions reference

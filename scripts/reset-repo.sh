@@ -15,8 +15,10 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Get the script directory
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$SCRIPT_DIR"
+# Resolve the repository root (parent of scripts/) and run from there so all
+# repo-root-relative paths (vendor/, logs/, data/, .env) resolve.
+REPO_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
+cd "$REPO_ROOT"
 
 # Function to safely remove directory contents
 safe_remove() {
@@ -194,6 +196,6 @@ echo ""
 echo "Next steps:"
 echo "  1. Copy .env.example to .env and configure it"
 echo "  2. Run: composer install"
-echo "  3. Run: ./setup.sh (if applicable)"
+echo "  3. Run: ./scripts/setup.sh (if applicable)"
 echo "  4. Run: docker-compose up -d"
 echo ""

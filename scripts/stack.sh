@@ -7,13 +7,14 @@
 # reads DB_TYPE from .env (mysql|pgsql) and sets COMPOSE_PROFILES accordingly,
 # so you never have to remember.
 #
-# Usage: ./stack.sh <command>
+# Usage: ./scripts/stack.sh <command>
 #
 # Run with no args (or -h / --help) for the command list.
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Repo root is the parent of scripts/, so compose finds docker-compose.yml/.env.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 # --- Resolve DB_TYPE -> COMPOSE_PROFILES ------------------------------------
@@ -88,9 +89,9 @@ Commands:
 Profile: COMPOSE_PROFILES=$COMPOSE_PROFILES   (driven by DB_TYPE in .env)
 
 Tips:
-  - Switching DB engines? Change DB_TYPE in .env, then \`./stack.sh restart\`.
+  - Switching DB engines? Change DB_TYPE in .env, then \`./scripts/stack.sh restart\`.
     --remove-orphans will clean up the previously-active DB container.
-  - To override the DB engine for one invocation: DB_TYPE=pgsql ./stack.sh start
+  - To override the DB engine for one invocation: DB_TYPE=pgsql ./scripts/stack.sh start
 EOF
 }
 
@@ -115,7 +116,7 @@ cmd_restart() {
 cmd_pull() {
     say "Pulling latest images..."
     "${DC[@]}" pull
-    ok "Pull complete. Run './stack.sh restart' (or 'rebuild') to apply."
+    ok "Pull complete. Run './scripts/stack.sh restart' (or 'rebuild') to apply."
 }
 
 cmd_rebuild() {
