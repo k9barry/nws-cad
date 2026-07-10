@@ -89,6 +89,26 @@ final class RateLimiter
         if ($identity instanceof Identity && $identity->user !== null && $identity->user !== '') {
             return 'id:' . $identity->user;
         }
-        return 'ip:' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        return 'ip:' . self::clientIp();
+    }
+
+    /**
+     * Resolve the end-client IP for anonymous requests. REMOTE_ADDR is the
+     * connecting peer — which, once {@see TrustedProxy::guard()} has passed, is
+     * the reverse proxy, so bucketing on it would lump every user behind the
+     * proxy into one bucket. Prefer the last hop the trusted proxy appended to
+     * X-Forwarded-For (which the client cannot forge past the proxy).
+     */
+    private static function clientIp(): string
+    {
+        $xff = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+        if ($xff !== '') {
+            $hops = array_map('trim', explode(',', $xff));
+            $last = end($hops);
+            if ($last !== false && filter_var($last, FILTER_VALIDATE_IP) !== false) {
+                return $last;
+            }
+        }
+        return $_SERVER['REMOTE_ADDR'] ?? 'unknown';
     }
 }

@@ -8,6 +8,17 @@
 
 'use strict';
 
+/**
+ * Unforgeable wrapper for pre-trusted HTML passed to Dashboard.safeHtml.
+ * Using a class instance (never producible by JSON.parse) means an untrusted
+ * API/DOM value cannot spoof the "already safe" marker and bypass escaping.
+ */
+class TrustedHtml {
+    constructor(html) {
+        this.value = String(html);
+    }
+}
+
 // Global Dashboard object
 const Dashboard = {
     config: window.APP_CONFIG || {},
@@ -36,7 +47,7 @@ const Dashboard = {
      * @param {string} html Already-safe HTML
      */
     raw(html) {
-        return { __safeHtml: String(html) };
+        return new TrustedHtml(html);
     },
 
     /**
@@ -56,8 +67,8 @@ const Dashboard = {
         return strings.reduce((out, str, i) => {
             if (i >= values.length) return out + str;
             const v = values[i];
-            if (v && typeof v === 'object' && typeof v.__safeHtml === 'string') {
-                return out + str + v.__safeHtml;
+            if (v instanceof TrustedHtml) {
+                return out + str + v.value;
             }
             return out + str + Dashboard.escapeHtml(v);
         }, '');
