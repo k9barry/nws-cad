@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Run from the repository root regardless of where this script is invoked from
+cd "$(dirname "$0")/.."
+
 # NWS CAD Database Backup Script
 # Creates timestamped backups of MySQL and PostgreSQL databases
 

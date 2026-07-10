@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+# Run from the repository root regardless of where this script is invoked from
+cd "$(dirname "$0")/.."
 #
 # stack.sh — manage the nws-cad docker stack with the correct DB profile.
 #
@@ -7,7 +10,7 @@
 # reads DB_TYPE from .env (mysql|pgsql) and sets COMPOSE_PROFILES accordingly,
 # so you never have to remember.
 #
-# Usage: ./stack.sh <command>
+# Usage: ./scripts/stack.sh <command>
 #
 # Run with no args (or -h / --help) for the command list.
 
@@ -88,9 +91,9 @@ Commands:
 Profile: COMPOSE_PROFILES=$COMPOSE_PROFILES   (driven by DB_TYPE in .env)
 
 Tips:
-  - Switching DB engines? Change DB_TYPE in .env, then \`./stack.sh restart\`.
+  - Switching DB engines? Change DB_TYPE in .env, then \`./scripts/stack.sh restart\`.
     --remove-orphans will clean up the previously-active DB container.
-  - To override the DB engine for one invocation: DB_TYPE=pgsql ./stack.sh start
+  - To override the DB engine for one invocation: DB_TYPE=pgsql ./scripts/stack.sh start
 EOF
 }
 
@@ -115,7 +118,7 @@ cmd_restart() {
 cmd_pull() {
     say "Pulling latest images..."
     "${DC[@]}" pull
-    ok "Pull complete. Run './stack.sh restart' (or 'rebuild') to apply."
+    ok "Pull complete. Run './scripts/stack.sh restart' (or 'rebuild') to apply."
 }
 
 cmd_rebuild() {

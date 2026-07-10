@@ -11,7 +11,7 @@ A PHP 8.3 system for monitoring, parsing, and storing NWS Aegis CAD (Computer-Ai
 | Category | Features |
 |----------|----------|
 | **Core** | 🐳 Docker deployment, 🔄 MySQL/PostgreSQL support, 📁 Automatic XML file monitoring |
-| **API** | 🌐 19 REST endpoints, 📊 Pagination/filtering/sorting, 🔍 Geographic search |
+| **API** | 🌐 40 REST endpoints, 📊 Pagination/filtering/sorting, 🔍 Geographic search |
 | **Dashboard** | 🎨 Real-time monitoring, 🗺️ Interactive maps, 📈 Analytics charts |
 | **Mobile** | 📱 Auto-detection, 👆 Touch-optimized UI, ⬇️ Pull-to-refresh |
 | **Security** | 🔒 XSS/SQL injection/XXE prevention, 🛡️ Rate limiting, 🔐 Security headers |
@@ -39,7 +39,7 @@ docker-compose up -d
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │   File Watcher  │────▶│    Database     │◀────│    REST API     │
-│   (XML Parser)  │     │  (MySQL/PgSQL)  │     │   (19 endpoints)│
+│   (XML Parser)  │     │  (MySQL/PgSQL)  │     │   (40 endpoints)│
 └─────────────────┘     └─────────────────┘     └─────────────────┘
                                ▲
                                │
@@ -54,7 +54,7 @@ docker-compose up -d
 | Component | Description | Port |
 |-----------|-------------|------|
 | **File Watcher** | Monitors `watch/` for XML files, parses and stores data | - |
-| **REST API** | 19 endpoints for calls, units, search, statistics | 8080 |
+| **REST API** | 40 endpoints for calls, units, search, statistics, notifications | 8080 |
 | **Notifier** | In-process channels (ntfy, Pushover) dispatched from parser commit | - |
 | **Dashboard** | Real-time monitoring with maps and charts | 80 |
 | **Mobile UI** | Touch-optimized interface with auto-detection | 80 |
@@ -82,9 +82,9 @@ nws-cad/
 ├── database/                  # Schema files (MySQL + PostgreSQL)
 ├── tests/                     # PHPUnit tests (4 suites)
 ├── docs/                      # Documentation
+├── scripts/                   # Operational shell scripts (setup, stack, backup)
 ├── watch/                     # XML input folder
-├── logs/                      # Application logs
-└── samples/                   # 89 sample XML files
+└── logs/                      # Application logs
 ```
 
 ## API Reference
@@ -142,7 +142,7 @@ nws-cad/
 
 ## Database Schema
 
-13 normalized tables for complete CAD data:
+21 normalized tables: 13 CAD tables, `processed_files`, 3 notification tables, and 5 reference tables.
 
 | Table | Description |
 |-------|-------------|
@@ -159,6 +159,10 @@ nws-cad/
 | `persons` | People involved |
 | `vehicles` | Vehicles involved |
 | `processed_files` | File processing history |
+| `notification_channels` | Configured notification channels (ntfy, Pushover, webhook) |
+| `notification_outbox` | Transactional per-channel notification queue |
+| `notification_send_log` | Per-channel send history (auto-pruned) |
+| `ref_agencies`, `ref_areas`, `ref_beats`, `ref_fdids`, `ref_oris` | Reference/lookup data for filter dropdowns |
 
 ## Configuration
 

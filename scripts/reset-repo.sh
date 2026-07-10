@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Run from the repository root regardless of where this script is invoked from
+cd "$(dirname "$0")/.."
+
 # Reset nws-cad repository to fresh clone state
 # This script removes all generated files, dependencies, and Docker artifacts
 
@@ -194,6 +197,6 @@ echo ""
 echo "Next steps:"
 echo "  1. Copy .env.example to .env and configure it"
 echo "  2. Run: composer install"
-echo "  3. Run: ./setup.sh (if applicable)"
+echo "  3. Run: ./scripts/setup.sh (if applicable)"
 echo "  4. Run: docker-compose up -d"
 echo ""

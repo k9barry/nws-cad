@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Run from the repository root regardless of where this script is invoked from
+cd "$(dirname "$0")/.."
+
 # NWS CAD Database Restore Script
 # Restores database from a backup file
 
