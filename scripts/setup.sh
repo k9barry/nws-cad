@@ -76,7 +76,7 @@ fi
 # Create necessary directories
 echo ""
 echo -e "${YELLOW}Creating directories...${NC}"
-mkdir -p watch/processed watch/failed logs data/mysql data/postgres tmp
+mkdir -p var/watch/processed var/watch/failed var/log var/data/mysql var/data/postgres
 echo -e "${GREEN}✓ Directories created${NC}"
 
 # Build and start containers
@@ -125,10 +125,10 @@ else
 fi
 echo ""
 echo "3. Add XML files to watch folder:"
-echo "   cp samples/*.xml watch/"
+echo "   cp /path/to/your/aegis/*.xml var/watch/"
 echo ""
 echo "4. Check processed files:"
-echo "   ls -la watch/processed/"
+echo "   ls -la var/watch/processed/"
 echo ""
 echo "5. Stop services:"
 if docker compose version &> /dev/null; then

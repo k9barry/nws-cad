@@ -40,8 +40,8 @@ RUN composer config -g repos.packagist composer https://packagist.org && \
 
 # Copy rest of application files
 COPY . /var/www
-RUN mkdir -p /var/www/watch /var/www/logs /var/www/tmp \
-    && chmod -R 755 /var/www/watch /var/www/logs /var/www/tmp
+RUN mkdir -p /var/www/var/watch /var/www/var/log \
+    && chmod -R 755 /var/www/var/watch /var/www/var/log
 
 # Set PHP configuration
 RUN echo "memory_limit = 512M" > /usr/local/etc/php/conf.d/memory-limit.ini \

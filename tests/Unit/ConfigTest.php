@@ -113,12 +113,15 @@ class ConfigTest extends TestCase
     public function testGetPaths(): void
     {
         $logsPath = $this->config->get('paths.logs');
-        $tmpPath = $this->config->get('paths.tmp');
 
         $this->assertNotNull($logsPath);
-        $this->assertNotNull($tmpPath);
         $this->assertIsString($logsPath);
-        $this->assertIsString($tmpPath);
+        // The default runtime path lives under var/ (var/log). Only assert that
+        // when LOG_DIR is not overriding it, so the test is not flaky in
+        // environments that set LOG_DIR to a custom location.
+        if (getenv('LOG_DIR') === false && !isset($_ENV['LOG_DIR'])) {
+            $this->assertStringContainsString('var', $logsPath);
+        }
     }
 
     public function testCsvHelperSplitsAndTrims(): void

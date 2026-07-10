@@ -42,7 +42,7 @@ docker-compose down -v && docker-compose up -d
 
 ### XML Files Not Processing
 
-**Symptoms:** Files stay in `watch/`, no database entries
+**Symptoms:** Files stay in `var/watch/`, no database entries
 
 **Solutions:**
 
@@ -51,16 +51,16 @@ docker-compose down -v && docker-compose up -d
 docker-compose logs app | grep "File watcher"
 
 # 2. Verify file permissions
-ls -la watch/
+ls -la var/watch/
 
 # 3. Check file is valid XML
-xmllint --noout watch/yourfile.xml
+xmllint --noout var/watch/yourfile.xml
 
 # 4. Check for errors
 docker-compose logs app | grep -i error
 
 # 5. Test with sample file
-cp samples/260_2022120307164448.xml watch/
+cp samples/260_2022120307164448.xml var/watch/
 docker-compose logs -f app
 ```
 
@@ -103,7 +103,7 @@ ls -la public/.htaccess
 ```bash
 # 1. Check logs
 docker-compose logs api
-tail -f logs/app.log
+tail -f var/log/app.log
 
 # 2. Enable debug mode in .env
 APP_DEBUG=true
@@ -286,7 +286,7 @@ stick across restarts.
 
 ```bash
 # Application logs
-tail -100 logs/app.log
+tail -100 var/log/app.log
 
 # Docker logs
 docker-compose logs --tail=100 app
