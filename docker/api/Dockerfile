@@ -13,7 +13,13 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     gosu \
     && docker-php-ext-install pdo pdo_mysql pdo_pgsql \
+    && pecl install apcu \
+    && docker-php-ext-enable apcu \
     && rm -rf /var/lib/apt/lists/*
+
+# The API is served via `php -S` (CLI SAPI), so APCu must be enabled for CLI for
+# the rate limiter to keep counters across requests in the same process.
+RUN { echo "apc.enable_cli=1"; } > /usr/local/etc/php/conf.d/apcu-cli.ini
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use NwsCad\Config;
 use NwsCad\Security\CorsPolicy;
 use NwsCad\Security\Identity;
+use NwsCad\Security\RateLimiter;
 use NwsCad\Security\SameOriginGuard;
 use NwsCad\Security\SecurityHeaders;
 use NwsCad\Security\TrustedProxy;
@@ -24,4 +25,8 @@ use NwsCad\Security\TrustedProxy;
     SameOriginGuard::guard($config);
 
     $GLOBALS['__identity'] = Identity::extract($config);
+
+    // Throttle per identity/IP now that the client is resolved. Fails open if
+    // APCu is unavailable; /api/health is exempt.
+    RateLimiter::enforce($config);
 })();

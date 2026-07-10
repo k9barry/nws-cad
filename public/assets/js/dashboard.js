@@ -8,6 +8,17 @@
 
 'use strict';
 
+/**
+ * Unforgeable wrapper for pre-trusted HTML passed to Dashboard.safeHtml.
+ * Using a class instance (never producible by JSON.parse) means an untrusted
+ * API/DOM value cannot spoof the "already safe" marker and bypass escaping.
+ */
+class TrustedHtml {
+    constructor(html) {
+        this.value = String(html);
+    }
+}
+
 // Global Dashboard object
 const Dashboard = {
     config: window.APP_CONFIG || {},
@@ -27,7 +38,42 @@ const Dashboard = {
         div.textContent = String(text);
         return div.innerHTML;
     },
-    
+
+    /**
+     * Marker for a pre-trusted HTML fragment inside a safeHtml`` template, so
+     * safeHtml does NOT re-escape it (e.g. a badge built by another helper that
+     * already escaped its own inputs). Use sparingly and only with markup you
+     * produced — never with raw CAD-derived values.
+     * @param {string} html Already-safe HTML
+     */
+    raw(html) {
+        return new TrustedHtml(html);
+    },
+
+    /**
+     * Tagged-template helper that HTML-escapes every interpolation by default,
+     * so CAD-derived values (call types, addresses, unit names) can never break
+     * out into markup. Wrap an intentionally-trusted fragment in Dashboard.raw()
+     * to opt it out of escaping.
+     *
+     *   el.innerHTML = Dashboard.safeHtml`<span>${call.type}</span>`;
+     *   el.innerHTML = Dashboard.safeHtml`<td>${Dashboard.raw(badgeHtml)}</td>`;
+     *
+     * @param {TemplateStringsArray} strings
+     * @param {...*} values
+     * @returns {string}
+     */
+    safeHtml(strings, ...values) {
+        return strings.reduce((out, str, i) => {
+            if (i >= values.length) return out + str;
+            const v = values[i];
+            if (v instanceof TrustedHtml) {
+                return out + str + v.value;
+            }
+            return out + str + Dashboard.escapeHtml(v);
+        }, '');
+    },
+
     /**
      * Make API request
      * 
