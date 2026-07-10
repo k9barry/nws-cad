@@ -116,8 +116,12 @@ class ConfigTest extends TestCase
 
         $this->assertNotNull($logsPath);
         $this->assertIsString($logsPath);
-        // Runtime state lives under var/ (var/log) unless overridden by LOG_DIR.
-        $this->assertStringContainsString('var', $logsPath);
+        // The default runtime path lives under var/ (var/log). Only assert that
+        // when LOG_DIR is not overriding it, so the test is not flaky in
+        // environments that set LOG_DIR to a custom location.
+        if (getenv('LOG_DIR') === false && !isset($_ENV['LOG_DIR'])) {
+            $this->assertStringContainsString('var', $logsPath);
+        }
     }
 
     public function testCsvHelperSplitsAndTrims(): void

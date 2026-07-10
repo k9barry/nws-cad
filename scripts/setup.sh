@@ -125,7 +125,7 @@ else
 fi
 echo ""
 echo "3. Add XML files to watch folder:"
-echo "   cp *.xml var/watch/"
+echo "   cp /path/to/your/aegis/*.xml var/watch/"
 echo ""
 echo "4. Check processed files:"
 echo "   ls -la var/watch/processed/"

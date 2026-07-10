@@ -12,8 +12,11 @@ services:
     working_dir: /var/www
     volumes:
       - ./:/var/www
-      - ${NWS_VAR_DIR:-./var}/watch:/var/www/var/watch
       - ${NWS_VAR_DIR:-./var}/log:/var/www/var/log
+      # Watch source is the CIFS watchfolder volume (production). Do NOT add a
+      # second host bind at the same target — it would shadow (or be shadowed
+      # by) the CIFS mount. For local dev without CIFS, files in ./var/watch are
+      # already visible via the ./:/var/www mount above.
       - watchfolder:/var/www/var/watch
     environment:
       - TZ=${TZ:-UTC}

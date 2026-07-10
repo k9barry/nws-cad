@@ -2,6 +2,12 @@
 .gitignore
 var
 vendor
+# Legacy pre-migration runtime dirs (may still exist on upgraded machines).
+logs
+watch
+data
+backups
+tmp
 .env
 README.md
 .dockerignore
