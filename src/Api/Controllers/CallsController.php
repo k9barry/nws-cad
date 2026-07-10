@@ -54,6 +54,10 @@ class CallsController
             ];
             $sortColumn = $sortColumns[$sorting['sort']] ?? 'calls.create_datetime';
             $sortDir    = $sorting['order'] === 'ASC' ? 'ASC' : 'DESC';
+            // Defensive: enforce the identifier-validation convention even though
+            // $sortColumn comes from a hardcoded map, so a future map edit cannot
+            // reach the interpolated ORDER BY unchecked.
+            \NwsCad\Api\DbHelper::validateIdentifier($sortColumn, 'sort column');
 
             // FilterSqlBuilder will add `LEFT JOIN locations` only when a filter
             // actually targets a location column (city/beat/area/ori/location).

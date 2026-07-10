@@ -135,8 +135,16 @@ class Request
      */
     public static function sorting(string $defaultSort = 'id', string $defaultOrder = 'desc'): array
     {
+        // Coerce a non-scalar sort value (e.g. ?sort[]=x makes $_GET['sort'] an
+        // array) back to the default. Callers use this value as an array key,
+        // and an array key would raise a fatal "Illegal offset type".
+        $sort = self::query('sort', $defaultSort);
+        if (!is_string($sort)) {
+            $sort = $defaultSort;
+        }
+
         return [
-            'sort' => self::query('sort', $defaultSort),
+            'sort' => $sort,
             'order' => strtolower((string)self::query('order', $defaultOrder)) === 'asc' ? 'ASC' : 'DESC'
         ];
     }

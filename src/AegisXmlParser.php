@@ -161,9 +161,13 @@ class AegisXmlParser
             // is rejected here so the caller moves it to failed/.
             $maxBytes = (int) (getenv('XML_MAX_BYTES') ?: 10 * 1024 * 1024);
             $fileSize = filesize($filePath);
-            if ($fileSize !== false && $fileSize > $maxBytes) {
+            // Reject when the size is unknown (filesize() failed / non-regular
+            // file) as well as when it is over the cap — never fall through to an
+            // unbounded read.
+            if ($fileSize === false || $fileSize > $maxBytes) {
                 $this->logger->error(
-                    "File exceeds XML_MAX_BYTES ({$maxBytes}): {$filePath} is {$fileSize} bytes"
+                    "Rejecting file per XML_MAX_BYTES ({$maxBytes}): {$filePath} size=" .
+                    ($fileSize === false ? 'unknown' : $fileSize)
                 );
                 return false;
             }
@@ -173,6 +177,15 @@ class AegisXmlParser
             $content = file_get_contents($filePath);
             if ($content === false) {
                 $this->logger->error("Failed to read file: {$filePath}");
+                return false;
+            }
+
+            // Backstop: enforce the cap on the bytes actually read, in case the
+            // file grew between the filesize() check and the read.
+            if (strlen($content) > $maxBytes) {
+                $this->logger->error(
+                    "File content exceeds XML_MAX_BYTES ({$maxBytes}): {$filePath} read " . strlen($content) . " bytes"
+                );
                 return false;
             }
             $this->logger->debug("File size: " . strlen($content) . " bytes");

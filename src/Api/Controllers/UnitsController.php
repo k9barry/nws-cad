@@ -53,6 +53,10 @@ class UnitsController
             ];
             $sortColumn = $sortColumns[$sorting['sort']] ?? 'units.assigned_datetime';
             $sortDir    = $sorting['order'] === 'ASC' ? 'ASC' : 'DESC';
+            // Defensive: enforce the identifier-validation convention even though
+            // $sortColumn comes from a hardcoded map, so a future map edit cannot
+            // reach the interpolated ORDER BY unchecked.
+            \NwsCad\Api\DbHelper::validateIdentifier($sortColumn, 'sort column');
 
             $builder = new \NwsCad\Api\Filtering\FilterSqlBuilder();
             $sql     = $builder->build(

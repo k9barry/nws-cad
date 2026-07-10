@@ -138,10 +138,14 @@ class Response
      */
     public static function serverErrorFromException(\Throwable $e, string $publicMessage = 'Internal server error'): void
     {
+        // Strip CR/LF (and other control chars) from the exception message so a
+        // crafted message cannot forge additional log lines (log injection).
+        $safeMessage = preg_replace('/[\x00-\x1F\x7F]+/', ' ', $e->getMessage()) ?? '';
+
         error_log(sprintf(
             '%s: %s [%s] at %s:%d',
             $publicMessage,
-            $e->getMessage(),
+            $safeMessage,
             get_class($e),
             $e->getFile(),
             $e->getLine()

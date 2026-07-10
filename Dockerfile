@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     unzip \
     inotify-tools \
     ca-certificates \
+    gosu \
     && update-ca-certificates \
     && docker-php-ext-install pdo pdo_mysql pdo_pgsql xml simplexml \
     && pecl install pcov \
@@ -46,9 +47,13 @@ RUN mkdir -p /var/www/watch /var/www/logs /var/www/tmp \
 RUN echo "memory_limit = 512M" > /usr/local/etc/php/conf.d/memory-limit.ini \
     && echo "date.timezone = ${TZ}" > /usr/local/etc/php/conf.d/timezone.ini
 
-# Drop root: run the watcher as www-data. It must own the app tree so it can
-# write logs/heartbeat and rename ingested files into watch/processed|failed.
+# Drop root at runtime: the entrypoint (running as root) fixes ownership of the
+# writable paths — including host bind mounts used by docker-compose — then
+# execs the watcher as www-data via gosu. The watcher must be able to write
+# logs/heartbeat and rename ingested files into watch/processed|failed.
 RUN chown -R www-data:www-data /var/www
-USER www-data
+COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["php", "/var/www/src/watcher.php"]
