@@ -1,122 +1,210 @@
 name: Release
 
+# Conventional-commit driven semantic releases.
+#
+# Bump policy (documented in CLAUDE.md "PR merge protocol"):
+#   feat:                               -> minor
+#   fix: / perf: / refactor: / revert:  -> patch
+#   type! / "BREAKING CHANGE:" footer   -> major
+#   chore: / docs: / test: / ci: / style: / build: -> no release
+#   non-conventional subject            -> patch (with a workflow warning)
+#
+# The latest v* tag is the source of truth for the current version; the
+# VERSION file is derived output written at release time. Self-retrigger
+# is prevented three independent ways:
+#   1. pushes use GITHUB_TOKEN, which GitHub never triggers workflows from
+#   2. the release commit subject ("chore(release): ...") classifies as
+#      no-release even if a PAT is ever substituted
+#   3. the release commit carries [skip ci]
+
 on:
   push:
     branches:
       - main
   workflow_dispatch:
     inputs:
-      version_bump:
-        description: 'Version bump type'
-        required: true
-        default: 'patch'
+      force_bump:
+        description: 'Override bump detection'
+        required: false
+        default: 'auto'
         type: choice
         options:
+          - auto
           - patch
           - minor
           - major
+      dry_run:
+        description: 'Compute and print the bump/notes without releasing'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    
+
     permissions:
       contents: write
-      pull-requests: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          extensions: pdo, pdo_mysql, xml, simplexml
-          tools: composer:v2
-
-      - name: Install dependencies
-        run: composer install --prefer-dist --no-dev --no-progress --no-interaction
-
-      - name: Get current version
-        id: current_version
+      - name: Detect version bump from commits
+        id: detect
+        env:
+          FORCE_BUMP: ${{ github.event.inputs.force_bump || 'auto' }}
         run: |
-          if [ -f VERSION ]; then
-            CURRENT_VERSION=$(cat VERSION)
+          set -euo pipefail
+
+          LAST_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            RANGE="$LAST_TAG..HEAD"
+            BASE="${LAST_TAG#v}"
           else
-            CURRENT_VERSION="0.0.0"
+            RANGE="HEAD"
+            BASE=$(cat VERSION 2>/dev/null || echo "0.0.0")
           fi
-          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-          echo "Current version: $CURRENT_VERSION"
+          echo "Last tag: ${LAST_TAG:-<none>} (base version $BASE)"
 
-      - name: Calculate next version
-        id: next_version
-        run: |
-          CURRENT="${{ steps.current_version.outputs.version }}"
-          BUMP_TYPE="${{ github.event.inputs.version_bump || 'patch' }}"
-          
-          IFS='.' read -ra VERSION_PARTS <<< "$CURRENT"
-          MAJOR="${VERSION_PARTS[0]}"
-          MINOR="${VERSION_PARTS[1]}"
-          PATCH="${VERSION_PARTS[2]}"
-          
-          case $BUMP_TYPE in
-            major)
-              MAJOR=$((MAJOR + 1))
-              MINOR=0
-              PATCH=0
-              ;;
-            minor)
-              MINOR=$((MINOR + 1))
-              PATCH=0
-              ;;
-            patch)
-              PATCH=$((PATCH + 1))
-              ;;
+          BUMP=0   # 0=none 1=patch 2=minor 3=major
+          BREAKING=""; FEATURES=""; FIXES=""; PERF=""; REFACTOR=""
+
+          raise() {
+            if [ "$1" -gt "$BUMP" ]; then BUMP="$1"; fi
+          }
+
+          # tformat (not format) terminates every entry with \n so the
+          # final commit is not dropped by the read loop.
+          while IFS=$'\t' read -r HASH SUBJECT; do
+            if [ -z "$HASH" ]; then continue; fi
+            SHORT=$(git rev-parse --short "$HASH")
+
+            # Release commits never trigger releases (guard 2).
+            case "$SUBJECT" in
+              'chore(release):'*|'Release v'*) continue ;;
+            esac
+
+            BODY=$(git log -1 --pretty=%b "$HASH")
+            TYPE=$(printf '%s' "$SUBJECT" | sed -nE 's/^([a-z]+)(\([^)]*\))?!?:.*/\1/p')
+
+            if printf '%s' "$SUBJECT" | grep -qE '^[a-z]+(\([^)]*\))?!:' \
+               || printf '%s' "$BODY" | grep -qE '^BREAKING[- ]CHANGE:'; then
+              raise 3
+              BREAKING="${BREAKING}- ${SUBJECT} (${SHORT})"$'\n'
+              continue
+            fi
+
+            case "$TYPE" in
+              feat)
+                raise 2
+                FEATURES="${FEATURES}- ${SUBJECT} (${SHORT})"$'\n' ;;
+              fix)
+                raise 1
+                FIXES="${FIXES}- ${SUBJECT} (${SHORT})"$'\n' ;;
+              perf)
+                raise 1
+                PERF="${PERF}- ${SUBJECT} (${SHORT})"$'\n' ;;
+              refactor|revert)
+                raise 1
+                REFACTOR="${REFACTOR}- ${SUBJECT} (${SHORT})"$'\n' ;;
+              chore|docs|test|tests|ci|style|build)
+                : ;;
+              *)
+                echo "::warning::Non-conventional commit subject: '${SUBJECT}' - counted as patch"
+                raise 1
+                FIXES="${FIXES}- ${SUBJECT} (${SHORT})"$'\n' ;;
+            esac
+          done < <(git log "$RANGE" --no-merges --pretty=tformat:'%H%x09%s')
+
+          case "$FORCE_BUMP" in
+            patch) BUMP=1 ;;
+            minor) BUMP=2 ;;
+            major) BUMP=3 ;;
           esac
-          
-          NEXT_VERSION="$MAJOR.$MINOR.$PATCH"
-          echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
-          echo "Next version: $NEXT_VERSION"
 
-      - name: Update VERSION file
-        run: |
-          echo "${{ steps.next_version.outputs.version }}" > VERSION
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Generate changelog entry
-        id: changelog
-        run: |
-          VERSION="${{ steps.next_version.outputs.version }}"
-          DATE=$(date +%Y-%m-%d)
-
-          # Get commits since last tag
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            COMMITS=$(git log --pretty=format:"- %s (%h)" --reverse)
-          else
-            COMMITS=$(git log "$LAST_TAG..HEAD" --pretty=format:"- %s (%h)" --reverse)
+          if [ "$BUMP" -eq 0 ]; then
+            echo "No releasable commits since ${LAST_TAG:-repository start} - skipping release."
+            echo "bump=none" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-          # Build the new changelog entry. Use printf so the multi-line
-          # content is assembled via \n escapes — embedding literal newlines
-          # inside a YAML `run: |` block scalar breaks YAML validation when
-          # any line dedents past the block's indent column (which GitHub
-          # silently surfaces as a phantom failed workflow run).
-          ENTRY=$(printf '## [%s] - %s\n\n### Changes\n%s\n' "$VERSION" "$DATE" "$COMMITS")
+          # Guard the arithmetic below: BASE must be a clean X.Y.Z. A tag
+          # with a pre-release/build suffix (v1.2.3-rc1) or any malformed
+          # value would otherwise crash `$((...))` under `set -e` and abort
+          # the release. Strip a leading suffix, then hard-fail if it is
+          # still not three numeric components.
+          BASE="${BASE%%[-+]*}"
+          if ! printf '%s' "$BASE" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Cannot compute next version: base '$BASE' is not X.Y.Z"
+            exit 1
+          fi
 
-          # Insert (or create) the entry at the top of CHANGELOG.md, just
-          # below the "# Changelog" header line.
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+          case "$BUMP" in
+            3) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            2) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            1) PATCH=$((PATCH + 1)) ;;
+          esac
+          VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "Computed bump level $BUMP -> v$VERSION"
+
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          : > "$NOTES"
+          if [ -n "$BREAKING" ]; then printf '## Breaking Changes\n\n%s\n' "$BREAKING" >> "$NOTES"; fi
+          if [ -n "$FEATURES" ]; then printf '## Features\n\n%s\n' "$FEATURES" >> "$NOTES"; fi
+          if [ -n "$FIXES" ]; then printf '## Fixes\n\n%s\n' "$FIXES" >> "$NOTES"; fi
+          if [ -n "$PERF" ]; then printf '## Performance\n\n%s\n' "$PERF" >> "$NOTES"; fi
+          if [ -n "$REFACTOR" ]; then printf '## Refactoring\n\n%s\n' "$REFACTOR" >> "$NOTES"; fi
+
+          # A forced bump (workflow_dispatch force_bump) can release a range
+          # that contains only no-release commit types, leaving every section
+          # empty. Emit a minimal note so the release still has an audit trail.
+          if [ ! -s "$NOTES" ]; then
+            printf '## Notes\n\nForced release (no releasable conventional commits detected).\n' >> "$NOTES"
+          fi
+
+          echo "--- release notes ---"
+          cat "$NOTES"
+
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Update VERSION and CHANGELOG
+        if: steps.detect.outputs.bump != 'none' && github.event.inputs.dry_run != 'true'
+        env:
+          VERSION: ${{ steps.detect.outputs.version }}
+        run: |
+          set -euo pipefail
+          echo "$VERSION" > VERSION
+
+          DATE=$(date +%Y-%m-%d)
+          ENTRY_FILE="$RUNNER_TEMP/changelog-entry.md"
+          {
+            printf '## [%s] - %s\n\n' "$VERSION" "$DATE"
+            cat "$RUNNER_TEMP/release-notes.md"
+          } > "$ENTRY_FILE"
+
+          # Insert the entry just below the "# Changelog" header. Entry
+          # content is read from a file (not a -v var) so multi-line
+          # markdown never fights awk or YAML block-scalar indentation.
           if [ -f CHANGELOG.md ]; then
             TMP=$(mktemp)
-            awk -v entry="$ENTRY" '
-              !inserted && /^# Changelog/ { print; print ""; print entry; inserted=1; next }
+            awk -v entry_file="$ENTRY_FILE" '
+              !inserted && /^# Changelog/ {
+                print; print "";
+                while ((getline line < entry_file) > 0) print line;
+                inserted=1; next
+              }
               { print }
             ' CHANGELOG.md > "$TMP"
             mv "$TMP" CHANGELOG.md
@@ -124,39 +212,40 @@ jobs:
             {
               printf '# Changelog\n\n'
               printf 'All notable changes to this project will be documented in this file.\n\n'
-              printf 'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),\n'
-              printf 'and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n'
-              printf '%s\n' "$ENTRY"
+              cat "$ENTRY_FILE"
             } > CHANGELOG.md
           fi
 
-      - name: Commit changes
+      - name: Commit, tag, and push
+        if: steps.detect.outputs.bump != 'none' && github.event.inputs.dry_run != 'true'
+        env:
+          VERSION: ${{ steps.detect.outputs.version }}
         run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add VERSION CHANGELOG.md
-          git commit -m "Release v${{ steps.next_version.outputs.version }}" || echo "No changes to commit"
-          git push origin main
-
-      - name: Create Git tag
-        run: |
-          git tag -a "v${{ steps.next_version.outputs.version }}" -m "Release v${{ steps.next_version.outputs.version }}"
-          git push origin "v${{ steps.next_version.outputs.version }}"
+          git commit -m "chore(release): v$VERSION [skip ci]"
+          # Tag locally first, then push the commit and its tag in a single
+          # operation (--follow-tags). This avoids the partial-publish window
+          # where main carries a release commit but the v* tag is missing,
+          # which would corrupt the git-describe version source of truth.
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin main --follow-tags
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
+        if: steps.detect.outputs.bump != 'none' && github.event.inputs.dry_run != 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ steps.next_version.outputs.version }}
-          release_name: Release v${{ steps.next_version.outputs.version }}
-          body: |
-            ## Changes in v${{ steps.next_version.outputs.version }}
-            
-            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
-          draft: false
-          prerelease: false
-
-      - name: Deploy to staging (placeholder)
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.detect.outputs.version }}
         run: |
-          echo "🚀 Deploying v${{ steps.next_version.outputs.version }} to staging..."
-          echo "This is a placeholder for actual deployment steps"
-          echo "Add your deployment commands here (SSH, Docker, K8s, etc.)"
+          set -euo pipefail
+          # Idempotent: if a prior run already published the tag but died
+          # before creating the Release, a rerun heals it instead of failing.
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "Release v$VERSION already exists - skipping creation."
+          else
+            gh release create "v$VERSION" \
+              --title "v$VERSION" \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi

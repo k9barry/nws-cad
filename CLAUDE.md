@@ -146,7 +146,17 @@ After `AegisXmlParser::processFile()` commits, it dispatches a `CallProcessedEve
 
 ## PR merge protocol
 
-Every push to `main` triggers `.github/workflows/release.yml`, which unconditionally bumps `VERSION`, appends `CHANGELOG.md`, tags `v<next>`, and creates a GitHub Release. There is no "draft" stage — anything merged ships. Two bot reviewers run on every PR and must be respected before merging:
+Every push to `main` triggers `.github/workflows/release.yml`, which derives the version bump from **conventional-commit subjects** since the latest `v*` tag (squash-merge PR titles become those subjects, so PR titles must be conventional):
+
+| Commit type | Release effect |
+|---|---|
+| `feat:` | minor |
+| `fix:` / `perf:` / `refactor:` / `revert:` | patch |
+| `type!:` or `BREAKING CHANGE:` footer | major |
+| `chore:` / `docs:` / `test:` / `ci:` / `style:` / `build:` | **no release** |
+| non-conventional subject | patch + workflow warning |
+
+The latest `v*` tag is the version source of truth; the `VERSION` file is derived output written by the release commit (`chore(release): vX.Y.Z [skip ci]`). Release notes and `CHANGELOG.md` entries are grouped by type. A `workflow_dispatch` run with `dry_run: true` prints the computed bump without releasing; `force_bump` overrides detection. There is still no draft stage — any releasable merge ships, so keep PRs coherent. Two bot reviewers run on every PR and must be respected before merging:
 
 - **qodo-code-review** — posts a walkthrough summary plus a "Code Review by Qodo" comment with a `🐞 Bugs (N)` count. `N > 0` means there are findings to address; walkthrough-only summaries with no findings are fine to skip.
 - **copilot-pull-request-reviewer[bot]** — posts an overview review and (sometimes) inline `discussion_r…` diff comments. Inline comments are actionable.
