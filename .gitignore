@@ -7,13 +7,14 @@
 # Dozzle simple-auth users file (contains bcrypt-hashed credentials)
 /docker/dozzle/users.yml
 
+# Runtime state lives under var/ (see src/Config.php paths)
 # Log files
-/logs/*.log
-!/logs/.gitkeep
+/var/log/*
+!/var/log/.gitkeep
 
 # Watch folder files
-/watch/*
-!/watch/.gitkeep
+/var/watch/*
+!/var/watch/.gitkeep
 
 # IDE files
 .idea/
@@ -27,10 +28,10 @@
 Thumbs.db
 
 # Database data
-/data/mysql/*
-!/data/mysql/.gitkeep
-/data/postgres/*
-!/data/postgres/.gitkeep
+/var/data/mysql/*
+!/var/data/mysql/.gitkeep
+/var/data/postgres/*
+!/var/data/postgres/.gitkeep
 
 
 # Composer lock (optional - uncomment if needed)
@@ -45,5 +46,5 @@ Thumbs.db
 /tests/tmp/
 
 # Database backups (keep locally, don't commit)
-/backups/*
-!/backups/.gitkeep
+/var/backups/*
+!/var/backups/.gitkeep

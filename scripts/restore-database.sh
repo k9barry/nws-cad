@@ -26,7 +26,7 @@ else
     exit 1
 fi
 
-BACKUP_DIR="${BACKUP_DIR:-./backups}"
+BACKUP_DIR="${BACKUP_DIR:-./var/backups}"
 
 echo -e "${BLUE}════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}  NWS CAD Database Restore${NC}"

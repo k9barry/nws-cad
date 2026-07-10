@@ -10,7 +10,7 @@ For architectural deep-dives see the design specs under [`docs/superpowers/specs
 
 ```
                                           ┌────────────────────────┐
-   watch/*.xml                             │  notification_outbox   │
+   var/watch/*.xml                             │  notification_outbox   │
        │                                   │  (per-channel rows)    │
        ▼                                   └────────────┬───────────┘
    ┌─────────┐  parse+commit  ┌──────────┐  event  ┌───┴────┐  tick (loop)
@@ -20,7 +20,7 @@ For architectural deep-dives see the design specs under [`docs/superpowers/specs
        │                      └──────────┘                       │
        │  heartbeat                                              ▼
        ▼                                                  ┌───────────┐
-  logs/.watcher-heartbeat                                 │ Outbox    │
+  var/log/.watcher-heartbeat                                 │ Outbox    │
                                                           │ Processor │
                                                           └─────┬─────┘
                                                                 │  send()
@@ -51,8 +51,8 @@ For architectural deep-dives see the design specs under [`docs/superpowers/specs
 ```
 
 The watcher is a single long-lived PHP process (`php src/watcher.php`) running inside the `app` container. It does three things per loop iteration (default 5s):
-1. Scans `watch/` for new `*.xml` files and feeds them to `AegisXmlParser`
-2. Touches `logs/.watcher-heartbeat` for Docker's healthcheck
+1. Scans `var/watch/` for new `*.xml` files and feeds them to `AegisXmlParser`
+2. Touches `var/log/.watcher-heartbeat` for Docker's healthcheck
 3. Calls `OutboxProcessor::tick()` to drain the notification queue
 
 The REST API runs in a separate container (`api`) and only reads from the DB plus exposes operator actions. The dashboard is server-rendered HTML served from `api`.
@@ -61,21 +61,21 @@ The REST API runs in a separate container (`api`) and only reads from the DB plu
 
 ## Stage 1 — File arrival
 
-**What it does.** A CAD XML file lands in `watch/`. The watcher scans the folder once per `WATCHER_INTERVAL` seconds (default 5).
+**What it does.** A CAD XML file lands in `var/watch/`. The watcher scans the folder once per `WATCHER_INTERVAL` seconds (default 5).
 
 **State.** Filename + content on the local FS (or CIFS-mounted share, see `docker-compose.yml` `watchfolder` volume).
 
 **Failure modes.**
 | Symptom | Root cause | Where to look |
 |---|---|---|
-| Files in `watch/` are never picked up | Watcher process is down | `docker compose ps app` — should be `Up (healthy)` |
-| Watcher reports unhealthy | Heartbeat file is stale (>60s) | `ls -l logs/.watcher-heartbeat` — mtime should be recent. `docker compose logs app` for the underlying cause |
+| Files in `var/watch/` are never picked up | Watcher process is down | `docker compose ps app` — should be `Up (healthy)` |
+| Watcher reports unhealthy | Heartbeat file is stale (>60s) | `ls -l var/log/.watcher-heartbeat` — mtime should be recent. `docker compose logs app` for the underlying cause |
 | Files appear but vanish without DB rows | XML rejected — see Stage 2 | `logs/error.log` for parse errors |
 
 **Operator check.** If a file isn't being processed:
 ```bash
 docker compose logs --tail=200 app | grep -i "Processing XML file"
-ls -la watch/
+ls -la var/watch/
 ```
 
 ---
@@ -95,7 +95,7 @@ ls -la watch/
 **Operator check.** When a single file misbehaves:
 ```bash
 # Validate XML manually
-xmllint --noout watch/PROBLEM_FILE.xml
+xmllint --noout var/watch/PROBLEM_FILE.xml
 # See what the watcher logged
 docker compose logs app | grep PROBLEM_FILE
 ```
@@ -154,7 +154,7 @@ Surviving events get one row per enabled channel inserted into `notification_out
 **Failure modes.**
 | Symptom | Root cause | Where to look |
 |---|---|---|
-| No outbox rows for a Created event | All channels disabled, OR event dropped by delta-time gate | `logs/app.log` — look for `Outbox writer: no enabled channels` or `delta-time gate dropped event` |
+| No outbox rows for a Created event | All channels disabled, OR event dropped by delta-time gate | `var/log/app.log` — look for `Outbox writer: no enabled channels` or `delta-time gate dropped event` |
 | Outbox rows exist but stay `pending` indefinitely | OutboxProcessor not running (watcher down) or `next_attempt_at` is set far in the future | See Stage 7 |
 
 **Operator check.**
@@ -197,8 +197,8 @@ ORDER BY id DESC;
 **Failure modes.**
 | Symptom | Root cause | Where to look |
 |---|---|---|
-| Tick raises | Caught at row level — error logged, row scheduled for retry | `logs/app.log` — `Outbox tick: processRow threw` |
-| Housekeeping (prune/resetOrphans) fails | Caught at the tick level — logged but tick continues | `logs/app.log` — `Outbox tick: housekeeping failed` |
+| Tick raises | Caught at row level — error logged, row scheduled for retry | `var/log/app.log` — `Outbox tick: processRow threw` |
+| Housekeeping (prune/resetOrphans) fails | Caught at the tick level — logged but tick continues | `var/log/app.log` — `Outbox tick: housekeeping failed` |
 
 The tick is wrapped in `FileWatcher::start()`'s outer try/catch, so a thrown tick won't kill the watcher loop — but the heartbeat may go stale if the tick blocks for >60s. Channel-level retries inside `send()` have their own 1s/3s/9s backoff, so a single slow tick can take ~13s × N channels.
 
@@ -283,7 +283,7 @@ SELECT * FROM notification_outbox WHERE db_call_id = <id> ORDER BY id DESC;
 
 If step 2 returns nothing:
 - **Closed intent** — by design, no notification.
-- **Delta-time gate** — check `logs/app.log` for `Outbox writer: delta-time gate dropped event` near the call's `create_datetime`.
+- **Delta-time gate** — check `var/log/app.log` for `Outbox writer: delta-time gate dropped event` near the call's `create_datetime`.
 - **No enabled channels** — `SELECT name, enabled FROM notification_channels` should show ≥1 enabled.
 - **`Updated` intent with no `changedFields` and no `addedTopics`** — IntentResolver returned null. Check the prior call's snapshot vs the new XML.
 
@@ -336,7 +336,7 @@ Heartbeat is touched at the top of every `FileWatcher::start()` loop iteration. 
 Diagnose:
 ```bash
 docker compose logs --tail=200 app
-ls -l logs/.watcher-heartbeat
+ls -l var/log/.watcher-heartbeat
 ```
 
 If the heartbeat is recent but the container still flagged: confirm `WATCHER_INTERVAL` in `.env` is ≤30s (CLAUDE.md notes that values >~30s cause flapping with the 60s threshold).

@@ -1,9 +1,6 @@
 .git
 .gitignore
-data
-logs
-watch
-tmp
+var
 vendor
 .env
 README.md

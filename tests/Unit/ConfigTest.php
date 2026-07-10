@@ -113,12 +113,11 @@ class ConfigTest extends TestCase
     public function testGetPaths(): void
     {
         $logsPath = $this->config->get('paths.logs');
-        $tmpPath = $this->config->get('paths.tmp');
 
         $this->assertNotNull($logsPath);
-        $this->assertNotNull($tmpPath);
         $this->assertIsString($logsPath);
-        $this->assertIsString($tmpPath);
+        // Runtime state lives under var/ (var/log) unless overridden by LOG_DIR.
+        $this->assertStringContainsString('var', $logsPath);
     }
 
     public function testCsvHelperSplitsAndTrims(): void

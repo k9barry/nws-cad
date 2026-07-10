@@ -199,8 +199,8 @@ echo "\n";
 // 8. Move archived XMLs for active calls back to watch/.
 // ---------------------------------------------------------------------------
 echo "── 8. Move archived XMLs for active calls back into watch/ ──\n";
-$processedDir = '/var/www/watch/processed';
-$watchDir     = '/var/www/watch';
+$processedDir = '/var/www/var/watch/processed';
+$watchDir     = '/var/www/var/watch';
 if (!is_dir($processedDir) || !is_dir($watchDir)) {
     echo "  SKIP: processed/ or watch/ not present at expected paths (run inside the app container).\n\n";
 } else {

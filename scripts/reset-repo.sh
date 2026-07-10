@@ -80,12 +80,12 @@ echo ""
 
 # Step 4: Clean log files
 echo -e "${YELLOW}Step 4: Cleaning log files...${NC}"
-safe_remove "logs" ".gitkeep"
+safe_remove "var/log" ".gitkeep"
 echo ""
 
 # Step 5: Clean watch directory
 echo -e "${YELLOW}Step 5: Cleaning watch directory...${NC}"
-safe_remove "watch" ".gitkeep"
+safe_remove "var/watch" ".gitkeep"
 echo ""
 
 # Step 6: Clean tmp directory
@@ -120,7 +120,7 @@ else
     if [ "$confirm_delete" = "DELETE" ]; then
         skip_db='n'
         echo -e "${YELLOW}Creating backup before deletion...${NC}"
-        BACKUP_DIR="backups"
+        BACKUP_DIR="var/backups"
         mkdir -p "$BACKUP_DIR"
         BACKUP_FILE="$BACKUP_DIR/nws_cad_$(date +%Y%m%d_%H%M%S).sql"
         
@@ -142,8 +142,8 @@ fi
 if [[ "$skip_db" =~ ^[Yy]$ ]]; then
     echo -e "${GREEN}✓ Skipping database cleanup (data preserved)${NC}"
 else
-    safe_remove "data/mysql" ".gitkeep"
-    safe_remove "data/postgres" ".gitkeep"
+    safe_remove "var/data/mysql" ".gitkeep"
+    safe_remove "var/data/postgres" ".gitkeep"
     echo -e "${RED}✓ Database data deleted${NC}"
 fi
 echo ""
@@ -175,7 +175,7 @@ echo ""
 
 # Step 11: Recreate .gitkeep files if needed
 echo -e "${YELLOW}Step 11: Ensuring .gitkeep files exist...${NC}"
-for dir in logs watch tmp data/mysql data/postgres; do
+for dir in var/log var/watch var/data/mysql var/data/postgres; do
     if [ ! -d "$dir" ]; then
         mkdir -p "$dir"
     fi

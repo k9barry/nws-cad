@@ -27,7 +27,7 @@ else
 fi
 
 # Configuration
-BACKUP_DIR="${BACKUP_DIR:-./backups}"
+BACKUP_DIR="${BACKUP_DIR:-./var/backups}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 DATE=$(date +%Y%m%d_%H%M%S)
 

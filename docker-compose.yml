@@ -12,9 +12,9 @@ services:
     working_dir: /var/www
     volumes:
       - ./:/var/www
-      - ./watch:/var/www/watch
-      - ./logs:/var/www/logs
-      - watchfolder:/var/www/watch
+      - ${NWS_VAR_DIR:-./var}/watch:/var/www/var/watch
+      - ${NWS_VAR_DIR:-./var}/log:/var/www/var/log
+      - watchfolder:/var/www/var/watch
     environment:
       - TZ=${TZ:-UTC}
       - DB_TYPE=${DB_TYPE:-mysql}
@@ -46,7 +46,7 @@ services:
       sh -c "composer install --no-interaction --prefer-dist --optimize-autoloader &&
              php /var/www/src/watcher.php"
     healthcheck:
-      test: ["CMD-SHELL", "test $(($(date +%s) - $(stat -c %Y /var/www/logs/.watcher-heartbeat 2>/dev/null || echo 0))) -lt 60"]
+      test: ["CMD-SHELL", "test $(($(date +%s) - $(stat -c %Y /var/www/var/log/.watcher-heartbeat 2>/dev/null || echo 0))) -lt 60"]
       interval: 15s
       timeout: 5s
       retries: 4
@@ -99,7 +99,7 @@ services:
       MYSQL_USER: ${MYSQL_USER:-nws_user}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
-      - ./data/mysql:/var/lib/mysql
+      - ${NWS_VAR_DIR:-./var}/data/mysql:/var/lib/mysql
       - ./database/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./database/mysql/test-setup.sql:/docker-entrypoint-initdb.d/zz-test-setup.sql
       - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
@@ -126,7 +126,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      - ${NWS_VAR_DIR:-./var}/data/postgres:/var/lib/postgresql/data
       - ./database/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "${POSTGRES_PORT:-5432}:5432"

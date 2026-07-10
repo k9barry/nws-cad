@@ -53,7 +53,7 @@ docker-compose up -d
 
 | Component | Description | Port |
 |-----------|-------------|------|
-| **File Watcher** | Monitors `watch/` for XML files, parses and stores data | - |
+| **File Watcher** | Monitors `var/watch/` for XML files, parses and stores data | - |
 | **REST API** | 40 endpoints for calls, units, search, statistics, notifications | 8080 |
 | **Notifier** | In-process channels (ntfy, Pushover) dispatched from parser commit | - |
 | **Dashboard** | Real-time monitoring with maps and charts | 80 |
@@ -83,8 +83,11 @@ nws-cad/
 ├── tests/                     # PHPUnit tests (4 suites)
 ├── docs/                      # Documentation
 ├── scripts/                   # Operational shell scripts (setup, stack, backup)
-├── watch/                     # XML input folder
-└── logs/                      # Application logs
+└── var/                       # Runtime state (git-ignored contents)
+    ├── watch/                 # XML input folder
+    ├── log/                   # Application logs + .watcher-heartbeat
+    ├── data/{mysql,postgres}/ # Database volumes
+    └── backups/               # Database backups
 ```
 
 ## API Reference

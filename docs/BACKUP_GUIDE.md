@@ -10,7 +10,7 @@ The NWS CAD system now includes automated database backup and restore capabiliti
 ./scripts/backup-database.sh
 ```
 
-This creates a timestamped, compressed backup in the `backups/` directory:
+This creates a timestamped, compressed backup in the `var/backups/` directory:
 - `mysql_nws_cad_YYYYMMDD_HHMMSS.sql.gz`
 - `postgres_nws_cad_YYYYMMDD_HHMMSS.sql.gz` (if PostgreSQL is running)
 
@@ -32,10 +32,10 @@ Add to your crontab (`crontab -e`):
 
 ```bash
 # Daily backup at 2 AM
-0 2 * * * cd /home/jcleaver/nws-cad && ./scripts/backup-database.sh >> /home/jcleaver/nws-cad/logs/backup.log 2>&1
+0 2 * * * cd /home/jcleaver/nws-cad && ./scripts/backup-database.sh >> /home/jcleaver/nws-cad/var/log/backup.log 2>&1
 
 # Weekly backup on Sunday at 3 AM
-0 3 * * 0 cd /home/jcleaver/nws-cad && ./scripts/backup-database.sh >> /home/jcleaver/nws-cad/logs/backup.log 2>&1
+0 3 * * 0 cd /home/jcleaver/nws-cad && ./scripts/backup-database.sh >> /home/jcleaver/nws-cad/var/log/backup.log 2>&1
 ```
 
 ### Backup Before Reset
@@ -98,11 +98,11 @@ nws-cad/
 │   ├── backup-database.sh      # Create backups
 │   ├── restore-database.sh     # Restore from backup
 │   └── reset-repo.sh           # Enhanced with protection
-├── backups/                    # Backup storage
+├── var/backups/                    # Backup storage
 │   ├── .gitkeep
 │   ├── mysql_nws_cad_*.sql.gz
 │   └── postgres_nws_cad_*.sql.gz
-└── logs/
+└── var/log/
     └── backup.log              # Automated backup logs
 ```
 
@@ -117,15 +117,15 @@ $ ./scripts/backup-database.sh
 ════════════════════════════════════════════════
 
 Backing up MySQL database...
-✓ MySQL backup created: backups/mysql_nws_cad_20260201_153843.sql.gz (42K)
+✓ MySQL backup created: var/backups/mysql_nws_cad_20260201_153843.sql.gz (42K)
 
 Cleaning up backups older than 30 days...
 ✓ No old backups to delete
 
 Recent backups:
 ─────────────────────────────────────────────────
-backups/mysql_nws_cad_20260201_153843.sql.gz (42K)
-backups/mysql_nws_cad_20260131_210000.sql.gz (1.2M)
+var/backups/mysql_nws_cad_20260201_153843.sql.gz (42K)
+var/backups/mysql_nws_cad_20260131_210000.sql.gz (1.2M)
 
 ════════════════════════════════════════════════
 ✅ Backup completed successfully
@@ -158,7 +158,7 @@ Selected backup: mysql_nws_cad_20260131_210000.sql.gz
 Type 'RESTORE' to confirm: RESTORE
 
 Creating safety backup of current database...
-✓ Safety backup created: backups/pre_restore_20260201_153900.sql.gz
+✓ Safety backup created: var/backups/pre_restore_20260201_153900.sql.gz
 
 Restoring database from backup...
 
@@ -167,7 +167,7 @@ Restoring database from backup...
 ════════════════════════════════════════════════
 
 Restored from: mysql_nws_cad_20260131_210000.sql.gz
-Safety backup: backups/pre_restore_20260201_153900.sql.gz
+Safety backup: var/backups/pre_restore_20260201_153900.sql.gz
 ```
 
 ### Enhanced Reset Script
@@ -203,7 +203,7 @@ Do you want to DELETE all database data? Type 'DELETE' to confirm (or anything e
 3. **Before Reset**: The script now does this automatically
 4. **Test Restores**: Periodically test restoring backups to ensure they work
 5. **Off-site Storage**: Copy critical backups to external storage/cloud
-6. **Monitor Logs**: Check `logs/backup.log` for automated backup status
+6. **Monitor Logs**: Check `var/log/backup.log` for automated backup status
 
 ## Troubleshooting
 
@@ -222,7 +222,7 @@ docker exec nws-cad-mysql mysqldump -u nws_user -p'YOUR_PASSWORD' nws_cad > test
 ### Restore Fails
 ```bash
 # Check backup file is valid
-gunzip -t backups/mysql_nws_cad_*.sql.gz
+gunzip -t var/backups/mysql_nws_cad_*.sql.gz
 
 # Check container is running
 docker ps | grep nws-cad-mysql
@@ -231,13 +231,13 @@ docker ps | grep nws-cad-mysql
 ### Disk Space
 ```bash
 # Check backup directory size
-du -sh backups/
+du -sh var/backups/
 
 # Adjust retention period in .env
 echo "BACKUP_RETENTION_DAYS=7" >> .env
 
 # Clean old backups manually
-find backups/ -name "*.sql.gz" -mtime +7 -delete
+find var/backups/ -name "*.sql.gz" -mtime +7 -delete
 ```
 
 ## Recovery Scenarios
@@ -245,7 +245,7 @@ find backups/ -name "*.sql.gz" -mtime +7 -delete
 ### Scenario 1: Accidental Reset
 If you accidentally ran `reset-repo.sh` and deleted the database:
 
-1. Check `backups/` for the automatic backup created during reset
+1. Check `var/backups/` for the automatic backup created during reset
 2. Run `./scripts/restore-database.sh`
 3. Select the most recent backup (should be pre_delete_*.sql.gz)
 
@@ -267,22 +267,22 @@ If you need to test with production-like data:
 
 ⚠️ **Important**: Backup files contain **unencrypted database data**. 
 
-- Backups are stored in `backups/` directory
+- Backups are stored in `var/backups/` directory
 - This directory is in `.gitignore` (not committed to git)
 - Protect access to the backups directory
 - Consider encrypting backups for production:
 
 ```bash
 # Encrypt backup
-gpg --encrypt --recipient you@example.com backups/mysql_nws_cad_*.sql.gz
+gpg --encrypt --recipient you@example.com var/backups/mysql_nws_cad_*.sql.gz
 
 # Decrypt when needed
-gpg --decrypt backups/mysql_nws_cad_*.sql.gz.gpg > backup.sql.gz
+gpg --decrypt var/backups/mysql_nws_cad_*.sql.gz.gpg > backup.sql.gz
 ```
 
 ## Support
 
 For issues or questions:
-1. Check logs: `tail -f logs/backup.log`
+1. Check logs: `tail -f var/log/backup.log`
 2. Test database connection: `docker exec -it nws-cad-mysql mysql -u nws_user -p`
 3. Review documentation: `docs/README.md`

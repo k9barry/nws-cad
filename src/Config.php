@@ -86,13 +86,14 @@ class Config
                 'admin_users' => self::csv($this->env('LOGS_ADMIN_USERS', '')),
             ],
             'watcher' => [
-                'folder' => $this->env('WATCH_FOLDER', __DIR__ . '/../watch'),
+                'folder' => $this->env('WATCH_FOLDER', __DIR__ . '/../var/watch'),
                 'interval' => (int)$this->env('WATCHER_INTERVAL', '5'),
                 'file_pattern' => $this->env('WATCHER_FILE_PATTERN', '*.xml'),
             ],
             'paths' => [
-                'logs' => __DIR__ . '/../logs',
-                'tmp' => __DIR__ . '/../tmp',
+                // Runtime state lives under var/ (modern PHP layout). WATCH_FOLDER
+                // and LOG_DIR remain env escape hatches for existing deployments.
+                'logs' => $this->env('LOG_DIR', __DIR__ . '/../var/log'),
             ],
             'notifications' => [
                 'delta_seconds'          => (int) $this->env('NOTIFICATION_DELTA_SECONDS', '900'),

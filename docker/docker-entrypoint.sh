@@ -14,7 +14,7 @@ set -e
 # Ensure each writable path exists (an empty bind mount may not contain it) and
 # is owned by www-data, so composer install can populate vendor/ and the watcher
 # can write logs/heartbeat without needing write access to the mount root.
-for dir in /var/www/logs /var/www/watch /var/www/tmp /var/www/vendor; do
+for dir in /var/www/var/log /var/www/var/watch /var/www/vendor; do
     mkdir -p "$dir" 2>/dev/null || true
     chown -R www-data:www-data "$dir" 2>/dev/null || true
 done

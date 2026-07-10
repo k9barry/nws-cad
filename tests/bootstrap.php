@@ -14,7 +14,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 date_default_timezone_set('UTC');
 
 // Ensure logs directory exists
-$logsDir = __DIR__ . '/../logs';
+$logsDir = __DIR__ . '/../var/log';
 if (!is_dir($logsDir)) {
     mkdir($logsDir, 0755, true);
 }
