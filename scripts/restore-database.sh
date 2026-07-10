@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Run from the repository root regardless of where this script is invoked from
-cd "$(dirname "$0")/.."
-
 # NWS CAD Database Restore Script
 # Restores database from a backup file
 
@@ -16,8 +13,10 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Get the script directory
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$SCRIPT_DIR"
+# Resolve the repository root (parent of scripts/) and run from there so all
+# repo-root-relative paths (.env, docker-compose.yml, backups/) resolve.
+REPO_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
+cd "$REPO_ROOT"
 
 # Load environment variables
 if [ -f .env ]; then

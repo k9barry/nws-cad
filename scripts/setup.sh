@@ -1,12 +1,14 @@
 #!/bin/bash
 
-# Run from the repository root regardless of where this script is invoked from
-cd "$(dirname "$0")/.."
-
 # NWS CAD System Setup Script
 # This script helps with initial setup and common tasks
 
 set -e
+
+# Resolve the repository root (parent of scripts/) and run from there so all
+# repo-root-relative paths (.env, docker-compose.yml, composer) resolve.
+REPO_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
+cd "$REPO_ROOT"
 
 # Colors for output
 RED='\033[0;31m'

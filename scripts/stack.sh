@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-
-# Run from the repository root regardless of where this script is invoked from
-cd "$(dirname "$0")/.."
 #
 # stack.sh — manage the nws-cad docker stack with the correct DB profile.
 #
@@ -16,7 +13,8 @@ cd "$(dirname "$0")/.."
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Repo root is the parent of scripts/, so compose finds docker-compose.yml/.env.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 # --- Resolve DB_TYPE -> COMPOSE_PROFILES ------------------------------------

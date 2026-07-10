@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Run from the repository root regardless of where this script is invoked from
-cd "$(dirname "$0")/.."
-
 # Reset nws-cad repository to fresh clone state
 # This script removes all generated files, dependencies, and Docker artifacts
 
@@ -18,8 +15,10 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Get the script directory
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$SCRIPT_DIR"
+# Resolve the repository root (parent of scripts/) and run from there so all
+# repo-root-relative paths (vendor/, logs/, data/, .env) resolve.
+REPO_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
+cd "$REPO_ROOT"
 
 # Function to safely remove directory contents
 safe_remove() {
