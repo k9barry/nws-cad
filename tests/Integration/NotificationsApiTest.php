@@ -144,6 +144,12 @@ class NotificationsApiTest extends TestCase
 
     public function testEnableFlipsExistingDisabledRow(): void
     {
+        // Self-contained: enable() validates NTFY_BASE_URL from the environment,
+        // so this test must set it rather than depend on env state leaked from a
+        // sibling test (which the execution order does not guarantee).
+        $_ENV['NTFY_BASE_URL']   = 'https://ntfy.example';
+        $_ENV['NTFY_AUTH_TOKEN'] = 'token';
+
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
             VALUES ('ntfy_primary', 'ntfy', 0, 'https://existing', '{\"auth_token_env\":\"NTFY_AUTH_TOKEN\"}')");
 
@@ -155,6 +161,8 @@ class NotificationsApiTest extends TestCase
         $this->assertTrue($payload['success'], json_encode($payload));
         $this->assertSame(1, (int) $payload['data']['enabled']);
         $this->assertSame('https://existing', $payload['data']['base_url']);
+
+        unset($_ENV['NTFY_BASE_URL'], $_ENV['NTFY_AUTH_TOKEN']);
     }
 
     public function testEnableReturns422WhenBaseUrlEnvMissing(): void
