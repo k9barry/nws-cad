@@ -18,6 +18,7 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Import\ValueCaster
  * @uses \NwsCad\Import\XmlLoader
  * @uses \NwsCad\Import\XmlValidator
+ * @uses \NwsCad\Import\ProcessedFileRepository
  * @uses \NwsCad\Db\UpsertBuilder
  * @uses \NwsCad\Api\DbHelper
  * @uses \NwsCad\Config

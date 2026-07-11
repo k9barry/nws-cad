@@ -22,6 +22,7 @@ class AegisXmlParser implements ParserInterface
 {
     private PDO $db;
     private $logger;
+    private \NwsCad\Import\ProcessedFileRepository $processedFiles;
     private array $namespaces = [
         '' => 'http://www.newworldsystems.com/Aegis/CAD/Peripheral/CallExport/2011/02',
         'i' => 'http://www.w3.org/2001/XMLSchema-instance'
@@ -31,6 +32,7 @@ class AegisXmlParser implements ParserInterface
     {
         $this->db = Database::getConnection();
         $this->logger = Logger::getInstance();
+        $this->processedFiles = new \NwsCad\Import\ProcessedFileRepository($this->logger);
         $this->logger->debug("AegisXmlParser initialized with database connection");
     }
 
@@ -869,105 +871,28 @@ class AegisXmlParser implements ParserInterface
 
     private function isFileProcessed(string $filename, string $filePath): bool
     {
-        $hash = hash_file('sha256', $filePath);
-
-        try {
-            $found = Database::run(function (\PDO $db) use ($filename, $hash): bool {
-                $stmt = $db->prepare(
-                    "SELECT id FROM processed_files WHERE filename = ? AND file_hash = ?"
-                );
-                $stmt->execute([$filename, $hash]);
-                return $stmt->fetch() !== false;
-            });
-            // Resync our cached handle in case Database::run() reconnected.
-            $this->db = Database::getConnection();
-            return $found;
-        } catch (\PDOException $e) {
-            $this->logger->error("Database error in isFileProcessed: {$e->getMessage()}");
-            throw $e;
-        }
+        $found = $this->processedFiles->isProcessed($filename, $filePath);
+        // Resync our cached handle in case Database::run() reconnected inside
+        // the repository — the transaction below relies on a live $this->db.
+        $this->db = Database::getConnection();
+        return $found;
     }
 
-    /**
-     * True when a newer XML for the same call_number has already been processed.
-     * Filenames look like "{call_number}_{YYYYMMDDhhmmss<centiseconds>}.xml" — the
-     * timestamp portion is fixed-width and zero-padded, so lexicographic comparison
-     * matches chronological order. Filenames that don't match the expected pattern
-     * fall through (return false) so manual injects or future formats don't break ingest.
-     */
     private function isFilenameStaleForCall(string $filename): bool
     {
-        if (! preg_match('/^(\d+)_\d+\.xml$/', $filename, $m)) {
-            return false;
-        }
-        $prefix = $m[1] . '_';
-        $stmt = $this->db->prepare(
-            "SELECT MAX(filename) FROM processed_files WHERE filename LIKE ?"
-        );
-        $stmt->execute([$prefix . '%']);
-        $max = $stmt->fetchColumn();
-        if ($max === false || $max === null || $max === '') {
-            return false;
-        }
-        return strcmp($filename, (string) $max) <= 0;
+        return $this->processedFiles->isFilenameStaleForCall($filename);
     }
 
     private function markFileAsProcessed(string $filename, string $filePath, int $recordsProcessed): void
     {
-        $hash = hash_file('sha256', $filePath);
-        
-        // Extract call metadata from filename
-        $parsed = FilenameParser::parse($filename);
-        
-        // Log warning if filename cannot be parsed
-        if ($parsed === null) {
-            $this->logger->warning("Could not parse filename for metadata extraction: {$filename}");
-        }
-        
-        $callNumber = $parsed['call_number'] ?? null;
-        $fileTimestamp = $parsed['timestamp_int'] ?? null;
-        
-        try {
-            Database::run(function (\PDO $db) use ($filename, $hash, $callNumber, $fileTimestamp, $recordsProcessed): void {
-                $stmt = $db->prepare(
-                    "INSERT INTO processed_files (filename, file_hash, call_number, file_timestamp, status, records_processed)
-                     VALUES (?, ?, ?, ?, 'success', ?)"
-                );
-                $stmt->execute([$filename, $hash, $callNumber, $fileTimestamp, $recordsProcessed]);
-            });
-            // Resync our cached handle in case Database::run() reconnected.
-            $this->db = Database::getConnection();
-            $this->logger->info("Marked file as processed: {$filename} ({$recordsProcessed} records)");
-        } catch (\PDOException $e) {
-            $this->logger->error("Database error in markFileAsProcessed: {$e->getMessage()}");
-            throw $e;
-        }
+        $this->processedFiles->markProcessed($filename, $filePath, $recordsProcessed);
+        // Resync our cached handle in case Database::run() reconnected.
+        $this->db = Database::getConnection();
     }
 
     private function markFileAsFailed(string $filename, string $filePath, string $error): void
     {
-        try {
-            $hash = hash_file('sha256', $filePath);
-
-            // Extract call metadata from filename
-            $parsed = FilenameParser::parse($filename);
-
-            // Log warning if filename cannot be parsed
-            if ($parsed === null) {
-                $this->logger->warning("Could not parse filename for metadata extraction: {$filename}");
-            }
-
-            $callNumber = $parsed['call_number'] ?? null;
-            $fileTimestamp = $parsed['timestamp_int'] ?? null;
-
-            $stmt = $this->db->prepare(
-                "INSERT INTO processed_files (filename, file_hash, call_number, file_timestamp, status, error_message)
-                 VALUES (?, ?, ?, ?, 'failed', ?)"
-            );
-            $stmt->execute([$filename, $hash, $callNumber, $fileTimestamp, $error]);
-        } catch (Exception $e) {
-            $this->logger->error("Failed to mark file as failed: " . $e->getMessage());
-        }
+        $this->processedFiles->markFailed($filename, $filePath, $error);
     }
 
     /** @return array<string,mixed>|null */
