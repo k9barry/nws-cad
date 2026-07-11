@@ -624,7 +624,7 @@ CREATE TABLE IF NOT EXISTS notification_outbox (
     create_datetime     TIMESTAMP NOT NULL,
     status              VARCHAR(16) NOT NULL DEFAULT 'pending',
     attempts            INTEGER NOT NULL DEFAULT 0,
-    next_attempt_at     TIMESTAMP NULL,
+    next_attempt_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     claimed_at          TIMESTAMP NULL,
     claimed_by          VARCHAR(64) NULL,
     last_error          TEXT NULL,

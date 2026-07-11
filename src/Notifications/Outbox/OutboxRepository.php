@@ -94,7 +94,7 @@ final class OutboxRepository implements OutboxRepositoryInterface
             $sel = $db->prepare(
                 "SELECT id FROM notification_outbox
                  WHERE status = 'pending'
-                   AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+                   AND next_attempt_at <= ?
                  ORDER BY id ASC
                  LIMIT ?"
             );
@@ -285,7 +285,7 @@ final class OutboxRepository implements OutboxRepositoryInterface
             $stmt = $db->prepare(
                 "UPDATE notification_outbox
                  SET status = 'pending', attempts = 0,
-                     next_attempt_at = NULL, last_error = NULL,
+                     next_attempt_at = CURRENT_TIMESTAMP, last_error = NULL,
                      claimed_at = NULL, claimed_by = NULL,
                      updated_at = CURRENT_TIMESTAMP
                  WHERE id = ?"
