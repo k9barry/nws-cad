@@ -99,8 +99,14 @@ mysql -u root -p -e "CREATE DATABASE nws_cad_test;"
 mysql -u root -p -e "GRANT ALL ON nws_cad_test.* TO 'test_user'@'localhost' IDENTIFIED BY 'test_pass';"
 mysql -u test_user -ptest_pass nws_cad_test < database/mysql/init.sql
 
-# Docker
-docker-compose exec mysql mysql -u root -proot_password -e "CREATE DATABASE nws_cad_test;"
+# Docker — bring the stack up WITH the test override so the mysql:8.0 entrypoint
+# auto-creates nws_cad_test + test_user on a fresh data volume. The base
+# docker-compose.yml deliberately omits this seed so a production `up -d` never
+# provisions a test DB / test_user on the live database.
+docker compose -f docker-compose.yml -f docker-compose.test.yml --profile mysql up -d
+
+# Existing (already-initialized) volume — the initdb seed won't re-run; apply it once:
+docker compose exec mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < /docker-entrypoint-initdb.d/zz-test-setup.sql'
 ```
 
 ### Configuration

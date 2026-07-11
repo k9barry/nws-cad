@@ -1,0 +1,21 @@
+# Local test override — DO NOT use in production.
+#
+# Adds the nws_cad_test database + test_user/test_pass to the mysql service so
+# `composer test` works locally the same way it does in CI (.github/workflows/
+# tests.yml provisions the equivalent as a GitHub Actions service). This
+# scaffolding is deliberately kept OUT of the base docker-compose.yml so a
+# production `docker compose up -d` never creates a test DB or a well-known
+# test_user on the live MySQL.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml --profile mysql up -d
+#
+# The mounted SQL (zz-test-setup.sql) only runs on a FRESH data volume, because
+# the mysql entrypoint runs docker-entrypoint-initdb.d scripts once. To seed an
+# existing volume, apply it manually:
+#   docker compose exec mysql sh -c \
+#     'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < /docker-entrypoint-initdb.d/zz-test-setup.sql'
+services:
+  mysql:
+    volumes:
+      - ./database/mysql/test-setup.sql:/docker-entrypoint-initdb.d/zz-test-setup.sql
