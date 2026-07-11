@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NwsCad\Tests\Integration;
 
 use NwsCad\AegisXmlParser;
+use NwsCad\Api\DbHelper;
 use NwsCad\Database;
 use PHPUnit\Framework\TestCase;
 
@@ -15,6 +16,7 @@ use PHPUnit\Framework\TestCase;
  * unchanged, on both MySQL and PostgreSQL, before and after that refactor.
  *
  * @covers \NwsCad\AegisXmlParser
+ * @uses \NwsCad\Api\DbHelper
  * @uses \NwsCad\Config
  * @uses \NwsCad\Database
  * @uses \NwsCad\FilenameParser
@@ -34,7 +36,10 @@ class ImporterCharacterizationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        if (!getenv('MYSQL_HOST')) {
+        // Driver-aware "is a DB configured?" gate: check the host of whichever
+        // driver DB_TYPE selects, not MYSQL_HOST unconditionally.
+        $hostVar = (getenv('DB_TYPE') ?: 'mysql') === 'pgsql' ? 'POSTGRES_HOST' : 'MYSQL_HOST';
+        if (!getenv($hostVar)) {
             $this->markTestSkipped('Database not configured for testing');
         }
         cleanTestDatabase();
@@ -72,6 +77,10 @@ class ImporterCharacterizationTest extends TestCase
 
     private function countFor(string $table, int $dbCallId): int
     {
+        // $table is always a hard-coded literal here, but validate it against
+        // the same identifier allowlist production SQL uses before interpolating
+        // (compliance: never interpolate an unvalidated identifier).
+        DbHelper::validateIdentifier($table, 'table');
         $db = Database::getConnection();
         $stmt = $db->prepare("SELECT COUNT(*) FROM {$table} WHERE call_id = ?");
         $stmt->execute([$dbCallId]);

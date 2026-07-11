@@ -69,7 +69,17 @@ class FileWatcher
             $this->filePattern = (string) ($config['file_pattern'] ?? '*.xml');
             $this->heartbeatPath = (string) ($config['heartbeat_path']
                 ?? rtrim($this->watchFolder, '/') . '/.watcher-heartbeat');
-            $this->parser = $parser ?? new AegisXmlParser();
+            // A caller that supplies config but no parser still gets a real
+            // AegisXmlParser, which connects to the database on construction —
+            // so we must wait for the DB here too, exactly as the production
+            // path does. Only an injected parser (the unit-test case) is
+            // allowed to skip the wait.
+            if ($parser !== null) {
+                $this->parser = $parser;
+            } else {
+                $this->waitForDatabase();
+                $this->parser = new AegisXmlParser();
+            }
         } else {
             $configSingleton = Config::getInstance();
             $this->watchFolder = $configSingleton->get('watcher.folder');

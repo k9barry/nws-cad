@@ -60,6 +60,9 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
 
+      - name: Static analysis (PHPStan)
+        run: composer phpstan
+
       - name: Wait for MySQL
         run: |
           echo "Waiting for MySQL to be ready..."
