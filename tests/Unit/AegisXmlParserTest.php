@@ -26,6 +26,7 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Import\Mappers\AgencyContextMapper
  * @uses \NwsCad\Import\Mappers\IncidentMapper
  * @uses \NwsCad\Import\Mappers\NarrativeMapper
+ * @uses \NwsCad\Import\Mappers\UnitMapper
  * @uses \NwsCad\Config
  * @uses \NwsCad\Database
  * @uses \NwsCad\FilenameParser
