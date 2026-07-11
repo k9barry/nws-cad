@@ -19,12 +19,14 @@ class FileWatcher
     private int $interval;
     private string $filePattern;
     private array $processedFiles = [];
-    private AegisXmlParser $parser;
+    private ParserInterface $parser;
     private $logger;
     private bool $running = true;
     private string $heartbeatPath;
     /** @var (callable():void)|null */
     private $onTick = null;
+    /** @var callable(int):void */
+    private $sleep;
 
     public function setOnTick(?callable $cb): void
     {
@@ -32,34 +34,65 @@ class FileWatcher
     }
 
     /**
-     * Constructor - Initialize file watcher
+     * Constructor - Initialize file watcher.
      *
-     * @throws Exception If database connection fails
+     * All parameters are optional test/injection seams. With no arguments the
+     * watcher behaves exactly as in production: configuration is read from the
+     * {@see Config} singleton, it blocks on {@see waitForDatabase()}, and it
+     * constructs a real {@see AegisXmlParser}. Passing a parser (and optional
+     * config/sleep overrides) bypasses the database wait so the file-handling
+     * logic can be unit-tested against real temp directories with no database.
+     *
+     * @param ParserInterface|null $parser    Injected ingest step; null → real AegisXmlParser (after DB wait).
+     * @param array<string,mixed>|null $config Override watcher config. Recognized keys:
+     *                                         'folder', 'interval', 'file_pattern', 'heartbeat_path'.
+     *                                         When provided, the Config singleton and DB wait are skipped.
+     * @param callable(int):void|null $sleep   Sleep seam (seconds → void); null → PHP sleep().
+     * @throws Exception If database connection fails (production path only).
      */
-    public function __construct()
-    {
-        $config = Config::getInstance();
-        $this->watchFolder = $config->get('watcher.folder');
-        $this->interval = $config->get('watcher.interval');
-        $this->filePattern = $config->get('watcher.file_pattern');
+    public function __construct(
+        ?ParserInterface $parser = null,
+        ?array $config = null,
+        ?callable $sleep = null
+    ) {
         $this->logger = Logger::getInstance();
-        $this->heartbeatPath = rtrim($config->get('paths.logs'), '/') . '/.watcher-heartbeat';
+        $this->sleep = $sleep ?? static function (int $seconds): void {
+            sleep($seconds);
+        };
 
-        $this->logger->info("Initializing File Watcher Service");
-        $this->logger->debug("Loading configuration from Config singleton");
-        $this->logger->debug("Watch Folder: {$this->watchFolder}");
-        $this->logger->debug("File Pattern: {$this->filePattern}");
-        $this->logger->debug("Check Interval: {$this->interval} seconds");
+        if ($config !== null) {
+            // Injection mode: caller supplies configuration and (optionally) a
+            // parser. The DB wait and Config singleton are skipped so unit
+            // tests need neither a database nor environment configuration.
+            $this->watchFolder = (string) $config['folder'];
+            $this->interval = (int) ($config['interval'] ?? 5);
+            $this->filePattern = (string) ($config['file_pattern'] ?? '*.xml');
+            $this->heartbeatPath = (string) ($config['heartbeat_path']
+                ?? rtrim($this->watchFolder, '/') . '/.watcher-heartbeat');
+            $this->parser = $parser ?? new AegisXmlParser();
+        } else {
+            $configSingleton = Config::getInstance();
+            $this->watchFolder = $configSingleton->get('watcher.folder');
+            $this->interval = $configSingleton->get('watcher.interval');
+            $this->filePattern = $configSingleton->get('watcher.file_pattern');
+            $this->heartbeatPath = rtrim($configSingleton->get('paths.logs'), '/') . '/.watcher-heartbeat';
 
-        // Wait for database BEFORE creating parser
-        $this->logger->info("Waiting for database connection...");
-        $this->logger->debug("Starting database connection wait loop");
-        $this->waitForDatabase();
-        
-        // Now create parser after database is ready
-        $this->logger->debug("Creating AegisXmlParser instance");
-        $this->parser = new AegisXmlParser();
-        $this->logger->debug("AegisXmlParser instance created successfully");
+            $this->logger->info("Initializing File Watcher Service");
+            $this->logger->debug("Loading configuration from Config singleton");
+            $this->logger->debug("Watch Folder: {$this->watchFolder}");
+            $this->logger->debug("File Pattern: {$this->filePattern}");
+            $this->logger->debug("Check Interval: {$this->interval} seconds");
+
+            // Wait for database BEFORE creating parser
+            $this->logger->info("Waiting for database connection...");
+            $this->logger->debug("Starting database connection wait loop");
+            $this->waitForDatabase();
+
+            // Now create parser after database is ready
+            $this->logger->debug("Creating AegisXmlParser instance");
+            $this->parser = $parser ?? new AegisXmlParser();
+            $this->logger->debug("AegisXmlParser instance created successfully");
+        }
 
         // Ensure watch folder exists
         if (!is_dir($this->watchFolder)) {
@@ -134,11 +167,11 @@ class FileWatcher
                 }
                 
                 $this->logger->debug("Sleeping for {$this->interval} seconds before next check...");
-                sleep($this->interval);
+                ($this->sleep)($this->interval);
             } catch (Exception $e) {
                 $this->logger->error("Error in watch loop: " . $e->getMessage());
                 $this->logger->error("Stack trace: " . $e->getTraceAsString());
-                sleep($this->interval);
+                ($this->sleep)($this->interval);
             }
         }
 
@@ -408,8 +441,8 @@ class FileWatcher
 
         $size1 = filesize($filePath);
         $this->logger->debug("  Initial file size: {$size1} bytes");
-        
-        sleep($checkInterval);
+
+        ($this->sleep)($checkInterval);
         clearstatcache(true, $filePath);
         $size2 = filesize($filePath);
         

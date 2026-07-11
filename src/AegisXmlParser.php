@@ -18,7 +18,7 @@ use NwsCad\Notifications\IntentResolver;
  *
  * @package NwsCad
  */
-class AegisXmlParser
+class AegisXmlParser implements ParserInterface
 {
     private PDO $db;
     private $logger;
