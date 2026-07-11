@@ -84,17 +84,26 @@ Bring the DB up first (without the app), then apply:
 > ```bash
 > docker compose --profile "$DB_TYPE" down          # datadir can't move while the DB holds it
 > TS=$(date +%Y%m%d-%H%M%S)
-> docker run --rm -e TS="$TS" -e SVC="$DB_SVC" -v "$PWD:/proj" alpine sh -c '
->   srcsz=$(du -sm "/proj/data/$SVC" 2>/dev/null | cut -f1)
->   if [ -z "$srcsz" ]; then echo "no ./data/$SVC — nothing to relocate"; exit 0; fi
->   dstsz=$(du -sm "/proj/var/data/$SVC" 2>/dev/null | cut -f1); dstsz=${dstsz:-0}
->   if [ "$dstsz" -ge "$srcsz" ]; then echo "ABORT: ./var/data/$SVC (${dstsz}MB) >= ./data/$SVC (${srcsz}MB) — inspect manually"; exit 1; fi
->   if [ -e "/proj/var/data/$SVC" ]; then mv "/proj/var/data/$SVC" "/proj/var/data/$SVC.freshinit-$TS"; fi
->   mkdir -p /proj/var/data
->   mv "/proj/data/$SVC" "/proj/var/data/$SVC"
->   echo "relocated ./data/$SVC -> ./var/data/$SVC ($(du -sm /proj/var/data/$SVC | cut -f1)MB)"
+> DEST_BASE="${NWS_VAR_DIR:-./var}"                  # resolve the SAME base docker-compose.yml mounts
+> mkdir -p "$DEST_BASE/data"
+> docker run --rm -e TS="$TS" -e SVC="$DB_SVC" \
+>   -v "$PWD:/proj" -v "$(cd "$DEST_BASE/data" && pwd):/new" alpine sh -c '
+>   if [ ! -d "/proj/data/$SVC" ]; then echo "no ./data/$SVC — nothing to relocate"; exit 0; fi
+>   srcsz=$(du -sk "/proj/data/$SVC" | cut -f1)
+>   if [ -d "/new/$SVC" ] && [ -n "$(ls -A "/new/$SVC" 2>/dev/null)" ]; then
+>     dstsz=$(du -sk "/new/$SVC" | cut -f1)
+>     if [ "$dstsz" -ge "$srcsz" ]; then echo "ABORT: destination $SVC (${dstsz}KiB) is non-empty and >= source (${srcsz}KiB) — inspect manually"; exit 1; fi
+>   fi
+>   if [ -e "/new/$SVC" ]; then mv "/new/$SVC" "/new/$SVC.freshinit-$TS"; fi
+>   mv "/proj/data/$SVC" "/new/$SVC"
+>   echo "relocated ./data/$SVC -> $DEST_BASE/data/$SVC ($(du -sk /new/$SVC | cut -f1)KiB)"
 > '
 > ```
+> Resolving `$DEST_BASE` from `NWS_VAR_DIR` (via `cd … && pwd`) keeps the destination identical to
+> the compose bind even when it's overridden to an absolute path. The size guard uses KiB and only
+> aborts when the destination is **non-empty and ≥ the source**, so a small fresh init never
+> false-aborts. On a single filesystem you can skip the container and just
+> `mv ./data/$DB_SVC "$DEST_BASE/data/$DB_SVC"` for an instant rename.
 
 - [ ] Start just the database (service name is `$DB_SVC` — `mysql` or `postgres`) and wait until it actually accepts connections:
   ```bash
