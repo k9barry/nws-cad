@@ -60,7 +60,7 @@ class Response
     /**
      * Send success response
      */
-    public static function success(mixed $data, string $message = null, int $statusCode = 200): void
+    public static function success(mixed $data, ?string $message = null, int $statusCode = 200): void
     {
         $response = [
             'success' => true,

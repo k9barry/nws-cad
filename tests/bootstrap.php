@@ -31,30 +31,54 @@ $_ENV['APP_DEBUG'] = 'false';
 $_ENV['LOG_LEVEL'] = 'error';
 
 // CRITICAL SAFETY: redirect ALL DB access during tests to a dedicated test
-// database. cleanTestDatabase() does a sweeping DELETE across 15 tables, so
-// a connection to production destroys live CAD data on every test run.
+// database. cleanTestDatabase() truncates every row in every table, so a
+// connection to production destroys live CAD data on every test run.
+//
+// Only the driver selected by DB_TYPE is redirected/guarded — the other
+// driver's env may carry unrelated defaults (phpunit.xml sets both), and
+// enforcing its guard would spuriously abort a single-driver run.
 //
 // 1. Remember the original (production) database name so the guard can
 //    refuse to run if anything later tries to point us back at it.
-// 2. Override MYSQL_DATABASE in this process to the test database. Both
+// 2. Override the active driver's database env to the test database. Both
 //    Database::getConnection() (used by controllers under test) and
 //    getTestDbConnection() (used by cleanTestDatabase) read this env, so
 //    both will target nws_cad_test.
-$originalDb = $_ENV['MYSQL_DATABASE'] ?? getenv('MYSQL_DATABASE') ?: '';
-$_ENV['MYSQL_PRODUCTION_DATABASE'] = $originalDb;
-putenv('MYSQL_PRODUCTION_DATABASE=' . $originalDb);
+$dbType = $_ENV['DB_TYPE'] ?? getenv('DB_TYPE') ?: 'mysql';
 
-$testDbName = $_ENV['MYSQL_TEST_DATABASE'] ?? getenv('MYSQL_TEST_DATABASE') ?: 'nws_cad_test';
-if ($originalDb !== '' && $testDbName === $originalDb) {
-    throw new RuntimeException(
-        "Refusing to run tests: MYSQL_TEST_DATABASE ({$testDbName}) equals MYSQL_DATABASE ({$originalDb}). " .
-        "Tests truncate every row in 15 tables; pointing them at production destroys live CAD data. " .
-        "Set MYSQL_TEST_DATABASE to a different database name (e.g. nws_cad_test) and ensure it exists."
-    );
+if ($dbType === 'pgsql') {
+    $originalPgDb = $_ENV['POSTGRES_DB'] ?? getenv('POSTGRES_DB') ?: '';
+    $_ENV['POSTGRES_PRODUCTION_DATABASE'] = $originalPgDb;
+    putenv('POSTGRES_PRODUCTION_DATABASE=' . $originalPgDb);
+
+    $pgTestDbName = $_ENV['POSTGRES_TEST_DATABASE'] ?? getenv('POSTGRES_TEST_DATABASE') ?: 'nws_cad_test';
+    if ($originalPgDb !== '' && $pgTestDbName === $originalPgDb) {
+        throw new RuntimeException(
+            "Refusing to run tests: POSTGRES_TEST_DATABASE ({$pgTestDbName}) equals POSTGRES_DB ({$originalPgDb}). " .
+            "Tests truncate every row in every table; pointing them at production destroys live CAD data. " .
+            "Set POSTGRES_TEST_DATABASE to a different database name (e.g. nws_cad_test) and ensure it exists."
+        );
+    }
+
+    $_ENV['POSTGRES_DB'] = $pgTestDbName;
+    putenv('POSTGRES_DB=' . $pgTestDbName);
+} else {
+    $originalDb = $_ENV['MYSQL_DATABASE'] ?? getenv('MYSQL_DATABASE') ?: '';
+    $_ENV['MYSQL_PRODUCTION_DATABASE'] = $originalDb;
+    putenv('MYSQL_PRODUCTION_DATABASE=' . $originalDb);
+
+    $testDbName = $_ENV['MYSQL_TEST_DATABASE'] ?? getenv('MYSQL_TEST_DATABASE') ?: 'nws_cad_test';
+    if ($originalDb !== '' && $testDbName === $originalDb) {
+        throw new RuntimeException(
+            "Refusing to run tests: MYSQL_TEST_DATABASE ({$testDbName}) equals MYSQL_DATABASE ({$originalDb}). " .
+            "Tests truncate every row in 15 tables; pointing them at production destroys live CAD data. " .
+            "Set MYSQL_TEST_DATABASE to a different database name (e.g. nws_cad_test) and ensure it exists."
+        );
+    }
+
+    $_ENV['MYSQL_DATABASE'] = $testDbName;
+    putenv('MYSQL_DATABASE=' . $testDbName);
 }
-
-$_ENV['MYSQL_DATABASE'] = $testDbName;
-putenv('MYSQL_DATABASE=' . $testDbName);
 
 // Helper function to create test database connection.
 //
@@ -63,6 +87,28 @@ putenv('MYSQL_DATABASE=' . $testDbName);
 // the saved MYSQL_PRODUCTION_DATABASE.
 function getTestDbConnection(): PDO
 {
+    $dbType = $_ENV['DB_TYPE'] ?? getenv('DB_TYPE') ?: 'mysql';
+
+    if ($dbType === 'pgsql') {
+        $dsn = sprintf(
+            "pgsql:host=%s;port=%s;dbname=%s",
+            $_ENV['POSTGRES_HOST'] ?? '127.0.0.1',
+            $_ENV['POSTGRES_PORT'] ?? '5432',
+            $_ENV['POSTGRES_DB'],
+        );
+
+        return new PDO(
+            $dsn,
+            $_ENV['POSTGRES_TEST_USER'] ?? getenv('POSTGRES_TEST_USER') ?: ($_ENV['POSTGRES_USER'] ?? 'test_user'),
+            $_ENV['POSTGRES_TEST_PASSWORD'] ?? getenv('POSTGRES_TEST_PASSWORD') ?: ($_ENV['POSTGRES_PASSWORD'] ?? 'test_pass'),
+            [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ]
+        );
+    }
+
     $dsn = sprintf(
         "mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4",
         $_ENV['MYSQL_HOST'] ?? '127.0.0.1',
@@ -93,18 +139,28 @@ function getTestDbConnection(): PDO
 // without fighting the FK graph; we restore the FK check before returning.
 function cleanTestDatabase(): void
 {
+    $dbType = $_ENV['DB_TYPE'] ?? getenv('DB_TYPE') ?: 'mysql';
+    $tables = [
+        'notification_outbox',
+        'notification_send_log',
+        'notification_channels',
+        'unit_dispositions', 'unit_logs', 'unit_personnel', 'units',
+        'call_dispositions', 'vehicles', 'persons', 'narratives',
+        'incidents', 'locations', 'agency_contexts', 'calls', 'processed_files'
+    ];
+
     try {
         $pdo = getTestDbConnection();
-        $tables = [
-            'notification_outbox',
-            'notification_send_log',
-            'notification_channels',
-            'unit_dispositions', 'unit_logs', 'unit_personnel', 'units',
-            'call_dispositions', 'vehicles', 'persons', 'narratives',
-            'incidents', 'locations', 'agency_contexts', 'calls', 'processed_files'
-        ];
 
-        // DELETE first (FK ON DELETE CASCADE handles children), then reset
+        if ($dbType === 'pgsql') {
+            // TRUNCATE ... RESTART IDENTITY CASCADE clears rows, resets the
+            // identity/serial sequences (integration tests hard-code PKs), and
+            // walks the FK graph in one statement.
+            $pdo->exec('TRUNCATE ' . implode(', ', $tables) . ' RESTART IDENTITY CASCADE');
+            return;
+        }
+
+        // MySQL: DELETE first (FK ON DELETE CASCADE handles children), then reset
         // AUTO_INCREMENT separately. We avoid TRUNCATE here because some MySQL
         // versions reject it on a parent table referenced by a FK even with
         // FOREIGN_KEY_CHECKS=0.
