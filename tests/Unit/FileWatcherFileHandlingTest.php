@@ -20,6 +20,7 @@ use ReflectionProperty;
  * and the real AegisXmlParser entirely.
  *
  * @covers \NwsCad\FileWatcher
+ * @uses \NwsCad\Config
  * @uses \NwsCad\FilenameParser
  * @uses \NwsCad\Logger
  * @uses \NwsCad\Logging\RedactingProcessor
