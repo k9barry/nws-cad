@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CallExport xmlns="http://www.newworldsystems.com/Aegis/CAD/Peripheral/CallExport/2011/02">
+    <CallId>700001</CallId>
+    <CallNumber>2026-700001</CallNumber>
+    <CallSource>911</CallSource>
+    <CallerName>Ada Lovelace</CallerName>
+    <CallerPhone>555-0100</CallerPhone>
+    <NatureOfCall>Structure Fire</NatureOfCall>
+    <CreateDateTime>2026-02-01T08:15:00</CreateDateTime>
+    <ClosedFlag>false</ClosedFlag>
+    <CanceledFlag>false</CanceledFlag>
+    <AlarmLevel>2</AlarmLevel>
+    <AgencyContexts>
+        <AgencyContext>
+            <AgencyType>Fire</AgencyType>
+            <CallType>Structure Fire</CallType>
+            <Priority>High</Priority>
+            <Status>Active</Status>
+            <FDID>48013</FDID>
+            <CreatedDateTime>2026-02-01T08:15:00</CreatedDateTime>
+            <ClosedFlag>false</ClosedFlag>
+            <CanceledFlag>false</CanceledFlag>
+        </AgencyContext>
+    </AgencyContexts>
+    <Location>
+        <FullAddress>742 Evergreen Terrace</FullAddress>
+        <HouseNumber>742</HouseNumber>
+        <StreetName>Evergreen</StreetName>
+        <StreetType>Terrace</StreetType>
+        <City>Springfield</City>
+        <State>IL</State>
+        <Zip>62704</Zip>
+    </Location>
+    <Incidents>
+        <Incident>
+            <Number>INC-700001</Number>
+            <Type>Fire</Type>
+            <Jurisdiction>City</Jurisdiction>
+            <CreateDateTime>2026-02-01T08:15:30</CreateDateTime>
+        </Incident>
+    </Incidents>
+    <Narratives>
+        <Narrative>
+            <CreateDateTime>2026-02-01T08:16:00</CreateDateTime>
+            <CreateUser>dispatcher01</CreateUser>
+            <Type>Dispatch</Type>
+            <Text>Smoke showing from second floor.</Text>
+            <Restriction>None</Restriction>
+        </Narrative>
+    </Narratives>
+    <Persons>
+        <Person>
+            <FirstName>Grace</FirstName>
+            <LastName>Hopper</LastName>
+            <Role>Witness</Role>
+        </Person>
+    </Persons>
+    <Vehicles>
+        <Vehicle>
+            <LicensePlate>NAVY01</LicensePlate>
+            <LicenseState>IL</LicenseState>
+            <Make>Ford</Make>
+            <Model>Bronco</Model>
+            <Year>2022</Year>
+        </Vehicle>
+    </Vehicles>
+    <Dispositions>
+        <CallDisposition>
+            <Name>Fire Out</Name>
+            <Count>1</Count>
+            <DateTime>2026-02-01T09:30:00</DateTime>
+        </CallDisposition>
+    </Dispositions>
+    <AssignedUnits>
+        <Unit>
+            <UnitNumber>E12</UnitNumber>
+            <Type>Engine</Type>
+            <IsPrimary>true</IsPrimary>
+            <Jurisdiction>City</Jurisdiction>
+            <AssignedDateTime>2026-02-01T08:15:10</AssignedDateTime>
+            <DispatchDateTime>2026-02-01T08:15:20</DispatchDateTime>
+            <EnrouteDateTime>2026-02-01T08:16:00</EnrouteDateTime>
+            <ArriveDateTime>2026-02-01T08:20:00</ArriveDateTime>
+            <ClearDateTime>2026-02-01T09:45:00</ClearDateTime>
+            <Personnel>
+                <UnitPersonnel>
+                    <FirstName>John</FirstName>
+                    <MiddleName>Q</MiddleName>
+                    <LastName>Firefighter</LastName>
+                    <IDNumber>FF-001</IDNumber>
+                    <ShieldNumber>1234</ShieldNumber>
+                    <IsPrimaryOfficer>true</IsPrimaryOfficer>
+                    <Jurisdiction>City</Jurisdiction>
+                </UnitPersonnel>
+            </Personnel>
+            <UnitLogs>
+                <UnitLog>
+                    <DateTime>2026-02-01T08:20:00</DateTime>
+                    <Status>OnScene</Status>
+                    <Location>742 Evergreen Terrace</Location>
+                </UnitLog>
+            </UnitLogs>
+            <Dispositions>
+                <Disposition>
+                    <Name>Extinguished</Name>
+                    <Description>Fire fully extinguished</Description>
+                    <Count>1</Count>
+                    <DateTime>2026-02-01T09:30:00</DateTime>
+                </Disposition>
+            </Dispositions>
+        </Unit>
+    </AssignedUnits>
+</CallExport>

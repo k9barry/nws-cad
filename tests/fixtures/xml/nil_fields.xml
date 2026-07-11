@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CallExport xmlns="http://www.newworldsystems.com/Aegis/CAD/Peripheral/CallExport/2011/02"
+            xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+    <CallId>700003</CallId>
+    <CallNumber>2026-700003</CallNumber>
+    <CallSource i:nil="true"/>
+    <CallerName i:nil="true"/>
+    <NatureOfCall>Unknown</NatureOfCall>
+    <CreateDateTime>2026-02-01T11:00:00</CreateDateTime>
+    <CloseDateTime i:nil="true"/>
+    <ClosedFlag>false</ClosedFlag>
+    <CanceledFlag>false</CanceledFlag>
+    <AlarmLevel i:nil="true"/>
+    <AgencyContexts>
+        <AgencyContext>
+            <AgencyType>Police</AgencyType>
+            <CallType>Welfare Check</CallType>
+            <Priority i:nil="true"/>
+            <Status>Active</Status>
+            <ClosedFlag>false</ClosedFlag>
+            <CanceledFlag>false</CanceledFlag>
+        </AgencyContext>
+    </AgencyContexts>
+    <Location>
+        <FullAddress>1 Unknown Way</FullAddress>
+        <HouseNumber i:nil="true"/>
+        <City>Springfield</City>
+        <State>IL</State>
+        <Zip i:nil="true"/>
+    </Location>
+</CallExport>
