@@ -175,107 +175,9 @@ class AegisXmlParser implements ParserInterface
      */
     private function insertCall(SimpleXMLElement $xml, string $filePath, bool $detectedReopen = false): int
     {
-        $this->logger->debug("Extracting call data from XML...");
-        
-        // Extract call data with proper type handling
-        $callData = [
-            'call_id' => $this->parseInt((string)$xml->CallId),
-            'call_number' => (string)$xml->CallNumber ?: null,
-            'call_source' => (string)$xml->CallSource ?: null,
-            'caller_name' => (string)$xml->CallerName ?: null,
-            'caller_phone' => (string)$xml->CallerPhone ?: null,
-            'nature_of_call' => (string)$xml->NatureOfCall ?: null,
-            'additional_info' => (string)$xml->AdditionalInfo ?: null,
-            'create_datetime' => $this->parseDateTime((string)$xml->CreateDateTime) ?? date('Y-m-d H:i:s'),
-            'close_datetime' => $this->parseDateTime((string)$xml->CloseDateTime),
-            'created_by' => (string)$xml->CreatedBy ?: null,
-            'closed_flag' => $this->parseBoolean((string)$xml->ClosedFlag),
-            'canceled_flag' => $this->parseBoolean((string)$xml->CanceledFlag),
-            'alarm_level' => $this->parseInt((string)$xml->AlarmLevel),
-            'emd_code' => (string)$xml->EmdCode ?: null,
-            'fire_controlled_time' => $this->parseDateTime((string)$xml->FireControlledTime),
-            'xml_data' => json_encode($this->xmlToArray($xml))
-        ];
+        $dbCallId = (new \NwsCad\Import\Mappers\CallMapper($this->db))->map($xml, $detectedReopen);
 
-        $this->logger->debug("Extracted call data: call_id={$callData['call_id']}, call_number={$callData['call_number']}, nature={$callData['nature_of_call']}");
-
-        // Check if call already exists
-        $this->logger->debug("Checking if call already exists in database...");
-        $existingCallStmt = $this->db->prepare("SELECT id FROM calls WHERE call_id = ?");
-        $existingCallStmt->execute([$callData['call_id']]);
-        $existingCall = $existingCallStmt->fetch();
-
-        if ($existingCall) {
-            // Update existing call - child records will be upserted, not deleted
-            $this->logger->debug("Call ID {$callData['call_id']} already exists in database, updating...");
-            
-            $dbCallId = (int)$existingCall['id'];
-            
-            // Update the call record. reopened_flag uses CASE so a fresh close
-            // (incoming closed_flag = 1) trumps any prior reopen, a detected reopen
-            // sets it to 1, and otherwise the existing value is preserved (so a
-            // benign post-close edit doesn't accidentally clear the reopen state).
-            $sql = "UPDATE calls SET
-                call_number = :call_number,
-                call_source = :call_source,
-                caller_name = :caller_name,
-                caller_phone = :caller_phone,
-                nature_of_call = :nature_of_call,
-                additional_info = :additional_info,
-                create_datetime = :create_datetime,
-                close_datetime = :close_datetime,
-                created_by = :created_by,
-                closed_flag = :closed_flag,
-                canceled_flag = :canceled_flag,
-                reopened_flag = CASE
-                    WHEN :incoming_closed = 1 THEN 0
-                    WHEN :detected_reopen = 1 THEN 1
-                    ELSE reopened_flag
-                END,
-                alarm_level = :alarm_level,
-                emd_code = :emd_code,
-                fire_controlled_time = :fire_controlled_time,
-                xml_data = :xml_data,
-                updated_at = CURRENT_TIMESTAMP
-                WHERE id = :id";
-
-            $updateData = $callData;
-            unset($updateData['call_id']); // Remove call_id as UPDATE SQL uses :id instead
-            $updateData['id'] = $dbCallId;
-            $updateData['incoming_closed'] = $callData['closed_flag'];
-            $updateData['detected_reopen'] = $detectedReopen ? 1 : 0;
-
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($updateData);
-            $this->logger->debug("Call record updated successfully");
-        } else {
-            // Insert new call. reopened_flag is set from detectedReopen directly;
-            // for a brand-new call this is effectively always 0 (no prior close to reopen),
-            // but we honour the parameter for symmetry.
-            $this->logger->debug("Call ID {$callData['call_id']} is new, inserting into database...");
-            $sql = "INSERT INTO calls (
-                call_id, call_number, call_source, caller_name, caller_phone,
-                nature_of_call, additional_info, create_datetime, close_datetime,
-                created_by, closed_flag, canceled_flag, reopened_flag, alarm_level, emd_code,
-                fire_controlled_time, xml_data
-            ) VALUES (
-                :call_id, :call_number, :call_source, :caller_name, :caller_phone,
-                :nature_of_call, :additional_info, :create_datetime, :close_datetime,
-                :created_by, :closed_flag, :canceled_flag, :reopened_flag, :alarm_level, :emd_code,
-                :fire_controlled_time, :xml_data
-            )";
-
-            $insertData = $callData;
-            $insertData['reopened_flag'] = $detectedReopen ? 1 : 0;
-
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute($insertData);
-            $dbCallId = (int)$this->db->lastInsertId();
-            $this->logger->debug("New call inserted with database ID: {$dbCallId}");
-        }
-
-        // Upsert child records (insert new, update existing based on unique constraints)
-        $this->logger->debug("Processing child records...");
+        // Child records — each mapper owns one table family and its write strategy.
         (new \NwsCad\Import\Mappers\AgencyContextMapper($this->db))->map($xml, $dbCallId);
         (new \NwsCad\Import\Mappers\LocationMapper($this->db))->map($xml, $dbCallId);
         (new \NwsCad\Import\Mappers\IncidentMapper($this->db))->map($xml, $dbCallId);
@@ -284,38 +186,8 @@ class AegisXmlParser implements ParserInterface
         (new \NwsCad\Import\Mappers\PersonMapper($this->db))->map($xml, $dbCallId);
         (new \NwsCad\Import\Mappers\VehicleMapper($this->db))->map($xml, $dbCallId);
         (new \NwsCad\Import\Mappers\CallDispositionMapper($this->db))->map($xml, $dbCallId);
-        $this->logger->debug("All child records processed successfully");
 
         return $dbCallId;
-    }
-
-
-    /**
-     * Helper methods
-     */
-
-    private function parseDateTime(?string $dateTime): ?string
-    {
-        // Delegated to the extracted, independently-tested normalizer (#49).
-        // Kept as a thin private wrapper so the many internal call sites and the
-        // parser's characterization tests continue to work unchanged.
-        return \NwsCad\Import\DateTimeParser::parse($dateTime);
-    }
-
-    private function parseBoolean($value): int
-    {
-        return \NwsCad\Import\ValueCaster::toBool($value);
-    }
-
-    private function parseInt(?string $value): ?int
-    {
-        return \NwsCad\Import\ValueCaster::toInt($value);
-    }
-
-    private function xmlToArray(SimpleXMLElement $xml): array
-    {
-        $json = json_encode($xml);
-        return json_decode($json, true) ?? [];
     }
 
     /**
