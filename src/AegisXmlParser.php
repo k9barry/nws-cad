@@ -74,6 +74,12 @@ class AegisXmlParser implements ParserInterface
             }
             $this->logger->debug("XML file loaded successfully");
 
+            // Pre-transaction validation: reject a wrong-root or field-incomplete
+            // document before opening a transaction. Throws InvalidXmlException,
+            // which the catch below turns into markFileAsFailed()/return false —
+            // the same outcome these documents produced at insert time before.
+            (new \NwsCad\Import\XmlValidator())->validate($xml);
+
             // Register namespaces
             $namespaceCount = count($this->namespaces);
             foreach ($this->namespaces as $prefix => $uri) {
