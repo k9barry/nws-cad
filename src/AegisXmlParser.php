@@ -400,54 +400,17 @@ class AegisXmlParser implements ParserInterface
         $count = count($xml->AgencyContexts->AgencyContext);
         $this->logger->debug("  Inserting {$count} agency context(s)...");
 
-        $dbType = Database::getDbType();
-        if ($dbType === 'mysql') {
-            $sql = "INSERT INTO agency_contexts (
-                call_id, agency_type, fdid, call_type, priority, status, dispatcher,
-                created_datetime, closed_datetime, closed_flag, canceled_flag,
-                radio_channel, emd_case_number, emd_code
-            ) VALUES (
-                :call_id, :agency_type, :fdid, :call_type, :priority, :status, :dispatcher,
-                :created_datetime, :closed_datetime, :closed_flag, :canceled_flag,
-                :radio_channel, :emd_case_number, :emd_code
-            ) AS new_ac ON DUPLICATE KEY UPDATE
-                fdid = new_ac.fdid,
-                call_type = new_ac.call_type,
-                priority = new_ac.priority,
-                status = new_ac.status,
-                dispatcher = new_ac.dispatcher,
-                created_datetime = new_ac.created_datetime,
-                closed_datetime = new_ac.closed_datetime,
-                closed_flag = new_ac.closed_flag,
-                canceled_flag = new_ac.canceled_flag,
-                radio_channel = new_ac.radio_channel,
-                emd_case_number = new_ac.emd_case_number,
-                emd_code = new_ac.emd_code,
-                updated_at = CURRENT_TIMESTAMP";
-        } else {
-            $sql = "INSERT INTO agency_contexts (
-                call_id, agency_type, fdid, call_type, priority, status, dispatcher,
-                created_datetime, closed_datetime, closed_flag, canceled_flag,
-                radio_channel, emd_case_number, emd_code
-            ) VALUES (
-                :call_id, :agency_type, :fdid, :call_type, :priority, :status, :dispatcher,
-                :created_datetime, :closed_datetime, :closed_flag, :canceled_flag,
-                :radio_channel, :emd_case_number, :emd_code
-            ) ON CONFLICT (call_id, agency_type) DO UPDATE SET
-                fdid = EXCLUDED.fdid,
-                call_type = EXCLUDED.call_type,
-                priority = EXCLUDED.priority,
-                status = EXCLUDED.status,
-                dispatcher = EXCLUDED.dispatcher,
-                created_datetime = EXCLUDED.created_datetime,
-                closed_datetime = EXCLUDED.closed_datetime,
-                closed_flag = EXCLUDED.closed_flag,
-                canceled_flag = EXCLUDED.canceled_flag,
-                radio_channel = EXCLUDED.radio_channel,
-                emd_case_number = EXCLUDED.emd_case_number,
-                emd_code = EXCLUDED.emd_code,
-                updated_at = CURRENT_TIMESTAMP";
-        }
+        $sql = \NwsCad\Db\UpsertBuilder::upsert(
+            Database::getDbType(),
+            'agency_contexts',
+            ['call_id', 'agency_type', 'fdid', 'call_type', 'priority', 'status', 'dispatcher',
+             'created_datetime', 'closed_datetime', 'closed_flag', 'canceled_flag',
+             'radio_channel', 'emd_case_number', 'emd_code'],
+            ['call_id', 'agency_type'],
+            ['fdid', 'call_type', 'priority', 'status', 'dispatcher',
+             'created_datetime', 'closed_datetime', 'closed_flag', 'canceled_flag',
+             'radio_channel', 'emd_case_number', 'emd_code']
+        );
         $stmt = $this->db->prepare($sql);
 
         foreach ($xml->AgencyContexts->AgencyContext as $context) {
@@ -586,38 +549,15 @@ class AegisXmlParser implements ParserInterface
         $count = count($xml->Incidents->Incident);
         $this->logger->debug("  Inserting {$count} incident(s)...");
 
-        $dbType = Database::getDbType();
-        if ($dbType === 'mysql') {
-            $sql = "INSERT INTO incidents (
-                call_id, incident_number, incident_type, type_description,
-                agency_type, case_number, jurisdiction, create_datetime
-            ) VALUES (
-                :call_id, :incident_number, :incident_type, :type_description,
-                :agency_type, :case_number, :jurisdiction, :create_datetime
-            ) AS new_inc ON DUPLICATE KEY UPDATE
-                incident_type = new_inc.incident_type,
-                type_description = new_inc.type_description,
-                agency_type = new_inc.agency_type,
-                case_number = new_inc.case_number,
-                jurisdiction = new_inc.jurisdiction,
-                create_datetime = new_inc.create_datetime,
-                updated_at = CURRENT_TIMESTAMP";
-        } else {
-            $sql = "INSERT INTO incidents (
-                call_id, incident_number, incident_type, type_description,
-                agency_type, case_number, jurisdiction, create_datetime
-            ) VALUES (
-                :call_id, :incident_number, :incident_type, :type_description,
-                :agency_type, :case_number, :jurisdiction, :create_datetime
-            ) ON CONFLICT (call_id, incident_number) DO UPDATE SET
-                incident_type = EXCLUDED.incident_type,
-                type_description = EXCLUDED.type_description,
-                agency_type = EXCLUDED.agency_type,
-                case_number = EXCLUDED.case_number,
-                jurisdiction = EXCLUDED.jurisdiction,
-                create_datetime = EXCLUDED.create_datetime,
-                updated_at = CURRENT_TIMESTAMP";
-        }
+        $sql = \NwsCad\Db\UpsertBuilder::upsert(
+            Database::getDbType(),
+            'incidents',
+            ['call_id', 'incident_number', 'incident_type', 'type_description',
+             'agency_type', 'case_number', 'jurisdiction', 'create_datetime'],
+            ['call_id', 'incident_number'],
+            ['incident_type', 'type_description', 'agency_type', 'case_number',
+             'jurisdiction', 'create_datetime']
+        );
         $stmt = $this->db->prepare($sql);
 
         foreach ($xml->Incidents->Incident as $incident) {
@@ -669,62 +609,27 @@ class AegisXmlParser implements ParserInterface
                 'clear_datetime' => $this->parseDateTime((string)$unit->ClearDateTime)
             ];
             
-            // Use UPSERT to insert or update unit
-            if ($dbType === 'mysql') {
-                $sql = "INSERT INTO units (
-                    call_id, unit_number, unit_type, is_primary, jurisdiction,
-                    assigned_datetime, dispatch_datetime, enroute_datetime, arrive_datetime,
-                    staged_datetime, at_patient_datetime, transport_datetime,
-                    at_hospital_datetime, depart_hospital_datetime, clear_datetime
-                ) VALUES (
-                    :call_id, :unit_number, :unit_type, :is_primary, :jurisdiction,
-                    :assigned_datetime, :dispatch_datetime, :enroute_datetime, :arrive_datetime,
-                    :staged_datetime, :at_patient_datetime, :transport_datetime,
-                    :at_hospital_datetime, :depart_hospital_datetime, :clear_datetime
-                ) AS new_unit ON DUPLICATE KEY UPDATE
-                    unit_type = new_unit.unit_type,
-                    is_primary = new_unit.is_primary,
-                    jurisdiction = new_unit.jurisdiction,
-                    assigned_datetime = new_unit.assigned_datetime,
-                    dispatch_datetime = new_unit.dispatch_datetime,
-                    enroute_datetime = new_unit.enroute_datetime,
-                    arrive_datetime = new_unit.arrive_datetime,
-                    staged_datetime = new_unit.staged_datetime,
-                    at_patient_datetime = new_unit.at_patient_datetime,
-                    transport_datetime = new_unit.transport_datetime,
-                    at_hospital_datetime = new_unit.at_hospital_datetime,
-                    depart_hospital_datetime = new_unit.depart_hospital_datetime,
-                    clear_datetime = new_unit.clear_datetime,
-                    updated_at = CURRENT_TIMESTAMP";
-            } else { // pgsql
-                $sql = "INSERT INTO units (
-                    call_id, unit_number, unit_type, is_primary, jurisdiction,
-                    assigned_datetime, dispatch_datetime, enroute_datetime, arrive_datetime,
-                    staged_datetime, at_patient_datetime, transport_datetime,
-                    at_hospital_datetime, depart_hospital_datetime, clear_datetime
-                ) VALUES (
-                    :call_id, :unit_number, :unit_type, :is_primary, :jurisdiction,
-                    :assigned_datetime, :dispatch_datetime, :enroute_datetime, :arrive_datetime,
-                    :staged_datetime, :at_patient_datetime, :transport_datetime,
-                    :at_hospital_datetime, :depart_hospital_datetime, :clear_datetime
-                ) ON CONFLICT (call_id, unit_number) DO UPDATE SET
-                    unit_type = EXCLUDED.unit_type,
-                    is_primary = EXCLUDED.is_primary,
-                    jurisdiction = EXCLUDED.jurisdiction,
-                    assigned_datetime = EXCLUDED.assigned_datetime,
-                    dispatch_datetime = EXCLUDED.dispatch_datetime,
-                    enroute_datetime = EXCLUDED.enroute_datetime,
-                    arrive_datetime = EXCLUDED.arrive_datetime,
-                    staged_datetime = EXCLUDED.staged_datetime,
-                    at_patient_datetime = EXCLUDED.at_patient_datetime,
-                    transport_datetime = EXCLUDED.transport_datetime,
-                    at_hospital_datetime = EXCLUDED.at_hospital_datetime,
-                    depart_hospital_datetime = EXCLUDED.depart_hospital_datetime,
-                    clear_datetime = EXCLUDED.clear_datetime,
-                    updated_at = CURRENT_TIMESTAMP
-                RETURNING id";
-            }
-            
+            // Use UPSERT to insert or update unit (RETURNING id on pgsql).
+            $unitColumns = [
+                'call_id', 'unit_number', 'unit_type', 'is_primary', 'jurisdiction',
+                'assigned_datetime', 'dispatch_datetime', 'enroute_datetime', 'arrive_datetime',
+                'staged_datetime', 'at_patient_datetime', 'transport_datetime',
+                'at_hospital_datetime', 'depart_hospital_datetime', 'clear_datetime',
+            ];
+            $sql = \NwsCad\Db\UpsertBuilder::upsert(
+                $dbType,
+                'units',
+                $unitColumns,
+                ['call_id', 'unit_number'],
+                [
+                    'unit_type', 'is_primary', 'jurisdiction',
+                    'assigned_datetime', 'dispatch_datetime', 'enroute_datetime', 'arrive_datetime',
+                    'staged_datetime', 'at_patient_datetime', 'transport_datetime',
+                    'at_hospital_datetime', 'depart_hospital_datetime', 'clear_datetime',
+                ],
+                true
+            );
+
             $stmt = $this->db->prepare($sql);
             $stmt->execute($data);
             
@@ -798,22 +703,12 @@ class AegisXmlParser implements ParserInterface
             return;
         }
 
-        $dbType = Database::getDbType();
-        
-        // Use INSERT IGNORE for MySQL, ON CONFLICT DO NOTHING for PostgreSQL
-        if ($dbType === 'mysql') {
-            $sql = "INSERT IGNORE INTO unit_logs (
-                unit_id, log_datetime, status, location
-            ) VALUES (
-                :unit_id, :log_datetime, :status, :location
-            )";
-        } else { // pgsql
-            $sql = "INSERT INTO unit_logs (
-                unit_id, log_datetime, status, location
-            ) VALUES (
-                :unit_id, :log_datetime, :status, :location
-            ) ON CONFLICT (unit_id, log_datetime, status, location) DO NOTHING";
-        }
+        $sql = \NwsCad\Db\UpsertBuilder::insertIgnore(
+            Database::getDbType(),
+            'unit_logs',
+            ['unit_id', 'log_datetime', 'status', 'location'],
+            ['unit_id', 'log_datetime', 'status', 'location']
+        );
 
         $stmt = $this->db->prepare($sql);
 
@@ -878,26 +773,12 @@ class AegisXmlParser implements ParserInterface
         $count = count($xml->Narratives->Narrative);
         $this->logger->debug("  Inserting {$count} narrative(s)...");
 
-        $dbType = Database::getDbType();
-        
-        // Use INSERT IGNORE for MySQL, ON CONFLICT DO NOTHING for PostgreSQL
-        if ($dbType === 'mysql') {
-            $sql = "INSERT IGNORE INTO narratives (
-                call_id, create_datetime, create_user, narrative_type,
-                text, restriction
-            ) VALUES (
-                :call_id, :create_datetime, :create_user, :narrative_type,
-                :text, :restriction
-            )";
-        } else { // pgsql
-            $sql = "INSERT INTO narratives (
-                call_id, create_datetime, create_user, narrative_type,
-                text, restriction
-            ) VALUES (
-                :call_id, :create_datetime, :create_user, :narrative_type,
-                :text, :restriction
-            ) ON CONFLICT (call_id, create_datetime, create_user, text) DO NOTHING";
-        }
+        $sql = \NwsCad\Db\UpsertBuilder::insertIgnore(
+            Database::getDbType(),
+            'narratives',
+            ['call_id', 'create_datetime', 'create_user', 'narrative_type', 'text', 'restriction'],
+            ['call_id', 'create_datetime', 'create_user', 'text']
+        );
 
         $stmt = $this->db->prepare($sql);
 
