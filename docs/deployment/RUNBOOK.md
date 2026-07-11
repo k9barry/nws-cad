@@ -18,6 +18,8 @@ run each command yourself and confirm the checks before moving on.
   ```bash
   export DB_TYPE=mysql          # or: pgsql
   export COMPOSE_PROFILES=$DB_TYPE
+  # Compose *service* name for the DB (differs from the profile for Postgres):
+  export DB_SVC=$([ "$DB_TYPE" = pgsql ] && echo postgres || echo mysql)
   ```
 - [ ] Confirm `.env` exists and is complete (never commit it). Minimum keys — see `docs/deployment/README.md` for the security-related ones:
   ```
@@ -70,11 +72,19 @@ schema fully up to date, including `notification_channels.last_updated_actor`
 (#37) and the v2.0.2 indexes / `notification_outbox.next_attempt_at` change.
 Bring the DB up first (without the app), then apply:
 
-- [ ] Start just the database:
+- [ ] Start just the database (service name is `$DB_SVC` — `mysql` or `postgres`) and wait until it actually accepts connections:
   ```bash
-  docker compose --profile "$DB_TYPE" up -d "$DB_TYPE"
-  # wait for health:
-  docker compose exec "$DB_TYPE" sh -c 'exit 0'   # container up; give it ~15s to become healthy
+  docker compose --profile "$DB_TYPE" up -d "$DB_SVC"
+
+  # MySQL — wait for real readiness:
+  until docker compose exec -T mysql \
+    mysqladmin ping -u root -p"$MYSQL_ROOT_PASSWORD" --silent >/dev/null 2>&1; do
+    echo "waiting for mysql..."; sleep 2; done
+
+  # PostgreSQL — wait for real readiness:
+  until docker compose exec -T postgres \
+    pg_isready -U "$POSTGRES_USER" >/dev/null 2>&1; do
+    echo "waiting for postgres..."; sleep 2; done
   ```
 - [ ] **MySQL** — apply every `*.sql` migration in order (the mysql client handles the `DELIMITER` blocks):
   ```bash
@@ -114,8 +124,13 @@ Bring the DB up first (without the app), then apply:
 
 ## 6. Reverse proxy (TLS + auth)
 
-The app binds to `127.0.0.1:8080` and rejects requests whose `REMOTE_ADDR` is
-outside `TRUSTED_PROXY_CIDRS`. Put Caddy or nginx in front (samples in
+By default `docker-compose.yml` publishes the API on `${API_PORT:-8080}:8080`,
+which binds **all** host interfaces — access is not restricted at the socket.
+Enforcement is in the app: `TrustedProxy::guard()` rejects any request whose
+`REMOTE_ADDR` is outside `TRUSTED_PROXY_CIDRS` (default `127.0.0.1/32,::1/128`).
+For defense in depth, also restrict the published port to loopback by changing
+the `api` service's port mapping to `127.0.0.1:${API_PORT}:8080` so only the
+co-located proxy can reach it. Put Caddy or nginx in front (samples in
 `docs/deployment/caddy.example` / `nginx.example`). The proxy must:
 - Terminate TLS and run HTTP Basic auth.
 - **Strip any inbound `X-Auth-User`** before auth, then set it to the authenticated user.
@@ -127,9 +142,11 @@ outside `TRUSTED_PROXY_CIDRS`. Put Caddy or nginx in front (samples in
   ```bash
   curl -fsS -u <user>:<pass> https://<host>/api/health   # → {"success":true,...,"db":"ok"}
   ```
-- [ ] Direct loopback still guarded:
+- [ ] Access control holds:
   ```bash
-  curl -i http://127.0.0.1:8080/api/health                # 200 from host; connection refused / 403 from elsewhere
+  curl -i http://127.0.0.1:8080/api/health   # from the host: 200
+  # From another machine: 403 "Direct access not permitted" (trust-proxy guard),
+  # or connection refused if you restricted the port to 127.0.0.1 in Step 6.
   ```
 - [ ] Container health: `docker compose ps` shows `app` and `api` **healthy** (watcher heartbeat < 60s; `/api/health` 200).
 - [ ] **#37 regression check** — enable a Pushover/ntfy channel via the dashboard or:
