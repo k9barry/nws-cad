@@ -276,11 +276,11 @@ class AegisXmlParser implements ParserInterface
 
         // Upsert child records (insert new, update existing based on unique constraints)
         $this->logger->debug("Processing child records...");
-        $this->insertAgencyContexts($xml, $dbCallId);
+        (new \NwsCad\Import\Mappers\AgencyContextMapper($this->db))->map($xml, $dbCallId);
         (new \NwsCad\Import\Mappers\LocationMapper($this->db))->map($xml, $dbCallId);
-        $this->insertIncidents($xml, $dbCallId);
+        (new \NwsCad\Import\Mappers\IncidentMapper($this->db))->map($xml, $dbCallId);
         $this->insertUnits($xml, $dbCallId);
-        $this->insertNarratives($xml, $dbCallId);
+        (new \NwsCad\Import\Mappers\NarrativeMapper($this->db))->map($xml, $dbCallId);
         (new \NwsCad\Import\Mappers\PersonMapper($this->db))->map($xml, $dbCallId);
         (new \NwsCad\Import\Mappers\VehicleMapper($this->db))->map($xml, $dbCallId);
         (new \NwsCad\Import\Mappers\CallDispositionMapper($this->db))->map($xml, $dbCallId);
@@ -289,112 +289,6 @@ class AegisXmlParser implements ParserInterface
         return $dbCallId;
     }
 
-    /**
-     * Upsert agency contexts on (call_id, agency_type). One row per agency
-     * per call; mutating state (status, closed_flag, etc.) overwrites the
-     * prior snapshot rather than accumulating. Mirrors the units upsert.
-     */
-    private function insertAgencyContexts(SimpleXMLElement $xml, int $callId): void
-    {
-        if (!isset($xml->AgencyContexts->AgencyContext)) {
-            $this->logger->debug("  No agency contexts found in XML");
-            return;
-        }
-
-        $count = count($xml->AgencyContexts->AgencyContext);
-        $this->logger->debug("  Inserting {$count} agency context(s)...");
-
-        $sql = \NwsCad\Db\UpsertBuilder::upsert(
-            Database::getDbType(),
-            'agency_contexts',
-            ['call_id', 'agency_type', 'fdid', 'call_type', 'priority', 'status', 'dispatcher',
-             'created_datetime', 'closed_datetime', 'closed_flag', 'canceled_flag',
-             'radio_channel', 'emd_case_number', 'emd_code'],
-            ['call_id', 'agency_type'],
-            ['fdid', 'call_type', 'priority', 'status', 'dispatcher',
-             'created_datetime', 'closed_datetime', 'closed_flag', 'canceled_flag',
-             'radio_channel', 'emd_case_number', 'emd_code']
-        );
-        $stmt = $this->db->prepare($sql);
-
-        foreach ($xml->AgencyContexts->AgencyContext as $context) {
-            $agencyType = (string)$context->AgencyType ?: null;
-
-            // Extract FDID from XML; fall back to ref_agencies lookup if absent.
-            $fdid = null;
-            $fdidNode = $context->FDID ?? null;
-            if ($fdidNode !== null && (string)$fdidNode !== '') {
-                $fdid = (string)$fdidNode;
-            }
-            if ($fdid === null && $agencyType !== null && $agencyType !== '') {
-                $lookup = $this->db->prepare(
-                    'SELECT fdid FROM ref_agencies WHERE LOWER(label) = LOWER(:lbl) OR code = :code LIMIT 1'
-                );
-                $lookup->execute([':lbl' => $agencyType, ':code' => $agencyType]);
-                $refRow = $lookup->fetch();
-                if ($refRow && !empty($refRow['fdid'])) {
-                    $fdid = (string)$refRow['fdid'];
-                }
-            }
-
-            $stmt->execute([
-                'call_id' => $callId,
-                'agency_type' => $agencyType,
-                'fdid' => $fdid,
-                'call_type' => (string)$context->CallType ?: null,
-                'priority' => (string)$context->Priority ?: null,
-                'status' => (string)$context->Status ?: null,
-                'dispatcher' => (string)$context->Dispatcher ?: null,
-                'created_datetime' => $this->parseDateTime((string)$context->CreatedDateTime),
-                'closed_datetime' => $this->parseDateTime((string)$context->ClosedDateTime),
-                'closed_flag' => $this->parseBoolean((string)$context->ClosedFlag),
-                'canceled_flag' => $this->parseBoolean((string)$context->CanceledFlag),
-                'radio_channel' => (string)$context->RadioChannel ?: null,
-                'emd_case_number' => (string)$context->EmdCaseNumber ?: null,
-                'emd_code' => (string)$context->EmdCode ?: null,
-            ]);
-        }
-    }
-
-
-    /**
-     * Upsert incidents on (call_id, incident_number). One row per
-     * incident_number per call; CAD-side updates overwrite in place.
-     */
-    private function insertIncidents(SimpleXMLElement $xml, int $callId): void
-    {
-        if (!isset($xml->Incidents->Incident)) {
-            $this->logger->debug("  No incidents found in XML");
-            return;
-        }
-
-        $count = count($xml->Incidents->Incident);
-        $this->logger->debug("  Inserting {$count} incident(s)...");
-
-        $sql = \NwsCad\Db\UpsertBuilder::upsert(
-            Database::getDbType(),
-            'incidents',
-            ['call_id', 'incident_number', 'incident_type', 'type_description',
-             'agency_type', 'case_number', 'jurisdiction', 'create_datetime'],
-            ['call_id', 'incident_number'],
-            ['incident_type', 'type_description', 'agency_type', 'case_number',
-             'jurisdiction', 'create_datetime']
-        );
-        $stmt = $this->db->prepare($sql);
-
-        foreach ($xml->Incidents->Incident as $incident) {
-            $stmt->execute([
-                'call_id' => $callId,
-                'incident_number' => (string)$incident->Number ?: null,
-                'incident_type' => (string)$incident->Type ?: null,
-                'type_description' => (string)$incident->TypeDescription ?: null,
-                'agency_type' => (string)$incident->AgencyType ?: null,
-                'case_number' => (string)$incident->CaseNumber ?: null,
-                'jurisdiction' => (string)$incident->Jurisdiction ?: null,
-                'create_datetime' => $this->parseDateTime((string)$incident->CreateDateTime),
-            ]);
-        }
-    }
 
     /**
      * Insert or update units for a call
@@ -582,40 +476,6 @@ class AegisXmlParser implements ParserInterface
         }
     }
 
-    /**
-     * Insert narratives (additive - uses INSERT IGNORE to skip duplicates)
-     */
-    private function insertNarratives(SimpleXMLElement $xml, int $callId): void
-    {
-        if (!isset($xml->Narratives->Narrative)) {
-            $this->logger->debug("  No narratives found in XML");
-            return;
-        }
-
-        $count = count($xml->Narratives->Narrative);
-        $this->logger->debug("  Inserting {$count} narrative(s)...");
-
-        $sql = \NwsCad\Db\UpsertBuilder::insertIgnore(
-            Database::getDbType(),
-            'narratives',
-            ['call_id', 'create_datetime', 'create_user', 'narrative_type', 'text', 'restriction'],
-            ['call_id', 'create_datetime', 'create_user', 'text']
-        );
-
-        $stmt = $this->db->prepare($sql);
-
-        foreach ($xml->Narratives->Narrative as $narrative) {
-            $data = [
-                'call_id' => $callId,
-                'create_datetime' => $this->parseDateTime((string)$narrative->CreateDateTime),
-                'create_user' => (string)$narrative->CreateUser ?: '', // Empty string instead of null for unique constraint
-                'narrative_type' => (string)$narrative->Type ?: null,
-                'text' => (string)$narrative->Text ?: null,
-                'restriction' => (string)$narrative->Restriction ?: null
-            ];
-            $stmt->execute($data);
-        }
-    }
 
 
     /**
