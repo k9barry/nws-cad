@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.3] - 2026-07-11
+
+## Fixes
+
+- fix(deploy): relocate DB datadir on upgrade + keep test-setup out of prod compose (#60) (5922895)
+
+
 ## [2.0.2] - 2026-07-11
 
 ## Performance
