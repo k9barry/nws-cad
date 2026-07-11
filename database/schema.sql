@@ -261,7 +261,8 @@ CREATE TABLE IF NOT EXISTS unit_logs (
     UNIQUE KEY uk_unit_log (unit_id, log_datetime, status, location(255)),
     INDEX idx_unit_id (unit_id),
     INDEX idx_log_datetime (log_datetime),
-    INDEX idx_status (status)
+    INDEX idx_status (status),
+    INDEX idx_unit_logs_unit_log (unit_id, log_datetime)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -285,7 +286,8 @@ CREATE TABLE IF NOT EXISTS narratives (
     INDEX idx_call_id (call_id),
     INDEX idx_create_datetime (create_datetime),
     INDEX idx_create_user (create_user),
-    INDEX idx_type (narrative_type)
+    INDEX idx_type (narrative_type),
+    INDEX idx_narratives_call_created (call_id, create_datetime)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -472,7 +474,8 @@ CREATE TABLE IF NOT EXISTS notification_send_log (
 
     FOREIGN KEY (channel_id) REFERENCES notification_channels(id) ON DELETE CASCADE,
     FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE SET NULL,
-    INDEX idx_send_log_channel_created (channel_id, created_at)
+    INDEX idx_send_log_channel_created (channel_id, created_at),
+    INDEX idx_send_log_call_created (call_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================

@@ -269,6 +269,7 @@ CREATE TABLE IF NOT EXISTS unit_logs (
 CREATE INDEX idx_unit_logs_unit_id ON unit_logs(unit_id);
 CREATE INDEX idx_unit_logs_log_datetime ON unit_logs(log_datetime);
 CREATE INDEX idx_unit_logs_status ON unit_logs(status);
+CREATE INDEX idx_unit_logs_unit_log ON unit_logs(unit_id, log_datetime);
 
 -- ============================================================================
 -- NARRATIVES
@@ -294,6 +295,7 @@ CREATE INDEX idx_narratives_call_id ON narratives(call_id);
 CREATE INDEX idx_narratives_create_datetime ON narratives(create_datetime);
 CREATE INDEX idx_narratives_create_user ON narratives(create_user);
 CREATE INDEX idx_narratives_type ON narratives(narrative_type);
+CREATE INDEX idx_narratives_call_created ON narratives(call_id, create_datetime);
 
 -- ============================================================================
 -- PERSONS
@@ -535,6 +537,8 @@ CREATE TABLE IF NOT EXISTS notification_send_log (
 
 CREATE INDEX IF NOT EXISTS idx_send_log_channel_created
     ON notification_send_log(channel_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_send_log_call_created
+    ON notification_send_log(call_id, created_at);
 
 -- ============================================================================
 -- REFERENCE TABLES (added v1.3.0 — filter refactor)
