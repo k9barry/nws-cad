@@ -23,6 +23,7 @@ class AegisXmlParser implements ParserInterface
     private PDO $db;
     private $logger;
     private \NwsCad\Import\ProcessedFileRepository $processedFiles;
+    private \NwsCad\Import\ReopenDetector $reopenDetector;
     private array $namespaces = [
         '' => 'http://www.newworldsystems.com/Aegis/CAD/Peripheral/CallExport/2011/02',
         'i' => 'http://www.w3.org/2001/XMLSchema-instance'
@@ -33,6 +34,7 @@ class AegisXmlParser implements ParserInterface
         $this->db = Database::getConnection();
         $this->logger = Logger::getInstance();
         $this->processedFiles = new \NwsCad\Import\ProcessedFileRepository($this->logger);
+        $this->reopenDetector = new \NwsCad\Import\ReopenDetector();
         $this->logger->debug("AegisXmlParser initialized with database connection");
     }
 
@@ -94,11 +96,11 @@ class AegisXmlParser implements ParserInterface
             $this->db->beginTransaction();
 
             // Capture snapshot of existing data before any changes
-            $existingSnapshot = $this->snapshotExisting((int) $xml->CallId);
+            $existingSnapshot = $this->reopenDetector->snapshotExisting((int) $xml->CallId);
 
             // Detect reopen: previously-closed call now showing fresh unit activity.
             // Computed pre-insert because the insert overwrites close_datetime/units.
-            $detectedReopen = $this->detectReopen($xml, $existingSnapshot);
+            $detectedReopen = $this->reopenDetector->detectReopen($xml, $existingSnapshot);
 
             // Parse and insert call data
             $this->logger->debug("Parsing and inserting call data...");
@@ -106,7 +108,7 @@ class AegisXmlParser implements ParserInterface
             $this->logger->debug("Call data inserted with database ID: {$callId}");
 
             // Capture snapshot of incoming data from the XML
-            $incomingSnapshot = $this->snapshotIncoming($xml);
+            $incomingSnapshot = $this->reopenDetector->snapshotIncoming($xml);
 
             // Mark file as processed
             $this->logger->debug("Marking file as processed in database...");
@@ -893,114 +895,6 @@ class AegisXmlParser implements ParserInterface
     private function markFileAsFailed(string $filename, string $filePath, string $error): void
     {
         $this->processedFiles->markFailed($filename, $filePath, $error);
-    }
-
-    /** @return array<string,mixed>|null */
-    private function snapshotExisting(int $xmlCallId): ?array
-    {
-        $stmt = $this->db->prepare("SELECT id FROM calls WHERE call_id = ?");
-        $stmt->execute([$xmlCallId]);
-        $row = $stmt->fetch();
-        if (! $row) {
-            return null;
-        }
-        $dbCallId = (int) $row['id'];
-
-        $scalar = function (string $sql) use ($dbCallId): string {
-            $st = $this->db->prepare($sql);
-            $st->execute([$dbCallId]);
-            $v = $st->fetchColumn();
-            return $v === false || $v === null ? '' : (string) $v;
-        };
-        $scalarInt = function (string $sql) use ($dbCallId): int {
-            $st = $this->db->prepare($sql);
-            $st->execute([$dbCallId]);
-            $v = $st->fetchColumn();
-            return $v === false || $v === null ? 0 : (int) $v;
-        };
-        $list = function (string $sql) use ($dbCallId): string {
-            $st = $this->db->prepare($sql);
-            $st->execute([$dbCallId]);
-            $rows = $st->fetchAll(\PDO::FETCH_COLUMN);
-            return implode('|', $rows ?: []);
-        };
-
-        return [
-            'call_type'     => $scalar("SELECT call_type FROM agency_contexts WHERE call_id = ? ORDER BY id LIMIT 1"),
-            'full_address'  => $scalar("SELECT full_address FROM locations WHERE call_id = ? ORDER BY id LIMIT 1"),
-            'alarm_level'   => $scalarInt("SELECT alarm_level FROM calls WHERE id = ?"),
-            'units'         => $list("SELECT unit_number FROM units WHERE call_id = ? ORDER BY unit_number"),
-            'jurisdictions' => $list("SELECT DISTINCT jurisdiction FROM incidents WHERE call_id = ? AND jurisdiction IS NOT NULL ORDER BY jurisdiction"),
-            'agencies'      => $list("SELECT DISTINCT agency_type FROM agency_contexts WHERE call_id = ? AND agency_type IS NOT NULL ORDER BY agency_type"),
-            'close_datetime' => $scalar("SELECT close_datetime FROM calls WHERE id = ?"),
-        ];
-    }
-
-    /**
-     * True when an incoming XML represents a reopen of a previously-closed call:
-     * a unit assigned after the prior close timestamp with no clear time yet.
-     * Distinguishes legitimate dispatcher reopens from CAD-source ClosedFlag
-     * inconsistency (the latter carries no fresh unit activity).
-     *
-     * @param array<string,mixed>|null $existingSnapshot
-     */
-    private function detectReopen(SimpleXMLElement $xml, ?array $existingSnapshot): bool
-    {
-        if ($existingSnapshot === null) {
-            return false;
-        }
-        $existingClose = (string) ($existingSnapshot['close_datetime'] ?? '');
-        if ($existingClose === '') {
-            return false;
-        }
-        // Convert DB datetime ("YYYY-MM-DD HH:MM:SS") to ISO ("YYYY-MM-DDTHH:MM:SS")
-        // for direct string comparison against the XML's AssignedDateTime values.
-        $existingCloseIso = str_replace(' ', 'T', $existingClose);
-
-        foreach ($xml->AssignedUnits->Unit ?? [] as $u) {
-            $clear = trim((string) $u->ClearDateTime);
-            $assigned = trim((string) $u->AssignedDateTime);
-            // ClearDateTime nil yields '' after cast; AssignedDateTime is ISO 8601
-            // with optional Z suffix. Strip Z so the lexicographic compare against
-            // the DB-format-derived ISO string works consistently.
-            $assignedNorm = rtrim($assigned, 'Z');
-            if ($clear === '' && $assignedNorm !== '' && $assignedNorm > $existingCloseIso) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** @return array<string,mixed> */
-    private function snapshotIncoming(SimpleXMLElement $xml): array
-    {
-        $units = [];
-        foreach ($xml->AssignedUnits->Unit ?? [] as $u) {
-            $n = trim((string) $u->UnitNumber);
-            if ($n !== '') $units[] = $n;
-        }
-        $junctions = [];
-        foreach ($xml->Incidents->Incident ?? [] as $inc) {
-            $j = trim((string) $inc->Jurisdiction);
-            if ($j !== '') $junctions[] = $j;
-        }
-        $agencies = [];
-        $callType = '';
-        foreach ($xml->AgencyContexts->AgencyContext ?? [] as $ac) {
-            $a = trim((string) $ac->AgencyType);
-            if ($a !== '') $agencies[] = $a;
-            if ($callType === '') $callType = trim((string) $ac->CallType);
-        }
-        return [
-            'call_type' => $callType,
-            'full_address' => trim((string) ($xml->Location->FullAddress ?? '')),
-            'alarm_level' => (int) ($xml->AlarmLevel ?? 0),
-            'units' => implode('|', array_values(array_unique($units))),
-            'jurisdictions' => implode('|', array_values(array_unique($junctions))),
-            'agencies' => implode('|', array_values(array_unique($agencies))),
-            'closed_flag' => (bool) $this->parseBoolean((string) ($xml->ClosedFlag ?? 'false')),
-            'create_datetime' => (string) ($xml->CreateDateTime ?? ''),
-        ];
     }
 
 }
