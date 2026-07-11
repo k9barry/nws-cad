@@ -570,6 +570,8 @@ XML;
 
         cleanTestDatabase();
 
+        // The fixture's AgencyContext CallType is 'Medical', which is NOT in the
+        // cached ['Police'] list — a genuinely new value, so the key is busted.
         \NwsCad\Api\Filtering\FilterOptionsCache::put('call_type', ['Police']);
         $this->assertSame(['Police'], \NwsCad\Api\Filtering\FilterOptionsCache::get('call_type'),
             'Precondition: cache entry must exist before processFile()');
@@ -579,7 +581,27 @@ XML;
         $this->assertTrue($result, 'processFile() must return true for valid XML');
 
         $this->assertNull(\NwsCad\Api\Filtering\FilterOptionsCache::get('call_type'),
-            'FilterOptionsCache entry for call_type must be invalidated after a successful commit');
+            'FilterOptionsCache call_type must be invalidated when the XML introduces a new value');
+    }
+
+    public function testDoesNotInvalidateFilterCacheWhenValueAlreadyPresent(): void
+    {
+        if (!getenv('MYSQL_HOST')) {
+            $this->markTestSkipped('Database not configured for testing');
+        }
+
+        cleanTestDatabase();
+
+        // The fixture's CallType 'Medical' is already in the cached list, so the
+        // targeted invalidation must leave the call_type cache intact (avoiding
+        // cache-miss storms under steady ingest).
+        \NwsCad\Api\Filtering\FilterOptionsCache::put('call_type', ['Medical', 'Fire']);
+
+        $parser = new AegisXmlParser();
+        $this->assertTrue($parser->processFile($this->testXmlPath));
+
+        $this->assertSame(['Medical', 'Fire'], \NwsCad\Api\Filtering\FilterOptionsCache::get('call_type'),
+            'call_type cache must survive when the ingested value is already present');
     }
 
     private function buildXmlWithAgencyContextHavingFdid(string $fdid): string

@@ -25,6 +25,15 @@ final class OutboxProcessor
     /** @var callable(int):IncidentDto */
     private $incidentLoader;
 
+    /**
+     * Per-tick memo of loaded incidents, keyed by db_call_id. Several outbox
+     * rows in one batch commonly target the same call (one row per channel), and
+     * the incident loader runs a multi-subquery SELECT — so cache within a tick.
+     *
+     * @var array<int, IncidentDto>
+     */
+    private array $incidentCache = [];
+
     public function __construct(
         private readonly OutboxRepositoryInterface $repo,
         private readonly ChannelFactoryInterface $factory,
@@ -51,6 +60,7 @@ final class OutboxProcessor
 
         $now     = ($this->clock)();
         $claimed = $this->repo->claim($this->workerId, $this->batchSize, $now);
+        $this->incidentCache = []; // fresh memo each tick — call state may have changed
         foreach ($claimed as $row) {
             try {
                 $this->processRow($row);
@@ -61,6 +71,11 @@ final class OutboxProcessor
                 $this->markRetryOrFail($row, $t->getMessage());
             }
         }
+    }
+
+    private function loadIncident(int $callId): IncidentDto
+    {
+        return $this->incidentCache[$callId] ??= ($this->incidentLoader)($callId);
     }
 
     /** @param array<string,mixed> $row */
@@ -74,7 +89,7 @@ final class OutboxProcessor
         $resendAll   = (bool) (int) $row['resend_all'];
         $addedTopics = json_decode((string) $row['added_topics_json'], true) ?: [];
 
-        $dto    = ($this->incidentLoader)($callId);
+        $dto    = $this->loadIncident($callId);
         $topics = TopicResolver::resolveTopics($dto, $resendAll, $addedTopics);
 
         if ($topics === []) {

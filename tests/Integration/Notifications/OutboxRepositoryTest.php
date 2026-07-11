@@ -64,7 +64,9 @@ final class OutboxRepositoryTest extends TestCase
         $this->assertSame(['IN048', 'E1'], json_decode($row['added_topics_json'], true));
         $this->assertSame('pending', $row['status']);
         $this->assertSame(0, (int) $row['attempts']);
-        $this->assertNull($row['next_attempt_at']);
+        // next_attempt_at defaults to CURRENT_TIMESTAMP (eligible immediately),
+        // replacing the old nullable "eligible when NULL" semantics.
+        $this->assertNotNull($row['next_attempt_at']);
         $this->assertNull($row['claimed_at']);
         $this->assertNull($row['claimed_by']);
         $this->assertNull($row['last_error']);
@@ -274,7 +276,9 @@ final class OutboxRepositoryTest extends TestCase
             ->fetch(PDO::FETCH_ASSOC);
         $this->assertSame('pending', $row['status']);
         $this->assertSame(0, (int) $row['attempts']);
-        $this->assertNull($row['next_attempt_at']);
+        // retry() resets next_attempt_at to CURRENT_TIMESTAMP (due now) rather
+        // than NULL now that the column is NOT NULL.
+        $this->assertNotNull($row['next_attempt_at']);
         $this->assertNull($row['last_error']);
     }
 
@@ -407,6 +411,9 @@ final class OutboxRepositoryTest extends TestCase
 
     private function insertPending(): int
     {
+        // insert() sets next_attempt_at to createDateTime (2026-05-07 12:00:00),
+        // which is in the past relative to the fixed-clock claim tests, so the row
+        // is due without further setup.
         return $this->repo->insert(
             callId:         $this->callId,
             channelId:      $this->channelId,

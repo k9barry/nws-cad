@@ -118,10 +118,11 @@ class AegisXmlParser implements ParserInterface
             $this->logger->debug("Committing database transaction...");
             $this->db->commit();
 
-            // Invalidate derived filter-option caches whose values may have grown
-            // after ingesting this XML (call_type, incident_type, unit, city).
-            // Curated ref_* lists are not touched by XML ingest, so they are omitted.
-            \NwsCad\Api\Filtering\FilterOptionsCache::invalidate(['call_type', 'incident_type', 'unit', 'city']);
+            // Invalidate derived filter-option caches only for dimensions where
+            // this XML introduces a value not already in the cached list. Busting
+            // all four keys on every ingest defeats the 5-minute cache under
+            // steady load (cache-miss storms on /api/filter-options).
+            $this->invalidateFilterCachesForNewValues($xml);
 
             $this->logger->info("File processed successfully: {$filename} (Call ID: {$callId})");
 
@@ -163,6 +164,57 @@ class AegisXmlParser implements ParserInterface
         // wrapper so processFile() and the loader characterization tests are
         // unchanged. $this->logger is PSR-3 (Monolog), which XmlLoader accepts.
         return (new \NwsCad\Import\XmlLoader($this->logger))->load($filePath);
+    }
+
+    /**
+     * Invalidate a derived FilterOptionsCache key only when the ingested XML
+     * carries a value for that dimension that is not already in the cached list.
+     * If a key has no cache entry, the next read rebuilds it — no bust needed.
+     */
+    private function invalidateFilterCachesForNewValues(SimpleXMLElement $xml): void
+    {
+        $incoming = ['call_type' => [], 'incident_type' => [], 'unit' => [], 'city' => []];
+
+        // Use the RAW cast value (no trim) so the membership check matches exactly
+        // what the mappers persist and what FilterOptionsController caches — a
+        // whitespace-only variant like "Medical " is a distinct DB value and must
+        // still bust the cache.
+        if (isset($xml->AgencyContexts->AgencyContext)) {
+            foreach ($xml->AgencyContexts->AgencyContext as $ac) {
+                $v = (string) $ac->CallType;
+                if ($v !== '') { $incoming['call_type'][$v] = true; }
+            }
+        }
+        if (isset($xml->Incidents->Incident)) {
+            foreach ($xml->Incidents->Incident as $inc) {
+                $v = (string) $inc->Type;
+                if ($v !== '') { $incoming['incident_type'][$v] = true; }
+            }
+        }
+        if (isset($xml->AssignedUnits->Unit)) {
+            foreach ($xml->AssignedUnits->Unit as $u) {
+                $v = (string) $u->UnitNumber;
+                if ($v !== '') { $incoming['unit'][$v] = true; }
+            }
+        }
+        $city = (string) ($xml->Location->City ?? '');
+        if ($city !== '') { $incoming['city'][$city] = true; }
+
+        foreach ($incoming as $key => $valueSet) {
+            if ($valueSet === []) {
+                continue;
+            }
+            $cached = \NwsCad\Api\Filtering\FilterOptionsCache::get($key);
+            if (!is_array($cached)) {
+                continue; // nothing cached; the next read rebuilds it
+            }
+            foreach (array_keys($valueSet) as $value) {
+                if (!in_array($value, $cached, true)) {
+                    \NwsCad\Api\Filtering\FilterOptionsCache::invalidate([$key]);
+                    break;
+                }
+            }
+        }
     }
 
     /**
