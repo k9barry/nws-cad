@@ -211,8 +211,6 @@ class AegisXmlParser implements ParserInterface
     private function markFileAsProcessed(string $filename, string $filePath, int $recordsProcessed): void
     {
         $this->processedFiles->markProcessed($filename, $filePath, $recordsProcessed);
-        // Resync our cached handle in case Database::run() reconnected.
-        $this->db = Database::getConnection();
     }
 
     private function markFileAsFailed(string $filename, string $filePath, string $error): void

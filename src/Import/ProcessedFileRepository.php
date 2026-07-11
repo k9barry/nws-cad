@@ -15,11 +15,12 @@ use Psr\Log\LoggerInterface;
  * Data-access for the `processed_files` table: sha256 dedupe, stale-filename
  * detection, and success/failure marking (#49, extracted from AegisXmlParser).
  *
- * Reconnect handling: the two write-adjacent reads/writes go through
- * Database::run() (which reconnects on a dropped connection). The caller
- * (AegisXmlParser) resyncs its own cached PDO handle after those calls, since a
- * reconnect there invalidates the handle it later uses for the transaction. The
- * direct reads use Database::getConnection() — always the current singleton.
+ * Reconnect handling: only isProcessed() (the pre-transaction dedupe check)
+ * goes through Database::run() for a transparent reconnect-and-retry, and the
+ * caller (AegisXmlParser) resyncs its cached handle afterward. markProcessed()/
+ * markFailed()/isFilenameStaleForCall() use Database::getConnection() directly —
+ * they may run inside the ingest transaction, where a reconnect-and-retry would
+ * break atomicity (Database::run explicitly forbids that).
  */
 final class ProcessedFileRepository
 {
@@ -88,13 +89,15 @@ final class ProcessedFileRepository
         $fileTimestamp = $parsed['timestamp_int'] ?? null;
 
         try {
-            Database::run(function (PDO $db) use ($filename, $hash, $callNumber, $fileTimestamp, $recordsProcessed): void {
-                $stmt = $db->prepare(
-                    "INSERT INTO processed_files (filename, file_hash, call_number, file_timestamp, status, records_processed)
-                     VALUES (?, ?, ?, ?, 'success', ?)"
-                );
-                $stmt->execute([$filename, $hash, $callNumber, $fileTimestamp, $recordsProcessed]);
-            });
+            // Use the current connection directly (NOT Database::run) — the
+            // ingest path calls this inside an open transaction, and a
+            // reconnect-and-retry there would apply this insert outside the
+            // transaction and desync processed_files from the imported rows.
+            $stmt = Database::getConnection()->prepare(
+                "INSERT INTO processed_files (filename, file_hash, call_number, file_timestamp, status, records_processed)
+                 VALUES (?, ?, ?, ?, 'success', ?)"
+            );
+            $stmt->execute([$filename, $hash, $callNumber, $fileTimestamp, $recordsProcessed]);
             $this->logger->info("Marked file as processed: {$filename} ({$recordsProcessed} records)");
         } catch (PDOException $e) {
             $this->logger->error("Database error in markFileAsProcessed: {$e->getMessage()}");

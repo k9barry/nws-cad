@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NwsCad\Db;
 
 use NwsCad\Api\DbHelper;
+use PDO;
+use PDOStatement;
 
 /**
  * Builds the dialect-specific UPSERT / INSERT-IGNORE SQL that the importer
@@ -80,6 +82,40 @@ final class UpsertBuilder
         }
 
         return "INSERT IGNORE INTO {$table} ({$colList}) VALUES ({$placeholders})";
+    }
+
+    /**
+     * Resolve the id of the row just upserted by a `returningId: true` upsert().
+     * Centralizes the one place the two dialects differ: PostgreSQL returns the
+     * id via RETURNING on the executed statement; MySQL (which cannot RETURN
+     * from ON DUPLICATE KEY UPDATE) re-selects it by the conflict key.
+     *
+     * @param 'mysql'|'pgsql'|string $dbType
+     * @param PDOStatement $upsertStmt The already-executed upsert statement.
+     * @param list<string> $conflictKeys  Same keys passed to upsert().
+     * @param list<mixed>  $conflictValues Row values for those keys, in order.
+     */
+    public static function fetchUpsertedId(
+        string $dbType,
+        PDO $db,
+        PDOStatement $upsertStmt,
+        string $table,
+        array $conflictKeys,
+        array $conflictValues
+    ): int {
+        if ($dbType === 'pgsql') {
+            return (int) $upsertStmt->fetchColumn();
+        }
+
+        DbHelper::validateIdentifier($table, 'table');
+        $where = [];
+        foreach ($conflictKeys as $key) {
+            DbHelper::validateIdentifier($key, 'column');
+            $where[] = "{$key} = ?";
+        }
+        $stmt = $db->prepare("SELECT id FROM {$table} WHERE " . implode(' AND ', $where));
+        $stmt->execute($conflictValues);
+        return (int) $stmt->fetchColumn();
     }
 
     /**

@@ -55,6 +55,7 @@ final class UnitMapper
             ],
             true
         );
+        $stmt = $this->db->prepare($sql);
 
         foreach ($xml->AssignedUnits->Unit as $unit) {
             $data = [
@@ -75,20 +76,16 @@ final class UnitMapper
                 'clear_datetime' => DateTimeParser::parse((string)$unit->ClearDateTime)
             ];
 
-            $stmt = $this->db->prepare($sql);
             $stmt->execute($data);
 
-            // Get the unit_id
-            if ($dbType === 'mysql') {
-                // MySQL does not support RETURNING with INSERT ... ON DUPLICATE KEY UPDATE,
-                // so we need to query the id after the upsert.
-                $idStmt = $this->db->prepare("SELECT id FROM units WHERE call_id = ? AND unit_number = ?");
-                $idStmt->execute([$callId, $data['unit_number']]);
-                $unitId = (int)$idStmt->fetchColumn();
-            } else {
-                // PostgreSQL: use the id returned by INSERT ... ON CONFLICT ... DO UPDATE RETURNING id
-                $unitId = (int)$stmt->fetchColumn();
-            }
+            $unitId = UpsertBuilder::fetchUpsertedId(
+                $dbType,
+                $this->db,
+                $stmt,
+                'units',
+                ['call_id', 'unit_number'],
+                [$callId, $data['unit_number']]
+            );
 
             $this->mapPersonnel($unit, $unitId);
             $this->mapLogs($unit, $unitId);
