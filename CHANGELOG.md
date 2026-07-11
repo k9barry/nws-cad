@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1] - 2026-07-11
+
+## Refactoring
+
+- refactor(import): decompose AegisXmlParser into Import\ mappers + infrastructure (#57) (7ed3f20)
+
+
 ## [2.0.0] - 2026-07-10
 
 ## Breaking Changes
