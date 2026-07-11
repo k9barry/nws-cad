@@ -14,6 +14,23 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\AegisXmlParser
+ * @uses \NwsCad\Import\DateTimeParser
+ * @uses \NwsCad\Import\ValueCaster
+ * @uses \NwsCad\Import\XmlLoader
+ * @uses \NwsCad\Import\XmlValidator
+ * @uses \NwsCad\Import\ProcessedFileRepository
+ * @uses \NwsCad\Import\ReopenDetector
+ * @uses \NwsCad\Db\UpsertBuilder
+ * @uses \NwsCad\Api\DbHelper
+ * @uses \NwsCad\Import\Mappers\LocationMapper
+ * @uses \NwsCad\Import\Mappers\PersonMapper
+ * @uses \NwsCad\Import\Mappers\VehicleMapper
+ * @uses \NwsCad\Import\Mappers\CallDispositionMapper
+ * @uses \NwsCad\Import\Mappers\AgencyContextMapper
+ * @uses \NwsCad\Import\Mappers\IncidentMapper
+ * @uses \NwsCad\Import\Mappers\NarrativeMapper
+ * @uses \NwsCad\Import\Mappers\UnitMapper
+ * @uses \NwsCad\Import\Mappers\CallMapper
  * @uses \NwsCad\Config
  * @uses \NwsCad\Database
  * @uses \NwsCad\FilenameParser

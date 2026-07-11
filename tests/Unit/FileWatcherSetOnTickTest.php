@@ -15,6 +15,8 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(\NwsCad\Logging\RedactingProcessor::class)]
 #[UsesClass(\NwsCad\Logging\SecretRegistry::class)]
 #[UsesClass(\NwsCad\AegisXmlParser::class)]
+#[UsesClass(\NwsCad\Import\ProcessedFileRepository::class)]
+#[UsesClass(\NwsCad\Import\ReopenDetector::class)]
 #[UsesClass(\NwsCad\Database::class)]
 final class FileWatcherSetOnTickTest extends TestCase
 {
