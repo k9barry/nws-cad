@@ -1055,40 +1055,10 @@ class AegisXmlParser implements ParserInterface
 
     private function parseDateTime(?string $dateTime): ?string
     {
-        if (empty($dateTime) || $dateTime === 'nil' || strpos($dateTime, 'nil="true"') !== false) {
-            return null;
-        }
-        
-        // Common datetime formats from NWS Aegis
-        $formats = [
-            'Y-m-d\TH:i:s\Z',         // ISO 8601 with Z
-            'Y-m-d\TH:i:s',           // ISO 8601 without timezone
-            'Y-m-d\TH:i:s.u',         // ISO 8601 with microseconds
-            'Y-m-d\TH:i:sP',          // ISO 8601 with timezone
-            'Y-m-d\TH:i:s.uP',        // ISO 8601 with microseconds and timezone
-            'Y-m-d H:i:s',            // Standard MySQL format
-            'm/d/Y H:i:s',            // US format
-            'm/d/Y h:i:s A',          // US format with AM/PM
-        ];
-        
-        foreach ($formats as $format) {
-            $dt = \DateTime::createFromFormat($format, $dateTime);
-            if ($dt !== false) {
-                return $dt->format('Y-m-d H:i:s');
-            }
-        }
-        
-        // Try strtotime as fallback
-        try {
-            $timestamp = strtotime($dateTime);
-            if ($timestamp !== false) {
-                return date('Y-m-d H:i:s', $timestamp);
-            }
-        } catch (Exception $e) {
-            $this->logger->warning("Could not parse datetime: '{$dateTime}'");
-        }
-        
-        return null;
+        // Delegated to the extracted, independently-tested normalizer (#49).
+        // Kept as a thin private wrapper so the many internal call sites and the
+        // parser's characterization tests continue to work unchanged.
+        return \NwsCad\Import\DateTimeParser::parse($dateTime);
     }
 
     private function parseBoolean($value): int

@@ -16,6 +16,7 @@ use PHPUnit\Framework\TestCase;
  * unchanged, on both MySQL and PostgreSQL, before and after that refactor.
  *
  * @covers \NwsCad\AegisXmlParser
+ * @uses \NwsCad\Import\DateTimeParser
  * @uses \NwsCad\Api\DbHelper
  * @uses \NwsCad\Config
  * @uses \NwsCad\Database

@@ -23,6 +23,7 @@ use ReflectionMethod;
  * DB-connecting constructor — keeping this a pure, driver-independent unit.
  *
  * @covers \NwsCad\AegisXmlParser
+ * @uses \NwsCad\Import\DateTimeParser
  */
 class DateTimeParsingCharacterizationTest extends TestCase
 {
