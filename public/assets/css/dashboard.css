@@ -285,11 +285,13 @@ body:has(.dashboard-row-fill) > footer {
     line-height: 1;
 }
 
-.custom-marker .marker-circle--red    { background-color: #dc3545; }
-.custom-marker .marker-circle--yellow { background-color: #ffc107; }
-.custom-marker .marker-circle--blue   { background-color: #0dcaf0; }
-.custom-marker .marker-circle--green  { background-color: #198754; }
-.custom-marker .marker-circle--gray   { background-color: #6c757d; }
+/* Marker + legend swatch colours share the same classes. The legend uses them
+   outside .custom-marker, so both ancestors are listed here. */
+.custom-marker .marker-circle--red,    .map-legend .marker-circle--red    { background-color: #dc3545; }
+.custom-marker .marker-circle--yellow, .map-legend .marker-circle--yellow { background-color: #ffc107; }
+.custom-marker .marker-circle--blue,   .map-legend .marker-circle--blue   { background-color: #0dcaf0; }
+.custom-marker .marker-circle--green,  .map-legend .marker-circle--green  { background-color: #198754; }
+.custom-marker .marker-circle--gray,   .map-legend .marker-circle--gray   { background-color: #6c757d; }
 
 /* Recent Calls List */
 .recent-call-item {

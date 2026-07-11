@@ -313,21 +313,14 @@
 
                 const url = '/calls?' + pagingParams.toString();
                 console.log('[Dashboard Main] Recent calls API URL:', url);
-                console.log('[Dashboard Main] Query params:', pagingParams.toString());
-                
-                console.log('[Dashboard Main] Fetching:', Dashboard.config.apiBaseUrl + url);
-                
-                const response = await fetch(Dashboard.config.apiBaseUrl + url);
-                const result = await response.json();
-                
-                console.log('[Dashboard Main] Calls response:', result);
-                
-                if (!result.success) {
-                    throw new Error(result.error || 'API failed');
-                }
-                
-                const calls = result.data?.items || [];
-                const pagination = result.data?.pagination || {};
+
+                // Route through the centralized wrapper for consistent error handling
+                // and security controls; it returns the unwrapped `data` and throws
+                // on failure (handled by the catch below).
+                const data = await Dashboard.apiRequest(url);
+
+                const calls = data?.items || [];
+                const pagination = data?.pagination || {};
                 currentCallsTotal = pagination.total || calls.length;
                 totalCallsPages = pagination.total_pages || 1;
                 
@@ -446,9 +439,7 @@
                         </tr>
                     `;
                 }
-                if (Dashboard.showError) {
-                    Dashboard.showError('Failed to load recent calls');
-                }
+                // Dashboard.apiRequest already surfaces the error toast — no duplicate here.
             }
         }
         
@@ -1411,7 +1402,9 @@
             root: document.getElementById('filter-panel'),
             onChange: function (state) {
                 currentQs = state.toQueryString();
-                onFilterChange();
+                // Return the refresh promise so FilterPanel keeps its busy/aria-busy
+                // state until the data actually finishes loading.
+                return onFilterChange();
             },
         });
         await panel.mount();

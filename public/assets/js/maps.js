@@ -85,8 +85,12 @@ const MapManager = {
         // Accessibility: render the priority NUMBER as text inside the circle so the
         // marker does not convey priority by color alone (colorblind-safe). The class
         // structure (.custom-marker .marker-circle) is preserved for dashboard.css.
-        const colorClass = this.getCallIconColorClass(call.priority);
-        const priorityLabel = this.getPriorityLabel(call.priority);
+        // The /api/calls list payload exposes numeric priority as `alarm_level`
+        // (with a `priorities[]` list), not `priority`. Derive from those so the
+        // marker colour + numeral are correct instead of always gray / "?".
+        const derivedPriority = parseInt(call.alarm_level ?? call.priorities?.[0] ?? call.priority, 10);
+        const colorClass = this.getCallIconColorClass(derivedPriority);
+        const priorityLabel = this.getPriorityLabel(derivedPriority);
         const callType = call.call_types?.[0] || call.call_type || call.nature_of_call || 'call';
         const markerTitle = `Priority ${priorityLabel} call — ${callType}`;
         const icon = L.divIcon({
