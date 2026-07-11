@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2] - 2026-07-11
+
+## Performance
+
+- perf(db,api): composite indexes, N+1 consolidation, outbox claim + targeted cache (#58) (1f46959)
+
+
 ## [2.0.1] - 2026-07-11
 
 ## Refactoring
