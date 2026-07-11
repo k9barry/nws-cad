@@ -109,7 +109,10 @@
                                 </h5>
                             </div>
                             <div class="card-body">
-                                <canvas id="analytics-volume-chart"></canvas>
+                                <canvas id="analytics-volume-chart" role="img"
+                                        data-chart-title="Incidents by jurisdiction"
+                                        aria-label="Incidents by jurisdiction chart. Loading data."></canvas>
+                                <div id="analytics-volume-chart-summary" class="visually-hidden"></div>
                             </div>
                         </div>
                     </div>
@@ -122,7 +125,10 @@
                                 </h5>
                             </div>
                             <div class="card-body">
-                                <canvas id="analytics-distribution-chart"></canvas>
+                                <canvas id="analytics-distribution-chart" role="img"
+                                        data-chart-title="Call distribution by type"
+                                        aria-label="Call distribution by type chart. Loading data."></canvas>
+                                <div id="analytics-distribution-chart-summary" class="visually-hidden"></div>
                             </div>
                         </div>
                     </div>
@@ -138,7 +144,10 @@
                                 </h5>
                             </div>
                             <div class="card-body">
-                                <canvas id="analytics-response-chart"></canvas>
+                                <canvas id="analytics-response-chart" role="img"
+                                        data-chart-title="Response time analysis"
+                                        aria-label="Response time analysis chart. Loading data."></canvas>
+                                <div id="analytics-response-chart-summary" class="visually-hidden"></div>
                             </div>
                         </div>
                     </div>
@@ -151,7 +160,10 @@
                                 </h5>
                             </div>
                             <div class="card-body">
-                                <canvas id="analytics-agency-chart"></canvas>
+                                <canvas id="analytics-agency-chart" role="img"
+                                        data-chart-title="Calls by agency"
+                                        aria-label="Calls by agency chart. Loading data."></canvas>
+                                <div id="analytics-agency-chart-summary" class="visually-hidden"></div>
                             </div>
                         </div>
                     </div>

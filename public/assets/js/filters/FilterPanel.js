@@ -113,8 +113,16 @@
 
   FilterPanel.prototype._scheduleApply = function () {
     clearTimeout(this.applyTimer);
+    this._setBusy(true);
     const self = this;
     this.applyTimer = setTimeout(function () { self._apply(); }, 250);
+  };
+
+  FilterPanel.prototype._setBusy = function (busy) {
+    if (!this.root) return;
+    this.root.classList.toggle('filter-panel--applying', busy);
+    if (busy) this.root.setAttribute('aria-busy', 'true');
+    else this.root.removeAttribute('aria-busy');
   };
 
   FilterPanel.prototype._apply = function () {
@@ -123,7 +131,19 @@
     window.history.replaceState({}, '', url);
     localStorage.setItem('filter-panel:last-state', JSON.stringify(this.state.snapshot()));
     this._announce();
-    this.onChange(this.state);
+    const self = this;
+    let result;
+    try {
+      result = this.onChange(this.state);
+    } finally {
+      // Clear the busy affordance once the consumer's apply settles. onChange
+      // may be sync (clear now) or return a promise (clear when it resolves).
+      if (result && typeof result.then === 'function') {
+        result.then(function () { self._setBusy(false); }, function () { self._setBusy(false); });
+      } else {
+        this._setBusy(false);
+      }
+    }
   };
 
   FilterPanel.prototype._announce = function () {

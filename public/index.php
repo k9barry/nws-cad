@@ -69,13 +69,16 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
     <link href="/assets/css/print.css" rel="stylesheet" media="print">
 </head>
 <body<?= $isMobile ? ' class="mobile-view"' : '' ?>>
+    <!-- Skip link (keyboard users bypass the nav) -->
+    <a class="skip-link" href="#main-content">Skip to main content</a>
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
         <div class="container-fluid">
             <a class="navbar-brand" href="/">
                 <i class="bi bi-broadcast"></i> NWS CAD Dashboard
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
@@ -97,8 +100,8 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
                     </li>
                 </ul>
                 <div class="d-flex align-items-center">
-                    <span class="live-pill" id="dashboard-live-pill">
-                        <span class="dot"></span>
+                    <span class="live-pill" id="dashboard-live-pill" role="status" aria-live="polite">
+                        <span class="dot" aria-hidden="true"></span>
                         <span id="dashboard-live-text">Live</span>
                     </span>
                 </div>
@@ -107,7 +110,7 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
     </nav>
 
     <!-- Main Content -->
-    <main class="container-fluid py-4">
+    <main id="main-content" tabindex="-1" class="container-fluid py-4">
         <?php
         $viewFile = __DIR__ . "/../src/Dashboard/Views/{$page}.php";
         if (file_exists($viewFile)) {

@@ -19,8 +19,10 @@
 
   DateRangeField.prototype.mount = function (rootEl, opts) {
     rootEl.innerHTML = '';
+    const inputId = 'ff-' + this.name + '-range';
     const labelEl = document.createElement('label');
     labelEl.textContent = this.label;
+    labelEl.htmlFor = inputId;
     rootEl.appendChild(labelEl);
 
     const presetSelect = document.createElement('select');
@@ -35,6 +37,10 @@
 
     const input = document.createElement('input');
     input.type = 'text';
+    input.id = inputId;
+    // Accessible name via the associated <label htmlFor>; aria-label is a
+    // fallback for when Flatpickr swaps in an alt input that loses the id link.
+    input.setAttribute('aria-label', this.label + ' range (YYYY-MM-DD to YYYY-MM-DD)');
     input.placeholder = 'YYYY-MM-DD to YYYY-MM-DD';
     rootEl.appendChild(input);
 

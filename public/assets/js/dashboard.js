@@ -142,15 +142,22 @@ const Dashboard = {
         const toast = document.createElement('div');
         toast.className = `alert alert-${this.escapeHtml(type)} alert-dismissible fade show position-fixed`;
         toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
-        
+
+        // Announce to assistive tech: assertive for warning/danger, polite otherwise.
+        const assertive = (type === 'danger' || type === 'warning');
+        toast.setAttribute('role', assertive ? 'alert' : 'status');
+        toast.setAttribute('aria-live', assertive ? 'assertive' : 'polite');
+        toast.setAttribute('aria-atomic', 'true');
+
         // Create text node for message (safe) and button separately
         const textNode = document.createTextNode(message);
         toast.appendChild(textNode);
-        
+
         const closeBtn = document.createElement('button');
         closeBtn.type = 'button';
         closeBtn.className = 'btn-close';
         closeBtn.setAttribute('data-bs-dismiss', 'alert');
+        closeBtn.setAttribute('aria-label', 'Close');
         toast.appendChild(closeBtn);
         
         document.body.appendChild(toast);

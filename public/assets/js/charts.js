@@ -5,11 +5,125 @@
 
 const ChartManager = {
     charts: {},
-    defaultColors: [
-        '#0d6efd', '#198754', '#ffc107', '#dc3545', '#0dcaf0',
-        '#6610f2', '#fd7e14', '#20c997', '#6f42c1', '#d63384'
+
+    // Okabe-Ito colorblind-safe categorical palette. Used as a hardcoded fallback
+    // when the CSS `--cat-1`..`--cat-8` tokens are not present on :root. Order is
+    // arranged so no pure green sits directly next to a pure red.
+    okabeItoFallback: [
+        '#0072b2', '#e69f00', '#009e73', '#cc79a7',
+        '#56b4e9', '#d55e00', '#f0e442', '#999999'
     ],
-    
+    _categoricalColors: null,
+
+    /**
+     * Resolve the colorblind-safe categorical palette. Reads `--cat-1`..`--cat-8`
+     * from :root (Okabe-Ito, added by the integrator to dashboard.css) and falls
+     * back to the hardcoded Okabe-Ito array per-slot when a token is missing.
+     * Cached after first resolution.
+     */
+    getCategoricalColors() {
+        if (this._categoricalColors) return this._categoricalColors;
+        const styles = getComputedStyle(document.documentElement);
+        const colors = [];
+        for (let i = 1; i <= 8; i++) {
+            const token = styles.getPropertyValue(`--cat-${i}`).trim();
+            colors.push(token || this.okabeItoFallback[i - 1]);
+        }
+        this._categoricalColors = colors;
+        return colors;
+    },
+
+    /**
+     * Repeat the categorical palette to cover `count` series.
+     */
+    categoricalColors(count) {
+        const base = this.getCategoricalColors();
+        const out = [];
+        for (let i = 0; i < count; i++) {
+            out.push(base[i % base.length]);
+        }
+        return out;
+    },
+
+    /**
+     * Populate the accessible name + visually-hidden data summary for a chart canvas.
+     * Charts are `role="img"` in the markup; screen readers otherwise get nothing.
+     * We compose the canvas `aria-label` from its `data-chart-title` plus the key
+     * numbers, and fill a sibling `#<canvasId>-summary` element with a data table.
+     */
+    applyChartA11y(canvasId, data) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+
+        const title = (canvas.dataset.chartTitle
+            || canvas.getAttribute('aria-label')
+            || 'Chart').trim();
+        const labels = (data && data.labels) || [];
+        const datasets = (data && data.datasets) || [];
+        const primary = datasets[0] || { data: [] };
+        const primaryData = primary.data || [];
+
+        // Short key-numbers sentence for the aria-label.
+        let sentence;
+        if (!labels.length) {
+            sentence = 'No data available';
+        } else {
+            sentence = labels
+                .map((label, i) => `${label}: ${primaryData[i] ?? 0}`)
+                .join(', ');
+        }
+        canvas.setAttribute('aria-label', `${title}. ${sentence}.`);
+
+        // Full data table alternative in the visually-hidden sibling element.
+        const summaryEl = document.getElementById(`${canvasId}-summary`);
+        if (!summaryEl) return;
+
+        if (!labels.length) {
+            summaryEl.textContent = `${title}: no data available.`;
+            return;
+        }
+
+        const table = document.createElement('table');
+        const caption = document.createElement('caption');
+        caption.textContent = `${title} (data table)`;
+        table.appendChild(caption);
+
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        const catTh = document.createElement('th');
+        catTh.scope = 'col';
+        catTh.textContent = 'Category';
+        headRow.appendChild(catTh);
+        datasets.forEach((ds, i) => {
+            const th = document.createElement('th');
+            th.scope = 'col';
+            th.textContent = ds.label || `Series ${i + 1}`;
+            headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        labels.forEach((label, rowIdx) => {
+            const tr = document.createElement('tr');
+            const th = document.createElement('th');
+            th.scope = 'row';
+            th.textContent = label;
+            tr.appendChild(th);
+            datasets.forEach((ds) => {
+                const td = document.createElement('td');
+                const val = (ds.data || [])[rowIdx];
+                td.textContent = val ?? 0;
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+
+        summaryEl.textContent = '';
+        summaryEl.appendChild(table);
+    },
+
     /**
      * Destroy a chart if it exists
      */
@@ -57,10 +171,12 @@ const ChartManager = {
             data: data,
             options: { ...defaultOptions, ...options }
         });
-        
+
+        this.applyChartA11y(canvasId, data);
+
         return this.charts[canvasId];
     },
-    
+
     /**
      * Create a bar chart
      */
@@ -94,10 +210,12 @@ const ChartManager = {
             data: data,
             options: { ...defaultOptions, ...options }
         });
-        
+
+        this.applyChartA11y(canvasId, data);
+
         return this.charts[canvasId];
     },
-    
+
     /**
      * Create a pie chart
      */
@@ -123,10 +241,12 @@ const ChartManager = {
             data: data,
             options: { ...defaultOptions, ...options }
         });
-        
+
+        this.applyChartA11y(canvasId, data);
+
         return this.charts[canvasId];
     },
-    
+
     /**
      * Create a doughnut chart
      */
@@ -152,18 +272,21 @@ const ChartManager = {
             data: data,
             options: { ...defaultOptions, ...options }
         });
-        
+
+        this.applyChartA11y(canvasId, data);
+
         return this.charts[canvasId];
     },
-    
+
     /**
      * Update chart data
      */
     updateChart(chartId, data) {
         if (!this.charts[chartId]) return;
-        
+
         this.charts[chartId].data = data;
         this.charts[chartId].update();
+        this.applyChartA11y(chartId, data);
     },
     
     /**
@@ -214,7 +337,7 @@ const ChartManager = {
             labels: callStats.by_type.map(item => `${item.type} (${item.count})`),
             datasets: [{
                 data: callStats.by_type.map(item => item.count),
-                backgroundColor: this.defaultColors.slice(0, callStats.by_type.length)
+                backgroundColor: this.categoricalColors(callStats.by_type.length)
             }]
         };
     },
@@ -234,20 +357,22 @@ const ChartManager = {
             };
         }
         
+        // Colorblind-safe (Okabe-Ito) status colors. No pure green/red pairing:
+        // available=bluish-green, enroute=orange, onscene=vermillion, offduty=gray.
         const statusColors = {
-            'available': '#198754',
-            'enroute': '#ffc107',
-            'onscene': '#dc3545',
-            'offduty': '#6c757d'
+            'available': '#009e73',
+            'enroute': '#e69f00',
+            'onscene': '#d55e00',
+            'offduty': '#999999'
         };
-        
+
         return {
             labels: unitStats.by_status.map(item => item.status),
             datasets: [{
                 label: 'Units',
                 data: unitStats.by_status.map(item => item.count),
-                backgroundColor: unitStats.by_status.map(item => 
-                    statusColors[item.status.toLowerCase()] || '#6c757d'
+                backgroundColor: unitStats.by_status.map(item =>
+                    statusColors[item.status.toLowerCase()] || '#999999'
                 )
             }]
         };
@@ -302,7 +427,7 @@ const ChartManager = {
             datasets: [{
                 label: 'Call Count',
                 data: agencyStats.by_agency.map(item => item.count),
-                backgroundColor: this.defaultColors.slice(0, agencyStats.by_agency.length)
+                backgroundColor: this.categoricalColors(agencyStats.by_agency.length)
             }]
         };
     },

@@ -11,13 +11,39 @@
     --info-color: #0dcaf0;
     --dark-color: #212529;
     --light-color: #f8f9fa;
+
+    /* Brand palette (single source of truth — was duplicated as raw hex across
+       .dashboard-banner / .gradient-card-header / .analytics-modal-header and filters.css) */
+    --brand-1: #4f46e5;
+    --brand-2: #7c3aed;
+    --brand-3: #db2777;
+    --brand-gradient: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 50%, var(--brand-3) 100%);
+    --brand-gradient-2: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
+
+    /* Slate neutral used by pill badges */
+    --slate-bg: #e2e8f0;
+    --slate-fg: #475569;
+
+    /* Muted text that meets WCAG AA (4.5:1) on the off-white body — replaces #6c757d */
+    --text-muted-accessible: #5c636a;
+
+    /* Colorblind-safe categorical palette (Okabe-Ito) — consumed by charts.js via
+       getComputedStyle so chart colors and CSS never drift. */
+    --cat-1: #0072b2;
+    --cat-2: #e69f00;
+    --cat-3: #009e73;
+    --cat-4: #cc79a7;
+    --cat-5: #56b4e9;
+    --cat-6: #d55e00;
+    --cat-7: #f0e442;
+    --cat-8: #999999;
 }
 
 /* Global Styles */
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     background-color: #f5f7fa;
-    min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
 }
@@ -251,6 +277,14 @@ body:has(.dashboard-row-fill) > footer {
     font-size: 14px;
 }
 
+/* Priority numeral inside a marker — non-color reinforcement of priority */
+.custom-marker .marker-circle .marker-priority {
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+}
+
 .custom-marker .marker-circle--red    { background-color: #dc3545; }
 .custom-marker .marker-circle--yellow { background-color: #ffc107; }
 .custom-marker .marker-circle--blue   { background-color: #0dcaf0; }
@@ -275,7 +309,7 @@ body:has(.dashboard-row-fill) > footer {
 
 .recent-call-time {
     font-size: 0.875rem;
-    color: #6c757d;
+    color: var(--text-muted-accessible);
 }
 
 .recent-call-type {
@@ -285,7 +319,7 @@ body:has(.dashboard-row-fill) > footer {
 
 .recent-call-location {
     font-size: 0.875rem;
-    color: #6c757d;
+    color: var(--text-muted-accessible);
 }
 
 /* Tables */
@@ -569,7 +603,7 @@ footer a:hover {
 .empty-state {
     text-align: center;
     padding: 3rem 1rem;
-    color: #6c757d;
+    color: var(--text-muted-accessible);
 }
 
 .empty-state i {
@@ -601,14 +635,14 @@ Timestamp: Wed Jan 28 01:35:28 UTC 2026
 
 /* === Dashboard prettify components (mirrors notifications page palette) === */
 .dashboard-banner {
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%);
+    background: var(--brand-gradient);
     color: #fff;
     border-radius: 0.75rem;
     padding: 1.25rem 1.5rem;
     margin-bottom: 1rem;
     box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
 }
-.dashboard-banner h2 { margin: 0; font-weight: 600; }
+.dashboard-banner h1 { margin: 0; font-weight: 600; }
 .dashboard-banner .subtitle { opacity: 0.85; font-size: 0.9rem; margin-top: 0.25rem; }
 .dashboard-banner .btn-light {
     background: rgba(255, 255, 255, 0.95);
@@ -651,8 +685,8 @@ Timestamp: Wed Jan 28 01:35:28 UTC 2026
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    background: #e2e8f0;
-    color: #475569;
+    background: var(--slate-bg);
+    color: var(--slate-fg);
 }
 .pill-badge.is-info       { background: rgba(255, 255, 255, 0.22); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3); }
 .pill-badge.is-priority-1 { background: #fee2e2; color: #991b1b; }
@@ -660,11 +694,11 @@ Timestamp: Wed Jan 28 01:35:28 UTC 2026
 .pill-badge.is-priority-3 { background: #e0f2fe; color: #075985; }
 .pill-badge.is-active     { background: #d1fae5; color: #065f46; }
 .pill-badge.is-reopened   { background: #fef3c7; color: #92400e; }
-.pill-badge.is-closed     { background: #e2e8f0; color: #475569; }
+.pill-badge.is-closed     { background: var(--slate-bg); color: var(--slate-fg); }
 
 /* Gradient card header strip — applied to map + Recent Calls cards */
 .gradient-card-header {
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+    background: var(--brand-gradient-2) !important;
     color: #fff;
     border-bottom: none !important;
     border-radius: 12px 12px 0 0 !important;
@@ -703,8 +737,8 @@ Timestamp: Wed Jan 28 01:35:28 UTC 2026
     flex-shrink: 0;
 }
 .stat-card-v2 .card-body { padding: 0.55rem 0.9rem; }
-.stat-card-v2 h2 { font-size: 1.5rem; font-weight: 700; line-height: 1.15; }
-.stat-card-v2 h6 { font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+.stat-card-v2 .stat-value { font-size: 1.5rem; font-weight: 700; line-height: 1.15; margin: 0; }
+.stat-card-v2 .stat-label { font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
 .stat-card-v2 .stat-icon { width: 40px; height: 40px; font-size: 1.1rem; }
 .stat-card-v2 .summary-chips { font-size: 0.7rem; }
 
@@ -723,7 +757,7 @@ Timestamp: Wed Jan 28 01:35:28 UTC 2026
 
 /* Analytics modal — same gradient header palette as .dashboard-banner */
 .analytics-modal-header {
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%) !important;
+    background: var(--brand-gradient) !important;
     color: #fff !important;
     border-bottom: none !important;
     padding: 1rem 1.5rem;
@@ -764,6 +798,10 @@ Timestamp: Wed Jan 28 01:35:28 UTC 2026
 #filter-drawer { z-index: 1080; }
 .offcanvas-backdrop { z-index: 1075; }
 
+/* Clickable/keyboard-activatable call rows (was an inline style="cursor:pointer" —
+   moved here so style-src CSP can stay strict). */
+tr.call-row { cursor: pointer; }
+
 /* Recent Calls row flash on insert */
 .recent-calls-card tbody tr.row-new {
     animation: row-flash 1.2s ease;
@@ -786,6 +824,86 @@ Timestamp: Wed Jan 28 01:35:28 UTC 2026
 
 /* Modal map sizing — was inline style="height: 600px; width: 100%;" */
 #modal-map { height: 600px; width: 100%; }
+
+/* === Accessibility & UI-audit utilities === */
+
+/* WCAG-AA muted text everywhere Bootstrap's .text-muted (#6c757d) was too light
+   on the off-white body. The gradient-card-header override (white) still wins by
+   specificity, so headers are unaffected. */
+.text-muted { color: var(--text-muted-accessible) !important; }
+
+/* Tabular figures so refreshing counts / timestamps don't jitter width every poll */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Skip link: hidden until focused, then pinned top-left over the navbar */
+.skip-link {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2000;
+    padding: 0.5rem 1rem;
+    background: var(--brand-1);
+    color: #fff;
+    font-weight: 600;
+    border-radius: 0 0 6px 0;
+    transform: translateY(-120%);
+    transition: transform 0.15s ease;
+}
+.skip-link:focus {
+    transform: translateY(0);
+    outline: 3px solid #fff;
+    outline-offset: -3px;
+}
+
+/* Sortable table headers (recent-calls) */
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+th.sortable:hover { background-color: rgba(13, 110, 253, 0.06); }
+th.sortable .sort-ind {
+    opacity: 0.35;
+    margin-left: 0.25rem;
+    font-size: 0.7em;
+}
+th.sortable[aria-sort="ascending"] .sort-ind,
+th.sortable[aria-sort="descending"] .sort-ind { opacity: 1; }
+/* Keyboard focus for sortable headers and interactive rows */
+th.sortable:focus-visible,
+tr.call-row:focus-visible {
+    outline: 3px solid var(--brand-1);
+    outline-offset: -3px;
+}
+
+/* Map priority legend (colour is reinforced by the numeral, so it is not
+   color-only). Swatch colours reuse the .marker-circle--* palette. */
+.map-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.9rem;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+    background: #fff;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+.map-legend .legend-label { font-weight: 600; color: var(--text-muted-accessible); }
+.map-legend .legend-item { display: inline-flex; align-items: center; gap: 0.3rem; }
+.map-legend .legend-swatch {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 700;
+}
+
 
 /* Floating info card overlaid on the modal map */
 .map-info-overlay {
