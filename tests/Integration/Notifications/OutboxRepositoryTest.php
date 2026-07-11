@@ -411,7 +411,10 @@ final class OutboxRepositoryTest extends TestCase
 
     private function insertPending(): int
     {
-        $id = $this->repo->insert(
+        // insert() sets next_attempt_at to createDateTime (2026-05-07 12:00:00),
+        // which is in the past relative to the fixed-clock claim tests, so the row
+        // is due without further setup.
+        return $this->repo->insert(
             callId:         $this->callId,
             channelId:      $this->channelId,
             intent:         Intent::Created,
@@ -419,9 +422,5 @@ final class OutboxRepositoryTest extends TestCase
             addedTopics:    [],
             createDateTime: new DateTimeImmutable('2026-05-07 12:00:00'),
         );
-        // next_attempt_at now defaults to insert-time (real server clock). Pin it
-        // to a fixed past baseline so the fixed-clock claim tests see the row as due.
-        self::$db->exec("UPDATE notification_outbox SET next_attempt_at = '2026-05-07 00:00:00' WHERE id = {$id}");
-        return $id;
     }
 }

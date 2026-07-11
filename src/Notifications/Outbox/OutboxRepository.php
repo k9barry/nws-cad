@@ -40,10 +40,16 @@ final class OutboxRepository implements OutboxRepositoryInterface
         DateTimeImmutable $createDateTime,
     ): int {
         return $this->exec(function (PDO $db) use ($callId, $channelId, $intent, $resendAll, $addedTopics, $createDateTime): int {
+            // Set next_attempt_at explicitly to the call's create time — a value
+            // that is always in the past — so a new row is immediately eligible
+            // under the claim's `next_attempt_at <= ?` gate without relying on the
+            // DB CURRENT_TIMESTAMP default (whose DB clock could run ahead of the
+            // worker clock the claim compares against).
+            $createStr = $createDateTime->format('Y-m-d H:i:s');
             $stmt = $db->prepare(
                 "INSERT INTO notification_outbox
-                 (db_call_id, channel_id, intent, resend_all, added_topics_json, create_datetime)
-                 VALUES (?, ?, ?, ?, ?, ?)"
+                 (db_call_id, channel_id, intent, resend_all, added_topics_json, create_datetime, next_attempt_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)"
             );
             $stmt->execute([
                 $callId,
@@ -51,7 +57,8 @@ final class OutboxRepository implements OutboxRepositoryInterface
                 $intent->value,
                 $resendAll ? 1 : 0,
                 json_encode(array_values($addedTopics), JSON_UNESCAPED_SLASHES),
-                $createDateTime->format('Y-m-d H:i:s'),
+                $createStr,
+                $createStr,
             ]);
             return (int) $db->lastInsertId();
         });
@@ -281,16 +288,20 @@ final class OutboxRepository implements OutboxRepositoryInterface
 
     public function retry(int $rowId): bool
     {
-        return $this->exec(function (PDO $db) use ($rowId): bool {
+        // Bind next_attempt_at from the application clock (matching the clock the
+        // claim query compares against) rather than the DB CURRENT_TIMESTAMP, so a
+        // manually retried row is due immediately regardless of DB/worker skew.
+        $nowStr = (new DateTimeImmutable())->format('Y-m-d H:i:s');
+        return $this->exec(function (PDO $db) use ($rowId, $nowStr): bool {
             $stmt = $db->prepare(
                 "UPDATE notification_outbox
                  SET status = 'pending', attempts = 0,
-                     next_attempt_at = CURRENT_TIMESTAMP, last_error = NULL,
+                     next_attempt_at = ?, last_error = NULL,
                      claimed_at = NULL, claimed_by = NULL,
                      updated_at = CURRENT_TIMESTAMP
                  WHERE id = ?"
             );
-            $stmt->execute([$rowId]);
+            $stmt->execute([$nowStr, $rowId]);
             return $stmt->rowCount() > 0;
         });
     }

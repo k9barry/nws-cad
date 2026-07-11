@@ -175,25 +175,29 @@ class AegisXmlParser implements ParserInterface
     {
         $incoming = ['call_type' => [], 'incident_type' => [], 'unit' => [], 'city' => []];
 
+        // Use the RAW cast value (no trim) so the membership check matches exactly
+        // what the mappers persist and what FilterOptionsController caches — a
+        // whitespace-only variant like "Medical " is a distinct DB value and must
+        // still bust the cache.
         if (isset($xml->AgencyContexts->AgencyContext)) {
             foreach ($xml->AgencyContexts->AgencyContext as $ac) {
-                $v = trim((string) $ac->CallType);
+                $v = (string) $ac->CallType;
                 if ($v !== '') { $incoming['call_type'][$v] = true; }
             }
         }
         if (isset($xml->Incidents->Incident)) {
             foreach ($xml->Incidents->Incident as $inc) {
-                $v = trim((string) $inc->Type);
+                $v = (string) $inc->Type;
                 if ($v !== '') { $incoming['incident_type'][$v] = true; }
             }
         }
         if (isset($xml->AssignedUnits->Unit)) {
             foreach ($xml->AssignedUnits->Unit as $u) {
-                $v = trim((string) $u->UnitNumber);
+                $v = (string) $u->UnitNumber;
                 if ($v !== '') { $incoming['unit'][$v] = true; }
             }
         }
-        $city = trim((string) ($xml->Location->City ?? ''));
+        $city = (string) ($xml->Location->City ?? '');
         if ($city !== '') { $incoming['city'][$city] = true; }
 
         foreach ($incoming as $key => $valueSet) {
