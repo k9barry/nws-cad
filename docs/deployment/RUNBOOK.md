@@ -72,6 +72,30 @@ schema fully up to date, including `notification_channels.last_updated_actor`
 (#37) and the v2.0.2 indexes / `notification_outbox.next_attempt_at` change.
 Bring the DB up first (without the app), then apply:
 
+> **⚠ Existing deployments — relocate the database data directory first (one-time).**
+> v2.0.x stores the DB datadir at `${NWS_VAR_DIR:-./var}/data/$DB_SVC` (i.e. `./var/data/mysql`
+> or `./var/data/postgres`). Deployments created before this used `./data/$DB_SVC`. If yours
+> still has data at the old path, the DB container will start on an **empty** directory, re-run
+> `init.sql`, and come up blank — your real data is left untouched at `./data/$DB_SVC`, but the
+> app gets pointed at nothing. With the stack **stopped**, move the datadir into place. This is a
+> no-op on fresh installs and already-migrated hosts (no `./data/$DB_SVC`), and it aborts rather
+> than overwrite a destination that already holds a larger (real) datadir:
+>
+> ```bash
+> docker compose --profile "$DB_TYPE" down          # datadir can't move while the DB holds it
+> TS=$(date +%Y%m%d-%H%M%S)
+> docker run --rm -e TS="$TS" -e SVC="$DB_SVC" -v "$PWD:/proj" alpine sh -c '
+>   srcsz=$(du -sm "/proj/data/$SVC" 2>/dev/null | cut -f1)
+>   if [ -z "$srcsz" ]; then echo "no ./data/$SVC — nothing to relocate"; exit 0; fi
+>   dstsz=$(du -sm "/proj/var/data/$SVC" 2>/dev/null | cut -f1); dstsz=${dstsz:-0}
+>   if [ "$dstsz" -ge "$srcsz" ]; then echo "ABORT: ./var/data/$SVC (${dstsz}MB) >= ./data/$SVC (${srcsz}MB) — inspect manually"; exit 1; fi
+>   if [ -e "/proj/var/data/$SVC" ]; then mv "/proj/var/data/$SVC" "/proj/var/data/$SVC.freshinit-$TS"; fi
+>   mkdir -p /proj/var/data
+>   mv "/proj/data/$SVC" "/proj/var/data/$SVC"
+>   echo "relocated ./data/$SVC -> ./var/data/$SVC ($(du -sm /proj/var/data/$SVC | cut -f1)MB)"
+> '
+> ```
+
 - [ ] Start just the database (service name is `$DB_SVC` — `mysql` or `postgres`) and wait until it actually accepts connections:
   ```bash
   docker compose --profile "$DB_TYPE" up -d "$DB_SVC"

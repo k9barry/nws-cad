@@ -176,6 +176,7 @@ After `gh pr create`, wait for qodo (typically ≤ 2 minutes), then run the qodo
 - **Tests that call a controller** must call `Response::resetForTesting()` in `setUp()` because `Response::json()` no-ops on the second call within a request in testing mode.
 - **`cleanTestDatabase()` uses `DELETE FROM` + `ALTER TABLE ... AUTO_INCREMENT = 1`** — not `TRUNCATE`. Some MySQL versions reject `TRUNCATE` on a parent table referenced by a FK even with `FOREIGN_KEY_CHECKS=0`. Resetting auto-increment is required because several integration tests hard-code primary-key values.
 - **Test DB user** — CI uses `test_user` / `test_pass`; local docker uses `nws_user` / the compose-supplied password. The PHPUnit `<env>` tags in `phpunit.xml` only apply when the env var isn't already set, so the docker container's pre-baked env wins inside it.
+- **Local test DB (`nws_cad_test`) needs the compose test override** — the base `docker-compose.yml` deliberately omits the `test-setup.sql` seed so a production `up -d` never provisions a test DB or `test_user` on the live MySQL. For local testing, bring the stack up with `docker compose -f docker-compose.yml -f docker-compose.test.yml --profile mysql up -d`, or seed an existing volume once via `docker compose exec mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < /docker-entrypoint-initdb.d/zz-test-setup.sql'`. CI (`tests.yml`) provisions its own MySQL service and is unaffected.
 
 ## Key environment variables
 

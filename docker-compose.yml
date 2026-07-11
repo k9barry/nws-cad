@@ -104,7 +104,10 @@ services:
     volumes:
       - ${NWS_VAR_DIR:-./var}/data/mysql:/var/lib/mysql
       - ./database/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - ./database/mysql/test-setup.sql:/docker-entrypoint-initdb.d/zz-test-setup.sql
+      # The nws_cad_test DB + test_user are NOT seeded here — that scaffolding
+      # must never land on a production MySQL. For local testing, opt in with the
+      # override: docker compose -f docker-compose.yml -f docker-compose.test.yml \
+      #   --profile mysql up -d   (see docker-compose.test.yml / docs/TESTING.md).
       - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
     ports:
       - "${MYSQL_PORT:-3306}:3306"
