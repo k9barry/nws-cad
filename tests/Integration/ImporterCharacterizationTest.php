@@ -17,6 +17,7 @@ use PHPUnit\Framework\TestCase;
  *
  * @covers \NwsCad\AegisXmlParser
  * @uses \NwsCad\Import\DateTimeParser
+ * @uses \NwsCad\Import\ValueCaster
  * @uses \NwsCad\Api\DbHelper
  * @uses \NwsCad\Config
  * @uses \NwsCad\Database

@@ -1063,24 +1063,17 @@ class AegisXmlParser implements ParserInterface
 
     private function parseBoolean($value): int
     {
-        $stringValue = strtolower(trim((string)$value));
-        return in_array($stringValue, ['true', '1', 'yes'], true) ? 1 : 0;
+        return \NwsCad\Import\ValueCaster::toBool($value);
     }
 
     private function parseInt(?string $value): ?int
     {
-        if (empty($value) || $value === 'nil' || strpos($value, 'nil="true"') !== false) {
-            return null;
-        }
-        return (int)$value;
+        return \NwsCad\Import\ValueCaster::toInt($value);
     }
 
     private function parseDecimal(?string $value): ?float
     {
-        if (empty($value) || $value === 'nil' || strpos($value, 'nil="true"') !== false) {
-            return null;
-        }
-        return (float)$value;
+        return \NwsCad\Import\ValueCaster::toDecimal($value);
     }
 
     private function xmlToArray(SimpleXMLElement $xml): array
