@@ -118,7 +118,14 @@ class CallsController
                 $rows = [];
             } else {
                 $placeholders = implode(',', array_fill(0, count($ids), '?'));
-                $listSql = 'SELECT calls.*, '
+                // Explicit column list (never calls.*) so the list endpoint does
+                // not drag the heavy xml_data JSON blob per row. These are exactly
+                // the columns the row mapper and isStaleRow() below consume.
+                $listSql = 'SELECT calls.id, calls.call_id, calls.call_number, calls.call_source, '
+                    . 'calls.caller_name, calls.caller_phone, calls.nature_of_call, '
+                    . 'calls.create_datetime, calls.close_datetime, calls.created_by, '
+                    . 'calls.closed_flag, calls.canceled_flag, calls.reopened_flag, '
+                    . 'calls.alarm_level, calls.emd_code, '
                     . 'locations.full_address, locations.city, locations.state, '
                     . 'locations.latitude_y, locations.longitude_x '
                     . 'FROM calls '
@@ -223,7 +230,12 @@ class CallsController
                     l.nearest_cross_streets,
                     l.police_beat,
                     l.ems_district,
-                    l.fire_quadrant
+                    l.fire_quadrant,
+                    -- Fold the three child-row counts into the main query as
+                    -- scalar subqueries instead of three separate round-trips.
+                    (SELECT COUNT(*) FROM units WHERE call_id = c.id) AS unit_count,
+                    (SELECT COUNT(*) FROM narratives WHERE call_id = c.id) AS narrative_count,
+                    (SELECT COUNT(*) FROM persons WHERE call_id = c.id) AS person_count
                 FROM calls c
                 LEFT JOIN locations l ON c.id = l.call_id
                 WHERE c.id = :id
@@ -238,6 +250,10 @@ class CallsController
                 return;
             }
 
+            $unitCount = (int)($call['unit_count'] ?? 0);
+            $narrativeCount = (int)($call['narrative_count'] ?? 0);
+            $personCount = (int)($call['person_count'] ?? 0);
+
             // Get agency contexts
             $sql = "SELECT * FROM agency_contexts WHERE call_id = :call_id";
             $stmt = $this->db->prepare($sql);
@@ -249,24 +265,6 @@ class CallsController
             $stmt = $this->db->prepare($sql);
             $stmt->execute([':call_id' => $call['id']]);
             $incidents = $stmt->fetchAll();
-
-            // Get unit count
-            $sql = "SELECT COUNT(*) FROM units WHERE call_id = :call_id";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([':call_id' => $call['id']]);
-            $unitCount = (int)$stmt->fetchColumn();
-
-            // Get narrative count
-            $sql = "SELECT COUNT(*) FROM narratives WHERE call_id = :call_id";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([':call_id' => $call['id']]);
-            $narrativeCount = (int)$stmt->fetchColumn();
-
-            // Get person count
-            $sql = "SELECT COUNT(*) FROM persons WHERE call_id = :call_id";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([':call_id' => $call['id']]);
-            $personCount = (int)$stmt->fetchColumn();
 
             // Format response
             $response = [

@@ -127,7 +127,12 @@ class UnitsController
                     (SELECT i.incident_number FROM incidents i WHERE i.call_id = u.call_id LIMIT 1) as incident_number,
                     l.full_address,
                     l.city,
-                    l.state
+                    l.state,
+                    -- Fold the three child-row counts into the main query as
+                    -- scalar subqueries instead of three separate round-trips.
+                    (SELECT COUNT(*) FROM unit_personnel WHERE unit_id = u.id) AS personnel_count,
+                    (SELECT COUNT(*) FROM unit_logs WHERE unit_id = u.id) AS log_count,
+                    (SELECT COUNT(*) FROM unit_dispositions WHERE unit_id = u.id) AS disposition_count
                 FROM units u
                 LEFT JOIN calls c ON u.call_id = c.id
                 LEFT JOIN locations l ON c.id = l.call_id
@@ -143,23 +148,9 @@ class UnitsController
                 return;
             }
 
-            // Get personnel count
-            $sql = "SELECT COUNT(*) FROM unit_personnel WHERE unit_id = :unit_id";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([':unit_id' => $unit['id']]);
-            $personnelCount = (int)$stmt->fetchColumn();
-
-            // Get log count
-            $sql = "SELECT COUNT(*) FROM unit_logs WHERE unit_id = :unit_id";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([':unit_id' => $unit['id']]);
-            $logCount = (int)$stmt->fetchColumn();
-
-            // Get disposition count
-            $sql = "SELECT COUNT(*) FROM unit_dispositions WHERE unit_id = :unit_id";
-            $stmt = $this->db->prepare($sql);
-            $stmt->execute([':unit_id' => $unit['id']]);
-            $dispositionCount = (int)$stmt->fetchColumn();
+            $personnelCount = (int)($unit['personnel_count'] ?? 0);
+            $logCount = (int)($unit['log_count'] ?? 0);
+            $dispositionCount = (int)($unit['disposition_count'] ?? 0);
 
             // Format response
             $response = [
