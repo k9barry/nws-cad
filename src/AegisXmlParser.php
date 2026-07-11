@@ -277,13 +277,13 @@ class AegisXmlParser implements ParserInterface
         // Upsert child records (insert new, update existing based on unique constraints)
         $this->logger->debug("Processing child records...");
         $this->insertAgencyContexts($xml, $dbCallId);
-        $this->insertLocation($xml, $dbCallId);
+        (new \NwsCad\Import\Mappers\LocationMapper($this->db))->map($xml, $dbCallId);
         $this->insertIncidents($xml, $dbCallId);
         $this->insertUnits($xml, $dbCallId);
         $this->insertNarratives($xml, $dbCallId);
-        $this->insertPersons($xml, $dbCallId);
-        $this->insertVehicles($xml, $dbCallId);
-        $this->insertCallDispositions($xml, $dbCallId);
+        (new \NwsCad\Import\Mappers\PersonMapper($this->db))->map($xml, $dbCallId);
+        (new \NwsCad\Import\Mappers\VehicleMapper($this->db))->map($xml, $dbCallId);
+        (new \NwsCad\Import\Mappers\CallDispositionMapper($this->db))->map($xml, $dbCallId);
         $this->logger->debug("All child records processed successfully");
 
         return $dbCallId;
@@ -356,88 +356,6 @@ class AegisXmlParser implements ParserInterface
         }
     }
 
-    /**
-     * Insert location
-     */
-    private function insertLocation(SimpleXMLElement $xml, int $callId): void
-    {
-        if (!isset($xml->Location)) {
-            $this->logger->debug("  No location found in XML");
-            return;
-        }
-
-        // locations is logically 1-to-1 with calls. The schema has no UNIQUE
-        // constraint on call_id, so delete any prior row before inserting to
-        // avoid accumulating duplicates when a call is reprocessed (which
-        // surfaces as duplicate rows in the dashboard's Recent Calls list,
-        // since CallsController::index() LEFT JOINs locations and SELECT
-        // DISTINCT cannot collapse rows whose location columns differ).
-        $deleteStmt = $this->db->prepare("DELETE FROM locations WHERE call_id = ?");
-        $deleteStmt->execute([$callId]);
-
-        $this->logger->debug("  Inserting location data...");
-        $loc = $xml->Location;
-        
-        $data = [
-            'call_id' => $callId,
-            'full_address' => (string)$loc->FullAddress ?: null,
-            'house_number' => (string)$loc->HouseNumber ?: null,
-            'house_number_suffix' => (string)$loc->HouseNumberSuffix ?: null,
-            'prefix_directional' => (string)$loc->PrefixDirectional ?: null,
-            'prefix_type' => (string)$loc->PrefixType ?: null,
-            'street_name' => (string)$loc->StreetName ?: null,
-            'street_type' => (string)$loc->StreetType ?: null,
-            'street_directional' => (string)$loc->StreetDirectional ?: null,
-            'city' => (string)$loc->City ?: null,
-            'state' => (string)$loc->State ?: null,
-            'zip' => (string)$loc->Zip ?: null,
-            'zip4' => (string)$loc->Zip4 ?: null,
-            'venue' => (string)$loc->Venue ?: null,
-            'latitude_y' => $this->parseDecimal((string)$loc->LatitudeY),
-            'longitude_x' => $this->parseDecimal((string)$loc->LongitudeX),
-            'common_name' => (string)$loc->CommonName ?: null,
-            'police_beat' => (string)$loc->PoliceBeat ?: null,
-            'ems_district' => (string)$loc->EmsDistrict ?: null,
-            'fire_quadrant' => (string)$loc->FireQuadrant ?: null,
-            'census_tract' => (string)$loc->CensusTract ?: null,
-            'station_area' => (string)$loc->StationArea ?: null,
-            'rural_grid' => (string)$loc->RuralGrid ?: null,
-            'nearest_cross_streets' => (string)$loc->NearestCrossStreets ?: null,
-            'additional_info' => (string)$loc->AdditionalInfo ?: null,
-            'lat_lon_description' => (string)$loc->LatLonDescription ?: null,
-            'qualifier' => (string)$loc->Qualifier ?: null,
-            'custom_layer' => (string)$loc->CustomLayer ?: null,
-            'police_ori' => (string)$loc->PoliceOri ?: null,
-            'ems_ori' => (string)$loc->EmsOri ?: null,
-            'fire_ori' => (string)$loc->FireOri ?: null,
-            'x_street_name' => (string)$loc->XStreetName ?: null,
-            'x_street_type' => (string)$loc->XStreetType ?: null,
-            'x_prefix_directional' => (string)$loc->XPrefixDirectional ?: null,
-            'x_street_directional' => (string)$loc->XStreetDirectional ?: null,
-            'x_prefix_type' => (string)$loc->XPrefixType ?: null
-        ];
-
-        $sql = "INSERT INTO locations (
-            call_id, full_address, house_number, house_number_suffix, prefix_directional,
-            prefix_type, street_name, street_type, street_directional, city, state,
-            zip, zip4, venue, latitude_y, longitude_x, common_name, police_beat,
-            ems_district, fire_quadrant, census_tract, station_area, rural_grid,
-            nearest_cross_streets, additional_info, lat_lon_description, qualifier,
-            custom_layer, police_ori, ems_ori, fire_ori, x_street_name, x_street_type,
-            x_prefix_directional, x_street_directional, x_prefix_type
-        ) VALUES (
-            :call_id, :full_address, :house_number, :house_number_suffix, :prefix_directional,
-            :prefix_type, :street_name, :street_type, :street_directional, :city, :state,
-            :zip, :zip4, :venue, :latitude_y, :longitude_x, :common_name, :police_beat,
-            :ems_district, :fire_quadrant, :census_tract, :station_area, :rural_grid,
-            :nearest_cross_streets, :additional_info, :lat_lon_description, :qualifier,
-            :custom_layer, :police_ori, :ems_ori, :fire_ori, :x_street_name, :x_street_type,
-            :x_prefix_directional, :x_street_directional, :x_prefix_type
-        )";
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($data);
-    }
 
     /**
      * Upsert incidents on (call_id, incident_number). One row per
@@ -699,140 +617,6 @@ class AegisXmlParser implements ParserInterface
         }
     }
 
-    /**
-     * Replace all persons for the call with the latest XML's set
-     * (delete-then-insert). CAD emits the full snapshot so the latest
-     * XML is authoritative.
-     */
-    private function insertPersons(SimpleXMLElement $xml, int $callId): void
-    {
-        $deleteStmt = $this->db->prepare("DELETE FROM persons WHERE call_id = ?");
-        $deleteStmt->execute([$callId]);
-
-        if (!isset($xml->Persons->Person)) {
-            $this->logger->debug("  No persons found in XML");
-            return;
-        }
-
-        $count = count($xml->Persons->Person);
-        $this->logger->debug("  Inserting {$count} person(s)...");
-
-        $sql = "INSERT INTO persons (
-            call_id, first_name, middle_name, last_name, name_suffix,
-            date_of_birth, sex, race, height_inches, weight,
-            eye_color, hair_color, address, contact_phone, role,
-            primary_caller_flag, license_number, license_state,
-            ssn, global_subject_id
-        ) VALUES (
-            :call_id, :first_name, :middle_name, :last_name, :name_suffix,
-            :date_of_birth, :sex, :race, :height_inches, :weight,
-            :eye_color, :hair_color, :address, :contact_phone, :role,
-            :primary_caller_flag, :license_number, :license_state,
-            :ssn, :global_subject_id
-        )";
-        $stmt = $this->db->prepare($sql);
-
-        foreach ($xml->Persons->Person as $person) {
-            $stmt->execute([
-                'call_id' => $callId,
-                'first_name' => (string)$person->FirstName ?: null,
-                'middle_name' => (string)$person->MiddleName ?: null,
-                'last_name' => (string)$person->LastName ?: null,
-                'name_suffix' => (string)$person->NameSuffix ?: null,
-                'date_of_birth' => $this->parseDateTime((string)$person->DateOfBirth),
-                'sex' => (string)$person->Sex ?: null,
-                'race' => (string)$person->Race ?: null,
-                'height_inches' => $this->parseInt((string)$person->HeightInches),
-                'weight' => $this->parseInt((string)$person->Weight),
-                'eye_color' => (string)$person->EyeColor ?: null,
-                'hair_color' => (string)$person->HairColor ?: null,
-                'address' => (string)$person->Address ?: null,
-                'contact_phone' => (string)$person->ContactPhone ?: null,
-                'role' => (string)$person->Role ?: null,
-                'primary_caller_flag' => $this->parseBoolean((string)$person->PrimaryCallerFlag),
-                'license_number' => (string)$person->LicenseNumber ?: null,
-                'license_state' => (string)$person->LicenseState ?: null,
-                'ssn' => (string)$person->SSN ?: null,
-                'global_subject_id' => (string)$person->GlobalSubjectId ?: null,
-            ]);
-        }
-    }
-
-    /**
-     * Replace all vehicles for the call with the latest XML's set
-     * (delete-then-insert).
-     */
-    private function insertVehicles(SimpleXMLElement $xml, int $callId): void
-    {
-        $deleteStmt = $this->db->prepare("DELETE FROM vehicles WHERE call_id = ?");
-        $deleteStmt->execute([$callId]);
-
-        if (!isset($xml->Vehicles->Vehicle)) {
-            $this->logger->debug("  No vehicles found in XML");
-            return;
-        }
-
-        $count = count($xml->Vehicles->Vehicle);
-        $this->logger->debug("  Inserting {$count} vehicle(s)...");
-
-        $sql = "INSERT INTO vehicles (
-            call_id, license_plate, license_state, make, model,
-            year, color, vin, vehicle_type
-        ) VALUES (
-            :call_id, :license_plate, :license_state, :make, :model,
-            :year, :color, :vin, :vehicle_type
-        )";
-        $stmt = $this->db->prepare($sql);
-
-        foreach ($xml->Vehicles->Vehicle as $vehicle) {
-            $stmt->execute([
-                'call_id' => $callId,
-                'license_plate' => (string)$vehicle->LicensePlate ?: null,
-                'license_state' => (string)$vehicle->LicenseState ?: null,
-                'make' => (string)$vehicle->Make ?: null,
-                'model' => (string)$vehicle->Model ?: null,
-                'year' => (int)$vehicle->Year ?: null,
-                'color' => (string)$vehicle->Color ?: null,
-                'vin' => (string)$vehicle->VIN ?: null,
-                'vehicle_type' => (string)$vehicle->Type ?: null,
-            ]);
-        }
-    }
-
-    /**
-     * Replace all call dispositions for the call with the latest XML's set
-     * (delete-then-insert).
-     */
-    private function insertCallDispositions(SimpleXMLElement $xml, int $callId): void
-    {
-        $deleteStmt = $this->db->prepare("DELETE FROM call_dispositions WHERE call_id = ?");
-        $deleteStmt->execute([$callId]);
-
-        if (!isset($xml->Dispositions->CallDisposition)) {
-            $this->logger->debug("  No call dispositions found in XML");
-            return;
-        }
-
-        $count = count($xml->Dispositions->CallDisposition);
-        $this->logger->debug("  Inserting {$count} call disposition(s)...");
-
-        $sql = "INSERT INTO call_dispositions (
-            call_id, disposition_name, description, count, disposition_datetime
-        ) VALUES (
-            :call_id, :disposition_name, :description, :count, :disposition_datetime
-        )";
-        $stmt = $this->db->prepare($sql);
-
-        foreach ($xml->Dispositions->CallDisposition as $disp) {
-            $stmt->execute([
-                'call_id' => $callId,
-                'disposition_name' => (string)$disp->Name ?: null,
-                'description' => (string)$disp->Description ?: null,
-                'count' => $this->parseInt((string)$disp->Count),
-                'disposition_datetime' => $this->parseDateTime((string)$disp->DateTime),
-            ]);
-        }
-    }
 
     /**
      * Helper methods
@@ -854,11 +638,6 @@ class AegisXmlParser implements ParserInterface
     private function parseInt(?string $value): ?int
     {
         return \NwsCad\Import\ValueCaster::toInt($value);
-    }
-
-    private function parseDecimal(?string $value): ?float
-    {
-        return \NwsCad\Import\ValueCaster::toDecimal($value);
     }
 
     private function xmlToArray(SimpleXMLElement $xml): array

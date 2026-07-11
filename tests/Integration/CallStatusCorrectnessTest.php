@@ -19,6 +19,10 @@ use PHPUnit\Framework\TestCase;
  * @uses \NwsCad\Import\ReopenDetector
  * @uses \NwsCad\Db\UpsertBuilder
  * @uses \NwsCad\Api\DbHelper
+ * @uses \NwsCad\Import\Mappers\LocationMapper
+ * @uses \NwsCad\Import\Mappers\PersonMapper
+ * @uses \NwsCad\Import\Mappers\VehicleMapper
+ * @uses \NwsCad\Import\Mappers\CallDispositionMapper
  * @uses \NwsCad\Config
  * @uses \NwsCad\Database
  * @uses \NwsCad\FilenameParser
