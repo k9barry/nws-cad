@@ -213,3 +213,108 @@ jobs:
           if [ "$COVERAGE_BELOW_THRESHOLD" = "true" ]; then
             echo "⚠️  **Warning:** Code coverage is below 80% threshold" >> $GITHUB_STEP_SUMMARY
           fi
+
+  # PostgreSQL job: exercises the pgsql driver paths (parser UPSERT branches,
+  # DbHelper dialect switches) that the MySQL job never runs. Non-blocking
+  # (continue-on-error) until the pgsql suite is fully green — see #48. The
+  # importer characterization suite already passes on both drivers; the rest
+  # is being brought up incrementally.
+  test-postgres:
+    name: PostgreSQL ${{ matrix.php-version }} Tests
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.3']
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: nws_cad_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test_user"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: pdo, pdo_pgsql, xml, simplexml
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Wait for PostgreSQL
+        run: |
+          echo "Waiting for PostgreSQL to be ready..."
+          max_attempts=30
+          attempt=0
+          until pg_isready -h 127.0.0.1 -U test_user; do
+            attempt=$((attempt + 1))
+            if [ $attempt -ge $max_attempts ]; then
+              echo "::error::PostgreSQL failed to become ready after $max_attempts attempts"
+              exit 1
+            fi
+            echo "Attempt $attempt/$max_attempts: Waiting for PostgreSQL..."
+            sleep 2
+          done
+          echo "::notice::PostgreSQL is ready and accepting connections"
+
+      - name: Create database schema
+        env:
+          PGPASSWORD: test_pass
+        run: |
+          echo "Loading PostgreSQL schema into nws_cad_test..."
+          psql -h 127.0.0.1 -U test_user -d nws_cad_test -v ON_ERROR_STOP=1 -f database/postgres/init.sql
+          echo "::notice::PostgreSQL schema created successfully"
+
+      - name: Run Unit Tests
+        run: composer run-script test:unit
+        env:
+          DB_TYPE: pgsql
+          POSTGRES_HOST: 127.0.0.1
+          POSTGRES_PORT: 5432
+          # bootstrap.php treats POSTGRES_DB as the production name and redirects
+          # to POSTGRES_TEST_DATABASE before any TRUNCATE runs. Distinct values
+          # satisfy the safety guard; only nws_cad_test actually exists.
+          POSTGRES_DB: nws_cad
+          POSTGRES_TEST_DATABASE: nws_cad_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+
+      - name: Run Integration Tests
+        run: composer run-script test:integration
+        env:
+          DB_TYPE: pgsql
+          POSTGRES_HOST: 127.0.0.1
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: nws_cad
+          POSTGRES_TEST_DATABASE: nws_cad_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+
+      - name: Run Security Tests
+        run: composer run-script test:security
+        env:
+          DB_TYPE: pgsql
+          POSTGRES_HOST: 127.0.0.1
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: nws_cad
+          POSTGRES_TEST_DATABASE: nws_cad_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
