@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.2] - 2026-07-12
+
+## Fixes
+
+- fix(db): correct pgsql boolean handling in call UPSERT and test seeds (#64) (9d7beaa)
+
+
 ## [2.1.1] - 2026-07-12
 
 ## Fixes
