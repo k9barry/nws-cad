@@ -28,7 +28,7 @@ class NotificationSendLogTableTest extends TestCase
         cleanTestDatabase();
 
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('test', 'ntfy', 0, 'u', '{}')");
+            VALUES ('test', 'ntfy', FALSE, 'u', '{}')");
         $channelId = (int) self::$db->lastInsertId();
 
         $stmt = self::$db->prepare("INSERT INTO notification_send_log
@@ -45,7 +45,7 @@ class NotificationSendLogTableTest extends TestCase
         cleanTestDatabase();
 
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('cascade', 'ntfy', 0, 'u', '{}')");
+            VALUES ('cascade', 'ntfy', FALSE, 'u', '{}')");
         $channelId = (int) self::$db->lastInsertId();
 
         self::$db->prepare("INSERT INTO notification_send_log

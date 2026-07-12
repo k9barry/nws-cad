@@ -49,7 +49,7 @@ class OutboxControllerTest extends TestCase
         self::$db->exec("INSERT INTO calls (call_id, call_number, create_datetime) VALUES (1, 'C-1', '2026-05-07 12:00:00')");
         $this->callId = (int) self::$db->lastInsertId();
 
-        self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json) VALUES ('ntfy_primary', 'ntfy', 1, 'https://x', '{}')");
+        self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json) VALUES ('ntfy_primary', 'ntfy', TRUE, 'https://x', '{}')");
         $this->channelId = (int) self::$db->lastInsertId();
     }
 
@@ -228,7 +228,7 @@ class OutboxControllerTest extends TestCase
     public function testShowReturnsRowAndHistory(): void
     {
         $id = $this->insertPending();
-        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Created', 't1', 0, 503, 99, 'HTTP 503')");
+        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Created', 't1', FALSE, 503, 99, 'HTTP 503')");
 
         $controller = new OutboxController($this->repo);
         ob_start();

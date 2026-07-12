@@ -96,7 +96,7 @@ final class OutboxEndToEndTest extends TestCase
         self::$db->exec("INSERT INTO units (call_id, unit_number) VALUES ({$callId}, 'E1')");
 
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-                         VALUES ('stub_primary', 'stub', 1, 'https://stub.example', '{}')");
+                         VALUES ('stub_primary', 'stub', TRUE, 'https://stub.example', '{}')");
         $channelId = (int) self::$db->lastInsertId();
 
         $outboxRepo  = new OutboxRepository(self::$db);

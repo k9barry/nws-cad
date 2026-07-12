@@ -84,7 +84,7 @@ final class WebhookEndToEndTest extends TestCase
             ]);
             $stmt = self::$db->prepare(
                 "INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-                 VALUES ('test', 'webhook', 1, ?, ?)"
+                 VALUES ('test', 'webhook', TRUE, ?, ?)"
             );
             $stmt->execute(["http://127.0.0.1:{$server['port']}/", $configJson]);
             $channelId = (int) self::$db->lastInsertId();

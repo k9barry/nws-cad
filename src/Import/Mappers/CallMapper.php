@@ -71,8 +71,8 @@ final class CallMapper
                 closed_flag = :closed_flag,
                 canceled_flag = :canceled_flag,
                 reopened_flag = CASE
-                    WHEN :incoming_closed = 1 THEN 0
-                    WHEN :detected_reopen = 1 THEN 1
+                    WHEN :incoming_closed = '1' THEN FALSE
+                    WHEN :detected_reopen = '1' THEN TRUE
                     ELSE reopened_flag
                 END,
                 alarm_level = :alarm_level,

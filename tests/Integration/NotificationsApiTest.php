@@ -84,8 +84,8 @@ class NotificationsApiTest extends TestCase
     public function testChannelsReturnsRows(): void
     {
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('one', 'ntfy', 1, 'u', '{}'),
-                   ('two', 'pushover', 0, 'u', '{}')");
+            VALUES ('one', 'ntfy', TRUE, 'u', '{}'),
+                   ('two', 'pushover', FALSE, 'u', '{}')");
 
         $controller = new NotificationsController();
         ob_start();
@@ -100,7 +100,7 @@ class NotificationsApiTest extends TestCase
     public function testLogReturnsRecentRowsForChannel(): void
     {
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('c', 'ntfy', 1, 'u', '{}')");
+            VALUES ('c', 'ntfy', TRUE, 'u', '{}')");
         $channelId = (int) self::$db->lastInsertId();
 
         $stmt = self::$db->prepare("INSERT INTO notification_send_log
@@ -151,7 +151,7 @@ class NotificationsApiTest extends TestCase
         $_ENV['NTFY_AUTH_TOKEN'] = 'token';
 
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('ntfy_primary', 'ntfy', 0, 'https://existing', '{\"auth_token_env\":\"NTFY_AUTH_TOKEN\"}')");
+            VALUES ('ntfy_primary', 'ntfy', FALSE, 'https://existing', '{\"auth_token_env\":\"NTFY_AUTH_TOKEN\"}')");
 
         $controller = new NotificationsController();
         ob_start();
@@ -197,7 +197,7 @@ class NotificationsApiTest extends TestCase
     public function testDisableSetsEnabledToZero(): void
     {
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('ntfy_primary', 'ntfy', 1, 'u', '{}')");
+            VALUES ('ntfy_primary', 'ntfy', TRUE, 'u', '{}')");
 
         $controller = new NotificationsController();
         ob_start();
@@ -247,7 +247,7 @@ class NotificationsApiTest extends TestCase
     public function testTestReturns422WhenChannelDisabled(): void
     {
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('ntfy_primary', 'ntfy', 0, 'u', '{}')");
+            VALUES ('ntfy_primary', 'ntfy', FALSE, 'u', '{}')");
 
         $controller = new NotificationsController();
         ob_start();
@@ -261,7 +261,7 @@ class NotificationsApiTest extends TestCase
     public function testTestSendsAndLogsSuccess(): void
     {
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('ntfy_primary', 'ntfy', 1, 'https://ntfy.example', '{\"auth_token_env\":\"NTFY_AUTH_TOKEN\"}')");
+            VALUES ('ntfy_primary', 'ntfy', TRUE, 'https://ntfy.example', '{\"auth_token_env\":\"NTFY_AUTH_TOKEN\"}')");
         $channelId = (int) self::$db->lastInsertId();
 
         $stub = new class implements \NwsCad\Notifications\NotificationChannel {
@@ -304,7 +304,7 @@ class NotificationsApiTest extends TestCase
     public function testTestLogsFailureWhenChannelReturnsFail(): void
     {
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('ntfy_primary', 'ntfy', 1, 'u', '{}')");
+            VALUES ('ntfy_primary', 'ntfy', TRUE, 'u', '{}')");
 
         $stub = new class implements \NwsCad\Notifications\NotificationChannel {
             public static function descriptor(): \NwsCad\Notifications\ChannelDescriptor {
