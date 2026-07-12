@@ -84,15 +84,28 @@ jobs:
             exit 0
           fi
 
-          # workflow_run after Release: only deploy if a version was actually
-          # cut, i.e. the tip of main is the release commit that Release pushes.
+          # workflow_run after Release: deploy only when a version was actually
+          # cut on this run — i.e. the newest v* tag points at the CURRENT tip of
+          # main AND that tip is the `chore(release):` commit Release pushes.
+          # Keying off tag→tip identity (not just the tip's subject) makes the
+          # decision deterministic: if main advanced past the release commit
+          # before this gate ran, TAG_SHA != HEAD_SHA and we safely decline
+          # rather than resolve a stale/wrong tag.
+          #
+          # NOTE: github.event.workflow_run.head_sha is deliberately NOT used —
+          # it is the PRE-release commit that triggered Release; Release then
+          # creates the release commit + tag as a CHILD of it, so head_sha never
+          # carries the release commit or the tag.
           SUBJECT="$(git log -1 --pretty=%s)"
-          if printf '%s' "$SUBJECT" | grep -qE '^chore\(release\): v'; then
-            echo "Release commit at tip of main: '$SUBJECT' -> deploying '$LATEST_TAG'."
+          HEAD_SHA="$(git rev-parse HEAD)"
+          TAG_SHA="$(git rev-list -n1 "$LATEST_TAG" 2>/dev/null || echo '')"
+          if [ -n "$LATEST_TAG" ] && [ "$TAG_SHA" = "$HEAD_SHA" ] \
+             && printf '%s' "$SUBJECT" | grep -qE '^chore\(release\): v'; then
+            echo "Fresh release $LATEST_TAG at tip of main -> deploying."
             echo "should_deploy=true" >> "$GITHUB_OUTPUT"
             echo "tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
           else
-            echo "Tip of main is not a release commit ('$SUBJECT') — no deploy."
+            echo "No fresh release at tip of main (tip='$SUBJECT', latest tag='$LATEST_TAG') — no deploy."
             echo "should_deploy=false" >> "$GITHUB_OUTPUT"
           fi
 

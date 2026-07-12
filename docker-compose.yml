@@ -219,7 +219,11 @@ services:
   # whose ping fails while the daemon hangs). Watches labels only — no profile,
   # so it runs for both mysql and pgsql deployments.
   autoheal:
-    image: willfarrell/autoheal:latest
+    # Pinned (not :latest) for reproducible deploys. This container has RW access
+    # to the Docker socket (required to issue restarts — see the volume note
+    # below), so it is highly privileged; pinning avoids silently pulling a
+    # changed upstream image. Bump deliberately; optionally add an @sha256 digest.
+    image: willfarrell/autoheal:1.2.0
     container_name: nws-cad-autoheal
     restart: unless-stopped
     logging: *default-logging

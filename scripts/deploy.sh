@@ -109,29 +109,42 @@ wait_for_db() {
 }
 
 apply_migrations() {
-    local dir="database/migrations" f
+    local dir="database/migrations" f applied=0
     [ -d "$dir" ] || { warn "No $dir directory; skipping migrations."; return 0; }
+    # nullglob: a non-matching glob expands to nothing (not the literal pattern),
+    # so an empty migration set is a clean no-op. Glob expansion is lexically
+    # sorted, which matches the date-prefixed migration filenames. Avoids parsing
+    # `ls` output entirely.
+    shopt -s nullglob
     if [ "$DB_TYPE" = mysql ]; then
         local rootpw db
         rootpw="$(read_env MYSQL_ROOT_PASSWORD root_password)"
         db="$(read_env MYSQL_DATABASE nws_cad)"
         # MySQL migrations are *.sql, excluding the *.pgsql.sql Postgres variants.
-        for f in $(ls "$dir"/*.sql 2>/dev/null | grep -v '\.pgsql\.sql$' | sort); do
+        for f in "$dir"/*.sql; do
+            case "$f" in *.pgsql.sql) continue ;; esac
             say "  migration: $f"
             docker exec -i nws-cad-mysql mysql -u root -p"$rootpw" "$db" < "$f" \
-                || { err "Migration failed: $f"; return 1; }
+                || { err "Migration failed: $f"; shopt -u nullglob; return 1; }
+            applied=$((applied + 1))
         done
     else
         local pguser pgdb
         pguser="$(read_env POSTGRES_USER nws_user)"
         pgdb="$(read_env POSTGRES_DB nws_cad)"
-        for f in $(ls "$dir"/*.pgsql.sql 2>/dev/null | sort); do
+        for f in "$dir"/*.pgsql.sql; do
             say "  migration: $f"
             docker exec -i nws-cad-postgres psql -U "$pguser" -d "$pgdb" -v ON_ERROR_STOP=1 -f - < "$f" \
-                || { err "Migration failed: $f"; return 1; }
+                || { err "Migration failed: $f"; shopt -u nullglob; return 1; }
+            applied=$((applied + 1))
         done
     fi
-    ok "Migrations applied."
+    shopt -u nullglob
+    if [ "$applied" -eq 0 ]; then
+        ok "No migrations to apply for $DB_TYPE."
+    else
+        ok "Migrations applied ($applied)."
+    fi
 }
 
 verify_health() {
