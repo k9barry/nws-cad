@@ -9,12 +9,12 @@ use NwsCad\Database;
 use NwsCad\Notifications\Events\Intent;
 use NwsCad\Notifications\Outbox\OutboxRepository;
 use PDO;
-use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
-#[CoversClass(OutboxRepository::class)]
-#[UsesClass(Intent::class)]
+/**
+ * @covers \NwsCad\Notifications\Outbox\OutboxRepository
+ * @uses \NwsCad\Notifications\Events\Intent
+ */
 final class OutboxRepositoryTest extends TestCase
 {
     private static PDO $db;
