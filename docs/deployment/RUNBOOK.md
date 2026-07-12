@@ -161,9 +161,10 @@ By default `docker-compose.yml` publishes the API on `${API_PORT:-8080}:8080`,
 which binds **all** host interfaces — access is not restricted at the socket.
 Enforcement is in the app: `TrustedProxy::guard()` rejects any request whose
 `REMOTE_ADDR` is outside `TRUSTED_PROXY_CIDRS` (default `127.0.0.1/32,::1/128`).
-For defense in depth, also restrict the published port to loopback by changing
-the `api` service's port mapping to `127.0.0.1:${API_PORT}:8080` so only the
-co-located proxy can reach it. Put Caddy or nginx in front (samples in
+For defense in depth, also restrict the published ports to loopback by setting
+`BIND_ADDR=127.0.0.1` in `.env` — this moves the API, DB, and Dozzle ports to
+`127.0.0.1` only, so just the co-located proxy (and SSH tunnels) can reach
+them. Put Caddy or nginx in front (samples in
 `docs/deployment/caddy.example` / `nginx.example`). The proxy must:
 - Terminate TLS and run HTTP Basic auth.
 - **Strip any inbound `X-Auth-User`** before auth, then set it to the authenticated user.
@@ -197,6 +198,10 @@ co-located proxy can reach it. Put Caddy or nginx in front (samples in
 ---
 
 ### Notes
+- **Self-healing:** the stack runs a `willfarrell/autoheal` sidecar that restarts any
+  container whose healthcheck flips to **unhealthy** (`app`, `api`, `mysql`, `postgres`
+  are labeled `autoheal=true`). This complements `restart: unless-stopped`, which only
+  reacts to a process *exit*. See `docs/deployment/README.md`.
 - Keep `WATCHER_INTERVAL` ≤ 30s (default 5s) or the 60s heartbeat healthcheck flaps.
 - `COMPOSE_PROFILES` must match `DB_TYPE`, or no database starts and `app`/`api` block on `service_healthy`.
 - This runbook supersedes the need for draft PR #38 (auto-migrate on startup): Step 4 applies the same migrations manually. If you prefer self-healing startup instead, that PR is the place to revive it.

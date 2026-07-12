@@ -1,3 +1,11 @@
+# Shared container-log rotation caps so a chatty/looping service can't fill the
+# host disk. Applied to every service via the *default-logging alias.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # PHP Application Service (File Watcher)
   app:
@@ -9,6 +17,11 @@ services:
         TZ: ${TZ:-UTC}
     container_name: nws-cad-app
     restart: unless-stopped
+    # Restarted by the `autoheal` service when the healthcheck below flips to
+    # unhealthy (e.g. watcher heartbeat goes stale but the process lingers).
+    labels:
+      - autoheal=true
+    logging: *default-logging
     working_dir: /var/www
     volumes:
       - ./:/var/www
@@ -63,8 +76,17 @@ services:
       args:
         TZ: ${TZ:-UTC}
     container_name: nws-cad-api
+    restart: unless-stopped
+    labels:
+      - autoheal=true
+    logging: *default-logging
+    # BIND_ADDR defaults to 0.0.0.0 (all interfaces, unchanged from prior
+    # releases). Set BIND_ADDR=127.0.0.1 in .env to publish loopback-only so
+    # only a co-located reverse proxy can reach the API (see
+    # docs/deployment/README.md — the app-level TrustedProxy guard still runs
+    # regardless).
     ports:
-      - "${API_PORT:-8080}:8080"
+      - "${BIND_ADDR:-0.0.0.0}:${API_PORT:-8080}:8080"
     volumes:
       - ./public:/var/www/public
       - ./src:/var/www/src
@@ -94,6 +116,9 @@ services:
     image: mysql:8.0
     container_name: nws-cad-mysql
     restart: unless-stopped
+    labels:
+      - autoheal=true
+    logging: *default-logging
     profiles:
       - mysql
     environment:
@@ -109,8 +134,10 @@ services:
       # override: docker compose -f docker-compose.yml -f docker-compose.test.yml \
       #   --profile mysql up -d   (see docker-compose.test.yml / docs/TESTING.md).
       - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+    # Set BIND_ADDR=127.0.0.1 in .env to stop exposing the DB port on all host
+    # interfaces (recommended for production).
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "${BIND_ADDR:-0.0.0.0}:${MYSQL_PORT:-3306}:3306"
     networks:
       - nws-cad-network
     healthcheck:
@@ -124,6 +151,9 @@ services:
     image: postgres:16
     container_name: nws-cad-postgres
     restart: unless-stopped
+    labels:
+      - autoheal=true
+    logging: *default-logging
     profiles:
       - pgsql
     environment:
@@ -134,8 +164,10 @@ services:
     volumes:
       - ${NWS_VAR_DIR:-./var}/data/postgres:/var/lib/postgresql/data
       - ./database/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    # Set BIND_ADDR=127.0.0.1 in .env to stop exposing the DB port on all host
+    # interfaces (recommended for production).
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${BIND_ADDR:-0.0.0.0}:${POSTGRES_PORT:-5432}:5432"
     networks:
       - nws-cad-network
     healthcheck:
@@ -158,8 +190,11 @@ services:
     image: amir20/dozzle:latest
     container_name: nws-cad-dozzle
     restart: unless-stopped
+    logging: *default-logging
+    # Dozzle exposes container logs — keep it loopback-only in production by
+    # setting BIND_ADDR=127.0.0.1 (reach it via the reverse proxy / SSH tunnel).
     ports:
-      - "${DOZZLE_PORT:-8081}:8080"
+      - "${BIND_ADDR:-0.0.0.0}:${DOZZLE_PORT:-8081}:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./docker/dozzle/users.yml:/data/users.yml:ro
@@ -176,6 +211,33 @@ services:
       timeout: 30s
       retries: 5
       start_period: 30s
+
+  # Autoheal — restarts any container labeled `autoheal=true` when Docker
+  # reports its healthcheck as unhealthy. `restart: unless-stopped` only reacts
+  # to a *process exit*; this covers the case where a process lingers but its
+  # healthcheck fails (a wedged watcher whose heartbeat goes stale, or a DB
+  # whose ping fails while the daemon hangs). Watches labels only — no profile,
+  # so it runs for both mysql and pgsql deployments.
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: nws-cad-autoheal
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      - TZ=${TZ:-UTC}
+      # Only touch containers we explicitly opted in via `autoheal=true`.
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      # Poll interval (seconds) for checking container health.
+      - AUTOHEAL_INTERVAL=${AUTOHEAL_INTERVAL:-10}
+      # Grace window after a container starts before it's eligible for a restart.
+      - AUTOHEAL_START_PERIOD=${AUTOHEAL_START_PERIOD:-60}
+      # Give the container a clean stop before SIGKILL.
+      - AUTOHEAL_DEFAULT_STOP_TIMEOUT=${AUTOHEAL_DEFAULT_STOP_TIMEOUT:-30}
+    volumes:
+      # Needs the Docker API to issue restarts (read-write, unlike Dozzle).
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - nws-cad-network
 
 networks:
   nws-cad-network:

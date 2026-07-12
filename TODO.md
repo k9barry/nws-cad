@@ -2,15 +2,13 @@
 
 Open work items not yet scheduled. Add new items at the top with a date.
 
-## 2026-05-08
+_No open items._
 
-- **Auto-restart unhealthy containers.** Today, `docker-compose.yml` uses
-  `restart: unless-stopped`, which only restarts containers on *exit*. If a
-  container's healthcheck flips to `unhealthy` but the process keeps running
-  (e.g. the watcher's heartbeat goes stale because of a deadlock, or the
-  `mysql` healthcheck fails while mysqld lingers), nothing kicks it.
-  Investigate adding `willfarrell/autoheal` (or equivalent) to the compose
-  stack so any container with `autoheal=true` label gets restarted when
-  Docker reports it unhealthy. Pair this with the existing watcher heartbeat
-  and `/api/health` endpoint so a wedged process actually gets recovered
-  without manual intervention.
+## Done
+
+- **Auto-restart unhealthy containers** (2026-05-08 → done 2026-07-12). Added a
+  `willfarrell/autoheal` sidecar to `docker-compose.yml` that restarts any
+  container labeled `autoheal=true` (`app`, `api`, `mysql`, `postgres`) when
+  Docker reports its healthcheck unhealthy. This covers wedged processes that
+  don't exit (stale watcher heartbeat, hung DB ping), which
+  `restart: unless-stopped` alone misses.
