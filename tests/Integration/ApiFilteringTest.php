@@ -13,6 +13,7 @@ use PHPUnit\Framework\TestCase;
  * @covers \NwsCad\Api\Controllers\CallsController
  * @covers \NwsCad\Api\Controllers\UnitsController
  * @covers \NwsCad\Api\Controllers\StatsController
+ * @uses \NwsCad\Database
  */
 class ApiFilteringTest extends TestCase
 {
