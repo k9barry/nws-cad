@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0] - 2026-07-12
+
+## Features
+
+- feat(deploy): self-hosted CD pipeline + compose stack hardening (#62) (d3dddac)
+
+
 ## [2.0.4] - 2026-07-12
 
 ## Fixes
