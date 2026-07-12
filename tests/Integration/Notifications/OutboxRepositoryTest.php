@@ -39,7 +39,7 @@ final class OutboxRepositoryTest extends TestCase
         self::$db->exec("INSERT INTO calls (call_id, call_number, create_datetime) VALUES (1, 'C-1', '2026-05-07 12:00:00')");
         $this->callId = (int) self::$db->lastInsertId();
 
-        self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json) VALUES ('ntfy_primary', 'ntfy', 1, 'https://x', '{}')");
+        self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json) VALUES ('ntfy_primary', 'ntfy', TRUE, 'https://x', '{}')");
         $this->channelId = (int) self::$db->lastInsertId();
     }
 
@@ -335,14 +335,14 @@ final class OutboxRepositoryTest extends TestCase
     public function testListSendHistoryFiltersByChannelCallAndIntent(): void
     {
         // Two matching entries plus one mismatching channel.
-        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Created', 't1', 1, 200, 42, NULL)");
-        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Created', 't1', 0, 503, 91, 'HTTP 503')");
-        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Updated', 't1', 1, 200, 50, NULL)");
+        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Created', 't1', TRUE, 200, 42, NULL)");
+        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Created', 't1', FALSE, 503, 91, 'HTTP 503')");
+        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Updated', 't1', TRUE, 200, 50, NULL)");
 
         // Different channel.
-        self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json) VALUES ('other', 'pushover', 1, 'https://x', '{}')");
+        self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json) VALUES ('other', 'pushover', TRUE, 'https://x', '{}')");
         $otherChannelId = (int) self::$db->lastInsertId();
-        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$otherChannelId}, {$this->callId}, 'Created', 't1', 1, 200, 30, NULL)");
+        self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$otherChannelId}, {$this->callId}, 'Created', 't1', TRUE, 200, 30, NULL)");
 
         $history = $this->repo->listSendHistory($this->channelId, $this->callId, 'Created', 50);
         $this->assertCount(2, $history);
@@ -354,7 +354,7 @@ final class OutboxRepositoryTest extends TestCase
     public function testListSendHistoryHonorsLimit(): void
     {
         for ($i = 0; $i < 5; $i++) {
-            self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Created', 't1', 1, 200, 10, NULL)");
+            self::$db->exec("INSERT INTO notification_send_log (channel_id, call_id, intent, topic, ok, http_status, duration_ms, error) VALUES ({$this->channelId}, {$this->callId}, 'Created', 't1', TRUE, 200, 10, NULL)");
         }
         $history = $this->repo->listSendHistory($this->channelId, $this->callId, 'Created', 3);
         $this->assertCount(3, $history);

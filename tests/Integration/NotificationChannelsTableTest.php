@@ -28,7 +28,7 @@ class NotificationChannelsTableTest extends TestCase
         cleanTestDatabase();
 
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('ntfy_primary', 'ntfy', 0, 'https://ntfy.example', '{}')");
+            VALUES ('ntfy_primary', 'ntfy', FALSE, 'https://ntfy.example', '{}')");
 
         $row = self::$db->query("SELECT name, type, enabled, base_url FROM notification_channels WHERE name='ntfy_primary'")->fetch();
 
@@ -41,11 +41,11 @@ class NotificationChannelsTableTest extends TestCase
     {
         cleanTestDatabase();
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('dup', 'ntfy', 0, 'u', '{}')");
+            VALUES ('dup', 'ntfy', FALSE, 'u', '{}')");
 
         $this->expectException(\PDOException::class);
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('dup', 'pushover', 0, 'u', '{}')");
+            VALUES ('dup', 'pushover', FALSE, 'u', '{}')");
     }
 
     public function testHasLastUpdatedActorColumn(): void

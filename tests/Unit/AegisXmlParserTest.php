@@ -544,7 +544,7 @@ XML;
         cleanTestDatabase();
 
         $db = Database::getConnection();
-        $db->exec("INSERT INTO ref_agencies (code,label,kind,fdid,active,sort_order) VALUES ('FOO_FD','Foo Fire','fire','48099',1,100)");
+        $db->exec("INSERT INTO ref_agencies (code,label,kind,fdid,active,sort_order) VALUES ('FOO_FD','Foo Fire','fire','48099',TRUE,100)");
 
         $xml = $this->buildXmlWithAgencyType('Foo Fire');
         $tmpPath = sys_get_temp_dir() . '/fdid_fallback_' . uniqid() . '.xml';

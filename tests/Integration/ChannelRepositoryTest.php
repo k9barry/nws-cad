@@ -41,8 +41,8 @@ class ChannelRepositoryTest extends TestCase
     public function testListEnabledReturnsOnlyEnabledChannels(): void
     {
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('on', 'ntfy', 1, 'https://ntfy.example', '{\"auth_token_env\":\"NTFY_AUTH_TOKEN\"}'),
-                   ('off', 'ntfy', 0, 'https://ntfy.example', '{}')");
+            VALUES ('on', 'ntfy', TRUE, 'https://ntfy.example', '{\"auth_token_env\":\"NTFY_AUTH_TOKEN\"}'),
+                   ('off', 'ntfy', FALSE, 'https://ntfy.example', '{}')");
 
         $repo = new ChannelRepository();
         $rows = $repo->listEnabled();
@@ -54,7 +54,7 @@ class ChannelRepositoryTest extends TestCase
     public function testRecordSendInsertsAndPrunesPerChannel(): void
     {
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('c', 'ntfy', 0, 'u', '{}')");
+            VALUES ('c', 'ntfy', FALSE, 'u', '{}')");
         $channelId = (int) self::$db->lastInsertId();
 
         $repo = new ChannelRepository();
@@ -69,7 +69,7 @@ class ChannelRepositoryTest extends TestCase
     public function testMarkFailureUpdatesLastErrorFields(): void
     {
         self::$db->exec("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-            VALUES ('f', 'ntfy', 1, 'u', '{}')");
+            VALUES ('f', 'ntfy', TRUE, 'u', '{}')");
         $channelId = (int) self::$db->lastInsertId();
 
         $repo = new ChannelRepository();
@@ -84,7 +84,7 @@ class ChannelRepositoryTest extends TestCase
     {
         self::$db->exec(
             "INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-             VALUES ('ntfy_primary', 'ntfy', 1, 'https://ntfy.example', '{}')"
+             VALUES ('ntfy_primary', 'ntfy', TRUE, 'https://ntfy.example', '{}')"
         );
         $id = (int) self::$db->lastInsertId();
 
