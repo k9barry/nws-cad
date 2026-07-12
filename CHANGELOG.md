@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.4] - 2026-07-12
+
+## Fixes
+
+- fix(db): green the PostgreSQL CI job — remaining cross-DB dialect gaps (#66) (d89c70a)
+
+
 ## [2.1.3] - 2026-07-12
 
 ## Fixes
