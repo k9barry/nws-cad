@@ -68,6 +68,7 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           INPUT_REF: ${{ github.event.inputs.ref }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           git fetch --tags --force origin >/dev/null 2>&1 || true
@@ -84,28 +85,34 @@ jobs:
             exit 0
           fi
 
-          # workflow_run after Release: deploy only when a version was actually
-          # cut on this run — i.e. the newest v* tag points at the CURRENT tip of
-          # main AND that tip is the `chore(release):` commit Release pushes.
-          # Keying off tag→tip identity (not just the tip's subject) makes the
-          # decision deterministic: if main advanced past the release commit
-          # before this gate ran, TAG_SHA != HEAD_SHA and we safely decline
-          # rather than resolve a stale/wrong tag.
+          # workflow_run after Release: deploy only the release THIS run produced,
+          # resolved deterministically from the triggering Release run's head SHA.
           #
-          # NOTE: github.event.workflow_run.head_sha is deliberately NOT used —
-          # it is the PRE-release commit that triggered Release; Release then
-          # creates the release commit + tag as a CHILD of it, so head_sha never
-          # carries the release commit or the tag.
-          SUBJECT="$(git log -1 --pretty=%s)"
-          HEAD_SHA="$(git rev-parse HEAD)"
-          TAG_SHA="$(git rev-list -n1 "$LATEST_TAG" 2>/dev/null || echo '')"
-          if [ -n "$LATEST_TAG" ] && [ "$TAG_SHA" = "$HEAD_SHA" ] \
-             && printf '%s' "$SUBJECT" | grep -qE '^chore\(release\): v'; then
-            echo "Fresh release $LATEST_TAG at tip of main -> deploying."
+          # Release runs on the pushed commit (workflow_run.head_sha), then creates
+          # the `chore(release): vX.Y.Z` commit as a DIRECT CHILD of it and tags
+          # that child. So the release this run cut is the v* tag whose commit's
+          # parent is exactly head_sha — a stable link that does NOT depend on
+          # where main's tip has since moved (addresses the moving-tip race). No
+          # such tag => the run was a no-release push (docs/chore) and we decline.
+          #
+          # head_sha itself is the PRE-release commit and never carries the tag
+          # (`git tag --points-at head_sha` is empty) — parentage is the correct
+          # link, not points-at.
+          RELEASE_TAG=""
+          while IFS= read -r t; do
+            [ -n "$t" ] || continue
+            tsha="$(git rev-list -n1 "$t" 2>/dev/null || echo '')"
+            [ -n "$tsha" ] || continue
+            psha="$(git rev-parse --verify --quiet "${tsha}^" || echo '')"
+            if [ "$psha" = "$RUN_HEAD_SHA" ]; then RELEASE_TAG="$t"; break; fi
+          done < <(git tag --list 'v*' --sort=-creatordate)
+
+          if [ -n "$RELEASE_TAG" ]; then
+            echo "Release $RELEASE_TAG was cut from ${RUN_HEAD_SHA} -> deploying."
             echo "should_deploy=true" >> "$GITHUB_OUTPUT"
-            echo "tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+            echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           else
-            echo "No fresh release at tip of main (tip='$SUBJECT', latest tag='$LATEST_TAG') — no deploy."
+            echo "Release run on ${RUN_HEAD_SHA} produced no v* tag (no-release push) — no deploy."
             echo "should_deploy=false" >> "$GITHUB_OUTPUT"
           fi
 
