@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.4] - 2026-07-12
+
+## Fixes
+
+- fix(dashboard): accessibility, color-independent priority, and design tokens (UI audit) (#61) (428bbea)
+
+
 ## [2.0.3] - 2026-07-11
 
 ## Fixes
