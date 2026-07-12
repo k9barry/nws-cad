@@ -237,14 +237,16 @@ class ApiSearchTest extends TestCase
         ");
         $stmt->execute([1, 'CALL-001', 'Medical Emergency', '2024-01-01 10:00:00']);
         
-        // Search with different cases
+        // Search with different cases. LOWER() on both sides is case-insensitive
+        // on both engines; PostgreSQL's LIKE is case-sensitive, so relying on
+        // MySQL's implicit collation would diverge.
         $stmt = self::$db->prepare("
-            SELECT * FROM calls WHERE nature_of_call LIKE ?
+            SELECT * FROM calls WHERE LOWER(nature_of_call) LIKE LOWER(?)
         ");
-        
+
         $stmt->execute(['%medical%']);
         $results1 = $stmt->fetchAll();
-        
+
         $stmt->execute(['%MEDICAL%']);
         $results2 = $stmt->fetchAll();
         

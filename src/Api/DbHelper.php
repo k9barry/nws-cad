@@ -232,6 +232,22 @@ class DbHelper
     }
 
     /**
+     * MAX() over a BOOLEAN column, returning an integer 0/1 comparable with
+     * `= 1` on both drivers. MySQL's BOOLEAN is TINYINT so MAX() works directly;
+     * PostgreSQL has no MAX(boolean), so cast to int first.
+     *
+     * @param string $column Column name (validated as a SQL identifier)
+     */
+    public static function maxBool(string $column): string
+    {
+        self::validateIdentifier($column, 'column');
+        if (Database::getDbType() === 'pgsql') {
+            return "MAX(CAST({$column} AS int))";
+        }
+        return "MAX({$column})";
+    }
+
+    /**
      * Get Haversine distance formula for coordinate-based search
      * 
      * Returns distance in kilometers between the point specified by parameters

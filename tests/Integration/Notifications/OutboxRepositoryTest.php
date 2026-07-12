@@ -9,12 +9,12 @@ use NwsCad\Database;
 use NwsCad\Notifications\Events\Intent;
 use NwsCad\Notifications\Outbox\OutboxRepository;
 use PDO;
-use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
-#[CoversClass(OutboxRepository::class)]
-#[UsesClass(Intent::class)]
+/**
+ * @covers \NwsCad\Notifications\Outbox\OutboxRepository
+ * @uses \NwsCad\Notifications\Events\Intent
+ */
 final class OutboxRepositoryTest extends TestCase
 {
     private static PDO $db;
@@ -118,15 +118,16 @@ final class OutboxRepositoryTest extends TestCase
 
     public function testPruneDeletesDoneRowsOlderThanThreshold(): void
     {
+        $eightDaysAgo = date('Y-m-d H:i:s', time() - 8 * 86400);
         $oldDoneId = $this->insertPending();
         $this->repo->markDone($oldDoneId);
-        self::$db->exec("UPDATE notification_outbox SET updated_at = DATE_SUB(NOW(), INTERVAL 8 DAY) WHERE id = {$oldDoneId}");
+        self::$db->exec("UPDATE notification_outbox SET updated_at = '{$eightDaysAgo}' WHERE id = {$oldDoneId}");
 
         $recentDoneId = $this->insertPending();
         $this->repo->markDone($recentDoneId);
 
         $pendingId = $this->insertPending();
-        self::$db->exec("UPDATE notification_outbox SET updated_at = DATE_SUB(NOW(), INTERVAL 8 DAY) WHERE id = {$pendingId}");
+        self::$db->exec("UPDATE notification_outbox SET updated_at = '{$eightDaysAgo}' WHERE id = {$pendingId}");
 
         $deleted = $this->repo->prune(7 * 86400);
 

@@ -114,12 +114,14 @@ class StatsController
         // so old, never-closed CAD records stop inflating the open count.
         $staleCutoff = FilterSqlBuilder::staleCutoff();
         $statusParams = $params + ['stale_cutoff' => $staleCutoff];
+        $maxCanceled = DbHelper::maxBool('calls.canceled_flag');
+        $maxReopened = DbHelper::maxBool('calls.reopened_flag');
         $querySql = "
             SELECT
                 CASE
-                    WHEN MAX(calls.canceled_flag) = 1 THEN 'canceled'
+                    WHEN {$maxCanceled} = 1 THEN 'canceled'
                     WHEN MAX(calls.create_datetime) < :stale_cutoff THEN 'closed'
-                    WHEN MAX(calls.reopened_flag) = 1 THEN 'reopened'
+                    WHEN {$maxReopened} = 1 THEN 'reopened'
                     WHEN MAX(calls.close_datetime) IS NOT NULL THEN 'closed'
                     ELSE 'open'
                 END as status,
@@ -331,12 +333,14 @@ class StatsController
             // including the 72h stale-open guardrail.
             $staleCutoff = FilterSqlBuilder::staleCutoff();
             $statusParams = $params + ['stale_cutoff' => $staleCutoff];
+            $maxCanceled = DbHelper::maxBool('calls.canceled_flag');
+            $maxReopened = DbHelper::maxBool('calls.reopened_flag');
             $querySql = "
                 SELECT
                     CASE
-                        WHEN MAX(calls.canceled_flag) = 1 THEN 'Canceled'
+                        WHEN {$maxCanceled} = 1 THEN 'Canceled'
                         WHEN MAX(calls.create_datetime) < :stale_cutoff THEN 'Closed'
-                        WHEN MAX(calls.reopened_flag) = 1 THEN 'Reopened'
+                        WHEN {$maxReopened} = 1 THEN 'Reopened'
                         WHEN MAX(calls.close_datetime) IS NOT NULL THEN 'Closed'
                         ELSE 'Open'
                     END as status,

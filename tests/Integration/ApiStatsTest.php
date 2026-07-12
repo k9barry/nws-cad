@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NwsCad\Tests\Integration;
 
+use NwsCad\Api\DbHelper;
 use NwsCad\Database;
 use PHPUnit\Framework\TestCase;
 
@@ -132,12 +133,14 @@ class ApiStatsTest extends TestCase
             '2024-01-01 10:08:00'
         ]);
         
-        // Calculate response time
+        // Calculate response time (TIMESTAMPDIFF is MySQL-only; DbHelper renders
+        // the EXTRACT(EPOCH ...) equivalent on PostgreSQL).
+        $diff = DbHelper::timestampDiff('MINUTE', 'dispatch_datetime', 'arrive_datetime');
         $stmt = self::$db->query("
-            SELECT 
-                AVG(TIMESTAMPDIFF(MINUTE, dispatch_datetime, arrive_datetime)) as avg_response_time
+            SELECT
+                AVG({$diff}) as avg_response_time
             FROM units
-            WHERE dispatch_datetime IS NOT NULL 
+            WHERE dispatch_datetime IS NOT NULL
             AND arrive_datetime IS NOT NULL
         ");
         $result = $stmt->fetch();
@@ -157,10 +160,12 @@ class ApiStatsTest extends TestCase
         $stmt->execute([2, 'CALL-002', '2024-01-01 10:30:00']);
         $stmt->execute([3, 'CALL-003', '2024-01-01 14:00:00']);
         
-        // Group by hour
+        // Group by hour (HOUR() is MySQL-only; DbHelper renders EXTRACT(HOUR ...)
+        // on PostgreSQL).
+        $hour = DbHelper::hour('create_datetime');
         $stmt = self::$db->query("
-            SELECT 
-                HOUR(create_datetime) as hour,
+            SELECT
+                {$hour} as hour,
                 COUNT(*) as count
             FROM calls
             GROUP BY hour
