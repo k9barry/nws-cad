@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.3] - 2026-07-12
+
+## Fixes
+
+- fix(db): pgsql boolean literals in status/notification queries + pcov CI (#48) (0afaef1)
+
+
 ## [2.1.2] - 2026-07-12
 
 ## Fixes
