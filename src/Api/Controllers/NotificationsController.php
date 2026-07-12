@@ -138,13 +138,13 @@ final class NotificationsController
 
                 $ins = $this->db->prepare(
                     "INSERT INTO notification_channels (name, type, enabled, base_url, config_json, last_updated_actor)
-                     VALUES (?, ?, 1, ?, ?, ?)"
+                     VALUES (?, ?, TRUE, ?, ?, ?)"
                 );
                 $ins->execute([$name, $type, $baseUrl, $defaultConfig, $actor]);
             } else {
                 $upd = $this->db->prepare(
                     "UPDATE notification_channels
-                     SET enabled = 1, updated_at = CURRENT_TIMESTAMP, last_updated_actor = ?
+                     SET enabled = TRUE, updated_at = CURRENT_TIMESTAMP, last_updated_actor = ?
                      WHERE name = ?"
                 );
                 $upd->execute([$actor, $name]);
@@ -176,7 +176,7 @@ final class NotificationsController
             $actor = \NwsCad\Security\Identity::current()->user;
             $stmt = $this->db->prepare(
                 "UPDATE notification_channels
-                 SET enabled = 0, updated_at = CURRENT_TIMESTAMP, last_updated_actor = ?
+                 SET enabled = FALSE, updated_at = CURRENT_TIMESTAMP, last_updated_actor = ?
                  WHERE type = ?"
             );
             $stmt->execute([$actor, $type]);
@@ -341,7 +341,7 @@ final class NotificationsController
                 return;
             }
             $stmt = $this->db->prepare(
-                "DELETE FROM notification_send_log WHERE channel_id = ? AND ok = 0"
+                "DELETE FROM notification_send_log WHERE channel_id = ? AND ok = FALSE"
             );
             $stmt->execute([$channelId]);
             Response::success(['deleted' => $stmt->rowCount(), 'channel_id' => $channelId]);

@@ -256,7 +256,11 @@ jobs:
         with:
           php-version: ${{ matrix.php-version }}
           extensions: pdo, pdo_pgsql, xml, simplexml
-          coverage: none
+          # phpunit.xml sets failOnWarning + requireCoverageMetadata, so with no
+          # coverage driver PHPUnit emits "No code coverage driver available" and
+          # the run fails. pcov is a lightweight driver that satisfies it (this
+          # job doesn't publish coverage; it just needs a driver present).
+          coverage: pcov
           tools: composer:v2
 
       - name: Install dependencies
