@@ -25,6 +25,25 @@ handles authentication and TLS termination. The application binds to
 | `PROXY_IDENTITY_HEADER` | `X-Auth-User` | Header read for the operator's username |
 | `NOTIFICATION_BASE_URL_ALLOWLIST` | (empty) | Comma-separated hostnames permitted as channel base URLs |
 | `NOTIFICATION_ALLOW_HTTP_PRIVATE` | `false` | Set `true` to permit `http://` for RFC1918 + loopback hosts only (testing) |
+| `BIND_ADDR` | `0.0.0.0` | Host interface the published ports (API, DB, Dozzle) bind to. Set `127.0.0.1` in production to publish loopback-only so only a co-located reverse proxy can reach them. |
+
+## Self-healing (autoheal)
+
+The compose stack runs a `willfarrell/autoheal` sidecar that restarts any
+container labeled `autoheal=true` (`app`, `api`, `mysql`, `postgres`) when
+Docker reports its healthcheck **unhealthy**. `restart: unless-stopped` only
+reacts to a process *exit*; autoheal covers the case where a process lingers
+but its healthcheck fails — a wedged watcher whose heartbeat goes stale, or a
+DB whose ping fails while the daemon hangs. Tunables: `AUTOHEAL_INTERVAL`
+(poll seconds), `AUTOHEAL_START_PERIOD` (post-start grace), and
+`AUTOHEAL_DEFAULT_STOP_TIMEOUT` (clean-stop window before SIGKILL).
+
+## Continuous deployment
+
+`scripts/deploy.sh` automates the runbook (backup → checkout tag → build →
+migrate → up → verify → rollback-on-failure) and can be run by hand on the host
+or driven by GitHub Actions. See **[CD.md](CD.md)** for the push-to-deploy setup
+(self-hosted runner + a `production` approval gate).
 
 ## Sample configurations
 
