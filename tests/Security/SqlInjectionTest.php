@@ -217,8 +217,15 @@ class SqlInjectionTest extends TestCase
             "Test\n with newline",
             "Test\r with carriage return",
             "Test\t with tab",
-            "Test\x00 with null byte",
         ];
+
+        // PostgreSQL text/varchar columns cannot store a NUL byte (0x00) — the
+        // driver truncates the value at the NUL, unlike MySQL which stores it
+        // verbatim. The parameterisation/escaping guarantee under test is
+        // unaffected, so only exercise the NUL-byte case on MySQL.
+        if (Database::getDbType() !== 'pgsql') {
+            $specialChars[] = "Test\x00 with null byte";
+        }
         
         foreach ($specialChars as $index => $input) {
             $stmt = self::$db->prepare("
