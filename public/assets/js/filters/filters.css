@@ -139,6 +139,7 @@
 
 /* Header row: label on left, reset on right; spans full grid */
 .filter-panel-header {
+  position: relative;               /* anchor for the busy affordance */
   grid-column: 1 / -1;
   display: flex;
   justify-content: space-between;
@@ -148,13 +149,49 @@
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
+/* ------------------------------------------------------------------ */
+/* Busy affordance during the debounced apply                          */
+/* ------------------------------------------------------------------ */
+
+/* A subtle centered spinner shown while .filter-panel--applying is set.
+   aria-busy on the panel root carries the state for assistive tech. */
+.filter-panel-header::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: calc(50% - 0.375rem);        /* offset up for the header's bottom padding */
+  width: 0.85rem;
+  height: 0.85rem;
+  margin: -0.425rem 0 0 -0.425rem;
+  border: 2px solid rgba(13, 110, 253, 0.25);
+  border-top-color: #0d6efd;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+.filter-panel--applying .filter-panel-header::after {
+  opacity: 1;
+  animation: filter-panel-spin 0.6s linear infinite;
+}
+
+@keyframes filter-panel-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-panel--applying .filter-panel-header::after {
+    animation: none;                /* keep the static ring, no rotation */
+  }
+}
+
 .filter-panel-header::before {
   content: 'Refine your view';
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #6c757d;
+  color: var(--text-muted-accessible);
 }
 
 .filter-panel-reset {
@@ -197,7 +234,7 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #6c757d;
+  color: var(--text-muted-accessible);
   margin: 0;
 }
 
@@ -242,7 +279,7 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #6c757d;
+  color: var(--text-muted-accessible);
 }
 
 .filter-panel-field--status > :not(.filter-panel-label) {

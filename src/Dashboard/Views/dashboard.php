@@ -3,7 +3,7 @@
 <!-- Dashboard Header (gradient banner) -->
 <div class="dashboard-banner d-flex justify-content-between align-items-center flex-wrap gap-2">
     <div>
-        <h2><i class="bi bi-speedometer2"></i> Dashboard Control Center</h2>
+        <h1 class="h3 mb-0"><i class="bi bi-speedometer2"></i> Dashboard Control Center</h1>
         <div class="subtitle">Live call data &middot; refreshes every <span id="dashboard-poll-secs">5</span>s</div>
     </div>
     <div class="d-flex align-items-center gap-2">

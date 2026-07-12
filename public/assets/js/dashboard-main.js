@@ -65,6 +65,10 @@
         // Initialize map
         let map = null;
         const previousCallIds = new Set();
+        // Recent-calls sort state (only columns the API allows: create_datetime, call_number)
+        let currentSortKey = 'create_datetime';
+        let currentSortOrder = 'desc';
+        let lastCallsAnnouncement = '';
 
         function setDashboardLivePill(state) {
             const pill = document.getElementById('dashboard-live-pill');
@@ -290,8 +294,8 @@
                 const pagingParams = new URLSearchParams(currentQs);
                 pagingParams.set('page', page);
                 pagingParams.set('per_page', callsPerPage);
-                pagingParams.set('sort', 'create_datetime');
-                pagingParams.set('order', 'desc');
+                pagingParams.set('sort', currentSortKey);
+                pagingParams.set('order', currentSortOrder);
 
                 // Update card title based on status filter
                 const titleEl = document.getElementById('recent-calls-title');
@@ -309,21 +313,14 @@
 
                 const url = '/calls?' + pagingParams.toString();
                 console.log('[Dashboard Main] Recent calls API URL:', url);
-                console.log('[Dashboard Main] Query params:', pagingParams.toString());
-                
-                console.log('[Dashboard Main] Fetching:', Dashboard.config.apiBaseUrl + url);
-                
-                const response = await fetch(Dashboard.config.apiBaseUrl + url);
-                const result = await response.json();
-                
-                console.log('[Dashboard Main] Calls response:', result);
-                
-                if (!result.success) {
-                    throw new Error(result.error || 'API failed');
-                }
-                
-                const calls = result.data?.items || [];
-                const pagination = result.data?.pagination || {};
+
+                // Route through the centralized wrapper for consistent error handling
+                // and security controls; it returns the unwrapped `data` and throws
+                // on failure (handled by the catch below).
+                const data = await Dashboard.apiRequest(url);
+
+                const calls = data?.items || [];
+                const pagination = data?.pagination || {};
                 currentCallsTotal = pagination.total || calls.length;
                 totalCallsPages = pagination.total_pages || 1;
                 
@@ -376,7 +373,7 @@
                         }
                         
                         return `
-                            <tr class="call-row" data-call-id="${call.id}" style="cursor: pointer;">
+                            <tr class="call-row" data-call-id="${call.id}" role="button" tabindex="0" aria-label="View details for call ${Dashboard.escapeHtml(call.call_number || call.id)}">
                                 <td>${Dashboard.escapeHtml(call.call_number || call.id)}</td>
                                 <td><small>${Dashboard.formatTime(call.create_datetime)}</small></td>
                                 <td>${Dashboard.formatCallTypes(call)}</td>
@@ -425,7 +422,11 @@
                 
                 // Update pagination controls
                 updateCallsPagination(pagination);
-                
+
+                // Announce a concise summary to screen readers (deduped so the 5s poll
+                // doesn't chatter — only re-announces when the summary actually changes).
+                announceCallsStatus(calls.length);
+
             } catch (error) {
                 console.error('[Dashboard Main] Recent calls error:', error);
                 const tableBody = document.getElementById('recent-calls-body');
@@ -438,9 +439,7 @@
                         </tr>
                     `;
                 }
-                if (Dashboard.showError) {
-                    Dashboard.showError('Failed to load recent calls');
-                }
+                // Dashboard.apiRequest already surfaces the error toast — no duplicate here.
             }
         }
         
@@ -679,11 +678,89 @@
             
             // Remove existing listener if any
             tableBody.removeEventListener('click', handleTableClick);
-            
-            // Add new listener for all clicks
+            tableBody.removeEventListener('keydown', handleTableKeydown);
+
+            // Add new listeners for clicks and keyboard activation
             tableBody.addEventListener('click', handleTableClick);
-            
+            tableBody.addEventListener('keydown', handleTableKeydown);
+
             console.log('[Dashboard Main] Table click handlers attached');
+        }
+
+        /**
+         * Keyboard activation for the focusable call rows (Enter / Space open details).
+         * Native <button>s inside the row keep their own behavior.
+         */
+        function handleTableKeydown(event) {
+            if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
+            if (event.target.closest('button')) return; // let inner buttons handle themselves
+            const row = event.target.closest('.call-row');
+            if (!row) return;
+            event.preventDefault();
+            viewCallDetails(parseInt(row.dataset.callId));
+        }
+
+        /**
+         * Concise, deduped screen-reader announcement of a data refresh. The
+         * #recent-calls-status region is aria-live=polite; we only rewrite it when
+         * the summary changes so a quiet 5s poll stays quiet for AT users.
+         */
+        function announceCallsStatus(count) {
+            const statusEl = document.getElementById('recent-calls-status');
+            if (!statusEl) return;
+            const msg = count
+                ? `Call list updated. Showing ${count} of ${currentCallsTotal} calls, page ${currentCallsPage} of ${totalCallsPages}.`
+                : 'Call list updated. No calls match the current filters.';
+            if (msg !== lastCallsAnnouncement) {
+                statusEl.textContent = msg;
+                lastCallsAnnouncement = msg;
+            }
+        }
+
+        /**
+         * Wire the sortable recent-calls headers (Call ID, Received) to the API sort
+         * params. Static markup, so this runs once at init. Updates aria-sort + the
+         * visual indicator and reloads page 1.
+         */
+        function setupSortableHeaders() {
+            const headers = Array.from(document.querySelectorAll('th.sortable[data-sort-key]'));
+            if (!headers.length) return;
+
+            function reflect() {
+                headers.forEach(function (h) {
+                    const isActive = h.getAttribute('data-sort-key') === currentSortKey;
+                    h.setAttribute('aria-sort', isActive
+                        ? (currentSortOrder === 'asc' ? 'ascending' : 'descending')
+                        : 'none');
+                    const ind = h.querySelector('.sort-ind');
+                    if (ind) ind.textContent = isActive
+                        ? (currentSortOrder === 'asc' ? '▲' : '▼')
+                        : '↕';
+                });
+            }
+
+            headers.forEach(function (th) {
+                function activate() {
+                    const key = th.getAttribute('data-sort-key');
+                    if (currentSortKey === key) {
+                        currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        currentSortKey = key;
+                        currentSortOrder = 'asc';
+                    }
+                    reflect();
+                    loadRecentCalls(1);
+                }
+                th.addEventListener('click', activate);
+                th.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                        e.preventDefault();
+                        activate();
+                    }
+                });
+            });
+
+            reflect(); // show the default create_datetime/desc sort on load
         }
         
         /**
@@ -1325,7 +1402,9 @@
             root: document.getElementById('filter-panel'),
             onChange: function (state) {
                 currentQs = state.toQueryString();
-                onFilterChange();
+                // Return the refresh promise so FilterPanel keeps its busy/aria-busy
+                // state until the data actually finishes loading.
+                return onFilterChange();
             },
         });
         await panel.mount();
@@ -1354,6 +1433,7 @@
         
         // Initial load
         console.log('[Dashboard Main] Starting initial load...');
+        setupSortableHeaders();
         await refreshDashboard();
         
         // Auto-refresh

@@ -56,8 +56,9 @@ const MobileDashboard = {
                 onChange: (state) => {
                     this.currentQs = state.toQueryString();
                     this.currentPage = 1;
-                    this.loadCallsList();
-                    this.loadStats();
+                    // Return the combined refresh promise so FilterPanel holds its
+                    // busy/aria-busy state until both requests settle.
+                    return Promise.all([this.loadCallsList(), this.loadStats()]);
                 },
             });
             await this.panel.mount();

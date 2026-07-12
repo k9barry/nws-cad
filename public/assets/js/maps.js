@@ -82,15 +82,25 @@ const MapManager = {
         
         // Choose marker color class based on priority. Styles live in dashboard.css
         // because CSP style-src no longer allows inline style="" attributes.
-        const colorClass = this.getCallIconColorClass(call.priority);
+        // Accessibility: render the priority NUMBER as text inside the circle so the
+        // marker does not convey priority by color alone (colorblind-safe). The class
+        // structure (.custom-marker .marker-circle) is preserved for dashboard.css.
+        // The /api/calls list payload exposes numeric priority as `alarm_level`
+        // (with a `priorities[]` list), not `priority`. Derive from those so the
+        // marker colour + numeral are correct instead of always gray / "?".
+        const derivedPriority = parseInt(call.alarm_level ?? call.priorities?.[0] ?? call.priority, 10);
+        const colorClass = this.getCallIconColorClass(derivedPriority);
+        const priorityLabel = this.getPriorityLabel(derivedPriority);
+        const callType = call.call_types?.[0] || call.call_type || call.nature_of_call || 'call';
+        const markerTitle = `Priority ${priorityLabel} call — ${callType}`;
         const icon = L.divIcon({
             className: 'custom-marker',
-            html: `<div class="marker-circle ${colorClass}"><i class="bi bi-telephone-fill"></i></div>`,
+            html: `<div class="marker-circle ${colorClass}" role="img" aria-label="${Dashboard.escapeHtml(markerTitle)}" title="${Dashboard.escapeHtml(markerTitle)}"><span class="marker-priority">${Dashboard.escapeHtml(priorityLabel)}</span></div>`,
             iconSize: [30, 30],
             iconAnchor: [15, 15]
         });
-        
-        const marker = L.marker([lat, lon], { icon })
+
+        const marker = L.marker([lat, lon], { icon, title: markerTitle, alt: markerTitle })
             .bindPopup(call.popupContent || this.createCallPopup(call))
             .addTo(this.markers[containerId]);
         
@@ -110,6 +120,16 @@ const MapManager = {
             4: 'marker-circle--green'    // Low
         };
         return classes[priority] || 'marker-circle--gray';
+    },
+
+    /**
+     * Get a short, non-color priority label (the digit 1-5) for the marker glyph.
+     * Colorblind users read the number instead of relying on the circle color.
+     * Falls back to "?" when priority is missing or unrecognized.
+     */
+    getPriorityLabel(priority) {
+        const n = parseInt(priority, 10);
+        return (Number.isFinite(n) && n >= 1 && n <= 5) ? String(n) : '?';
     },
 
 

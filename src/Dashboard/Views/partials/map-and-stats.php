@@ -5,10 +5,10 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted mb-1">Total Calls</h6>
-                        <h2 class="mb-0" id="stat-total-calls">
+                        <div class="stat-label text-muted mb-1">Total Calls</div>
+                        <div class="stat-value tabular-nums mb-0" id="stat-total-calls">
                             <span class="spinner-border spinner-border-sm"></span>
-                        </h2>
+                        </div>
                         <span class="summary-chips mt-1" id="stat-total-pill"></span>
                     </div>
                     <div class="stat-icon">
@@ -24,10 +24,10 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted mb-1">Active Calls</h6>
-                        <h2 class="mb-0 text-danger" id="stat-active-calls">
+                        <div class="stat-label text-muted mb-1">Active Calls</div>
+                        <div class="stat-value tabular-nums mb-0 text-danger" id="stat-active-calls">
                             <span class="spinner-border spinner-border-sm"></span>
-                        </h2>
+                        </div>
                         <span class="summary-chips mt-1" id="stat-active-pill"></span>
                     </div>
                     <div class="stat-icon">
@@ -43,10 +43,10 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted mb-1">Closed Calls</h6>
-                        <h2 class="mb-0" id="stat-closed-calls">
+                        <div class="stat-label text-muted mb-1">Closed Calls</div>
+                        <div class="stat-value tabular-nums mb-0" id="stat-closed-calls">
                             <span class="spinner-border spinner-border-sm"></span>
-                        </h2>
+                        </div>
                         <span class="summary-chips mt-1" id="stat-closed-pill"></span>
                     </div>
                     <div class="stat-icon">
@@ -62,10 +62,10 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted mb-1">Analytics</h6>
-                        <h2 class="mb-0 stat-title-compact">
+                        <div class="stat-label text-muted mb-1">Analytics</div>
+                        <div class="stat-value stat-title-compact mb-0">
                             <i class="bi bi-graph-up"></i> View Charts
-                        </h2>
+                        </div>
                         <span class="summary-chips mt-1" id="stat-analytics-pill"></span>
                     </div>
                     <div class="stat-icon">
@@ -83,13 +83,21 @@
     <div class="col-lg-5 mb-3">
         <div class="card map-column-card">
             <div class="card-header gradient-card-header d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0">
+                <h2 class="card-title h5 mb-0">
                     <i class="bi bi-geo-alt"></i> Madison County Map
-                </h5>
+                </h2>
                 <span class="pill-badge is-info" id="map-marker-count">0 markers</span>
             </div>
             <div class="card-body p-0">
                 <div id="calls-map"></div>
+            </div>
+            <div class="map-legend" role="group" aria-label="Call priority legend, 1 is highest">
+                <span class="legend-label">Priority (1 = highest):</span>
+                <span class="legend-item"><span class="legend-swatch marker-circle--red" aria-hidden="true">1</span>1</span>
+                <span class="legend-item"><span class="legend-swatch marker-circle--yellow" aria-hidden="true">2</span>2</span>
+                <span class="legend-item"><span class="legend-swatch marker-circle--blue" aria-hidden="true">3</span>3</span>
+                <span class="legend-item"><span class="legend-swatch marker-circle--green" aria-hidden="true">4</span>4</span>
+                <span class="legend-item"><span class="legend-swatch marker-circle--gray" aria-hidden="true">5</span>5</span>
             </div>
         </div>
     </div>
@@ -98,24 +106,24 @@
     <div class="col-lg-7 dashboard-right-col">
         <div class="card recent-calls-card">
             <div class="card-header gradient-card-header d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0">
+                <h2 class="card-title h5 mb-0">
                     <i class="bi bi-list-ul"></i> <span id="recent-calls-title">Recent Calls</span>
-                </h5>
+                </h2>
                 <small>Last updated: <span id="last-updated">Never</span></small>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive recent-calls-scroll">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0 tabular-nums">
                         <thead class="table-light sticky-top">
                             <tr>
-                                <th class="col-w-9">Call ID</th>
-                                <th class="col-w-13">Received</th>
-                                <th class="col-w-20">Call Type</th>
-                                <th class="col-w-19">Location</th>
-                                <th class="col-w-10">Priority</th>
-                                <th class="col-w-10">Status</th>
-                                <th class="col-w-9">Units</th>
-                                <th class="col-w-10">Map</th>
+                                <th scope="col" class="col-w-9 sortable" data-sort-key="call_number" aria-sort="none" tabindex="0">Call ID <span class="sort-ind" aria-hidden="true">&#8597;</span></th>
+                                <th scope="col" class="col-w-13 sortable" data-sort-key="create_datetime" aria-sort="none" tabindex="0">Received <span class="sort-ind" aria-hidden="true">&#8597;</span></th>
+                                <th scope="col" class="col-w-20">Call Type</th>
+                                <th scope="col" class="col-w-19">Location</th>
+                                <th scope="col" class="col-w-10">Priority</th>
+                                <th scope="col" class="col-w-10">Status</th>
+                                <th scope="col" class="col-w-9">Units</th>
+                                <th scope="col" class="col-w-10">Map</th>
                             </tr>
                         </thead>
                         <tbody id="recent-calls-body">
@@ -130,6 +138,8 @@
                         </tbody>
                     </table>
                 </div>
+                <!-- Screen-reader announcement of live refreshes (concise summary, not the whole table) -->
+                <div id="recent-calls-status" class="visually-hidden" role="status" aria-live="polite"></div>
                 <!-- Pagination Controls -->
                 <div class="d-flex justify-content-between align-items-center p-3 border-top d-none" id="calls-pagination-container">
                     <div>
