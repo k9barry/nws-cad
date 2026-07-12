@@ -61,9 +61,9 @@ final class FilterSqlBuilderTest extends TestCase
         [$where] = $this->build(['status' => 'open']);
         // Open is canceled=0 AND (close_datetime IS NULL OR reopened_flag = 1)
         // AND not stale (create_datetime within the 72h guardrail window).
-        $this->assertStringContainsString('calls.canceled_flag = 0', $where);
+        $this->assertStringContainsString('calls.canceled_flag = FALSE', $where);
         $this->assertStringContainsString('calls.close_datetime IS NULL', $where);
-        $this->assertStringContainsString('calls.reopened_flag = 1', $where);
+        $this->assertStringContainsString('calls.reopened_flag = TRUE', $where);
         $this->assertStringContainsString('calls.create_datetime >= :stale_cutoff', $where);
         // Authoritative open/closed signal is no longer closed_flag
         $this->assertStringNotContainsString('closed_flag = 0', $where);
@@ -74,8 +74,8 @@ final class FilterSqlBuilderTest extends TestCase
         [$where] = $this->build(['status' => 'closed']);
         // closed = legitimately closed OR stale (older than guardrail window).
         $this->assertStringContainsString('calls.close_datetime IS NOT NULL', $where);
-        $this->assertStringContainsString('calls.reopened_flag = 0', $where);
-        $this->assertStringContainsString('calls.canceled_flag = 0', $where);
+        $this->assertStringContainsString('calls.reopened_flag = FALSE', $where);
+        $this->assertStringContainsString('calls.canceled_flag = FALSE', $where);
         $this->assertStringContainsString('calls.create_datetime < :stale_cutoff', $where);
         $this->assertStringNotContainsString('closed_flag = 1', $where);
     }
@@ -84,15 +84,15 @@ final class FilterSqlBuilderTest extends TestCase
     {
         [$where] = $this->build(['status' => 'reopened']);
         // reopened is "open with a reopen": must still be within the guardrail window.
-        $this->assertStringContainsString('calls.reopened_flag = 1', $where);
-        $this->assertStringContainsString('calls.canceled_flag = 0', $where);
+        $this->assertStringContainsString('calls.reopened_flag = TRUE', $where);
+        $this->assertStringContainsString('calls.canceled_flag = FALSE', $where);
         $this->assertStringContainsString('calls.create_datetime >= :stale_cutoff', $where);
     }
 
     public function testStatusCanceledUnchanged(): void
     {
         [$where] = $this->build(['status' => 'canceled']);
-        $this->assertStringContainsString('calls.canceled_flag = 1', $where);
+        $this->assertStringContainsString('calls.canceled_flag = TRUE', $where);
     }
 
     public function testStatusBindsStaleCutoffParamForOpen(): void
@@ -131,7 +131,7 @@ final class FilterSqlBuilderTest extends TestCase
         [$where] = $this->build(['status' => 'open,closed']);
         // Each value contributes a parenthesized clause OR'd together
         $this->assertMatchesRegularExpression(
-            '/\(.*close_datetime IS NULL.*reopened_flag = 1.*\) OR \(.*close_datetime IS NOT NULL.*reopened_flag = 0.*\)/s',
+            '/\(.*close_datetime IS NULL.*reopened_flag = TRUE.*\) OR \(.*close_datetime IS NOT NULL.*reopened_flag = FALSE.*\)/s',
             $where
         );
         // And the stale guardrail predicate appears on both sides

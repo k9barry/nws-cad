@@ -209,10 +209,10 @@ final class FilterSqlBuilder
             $statusClauses = [];
             foreach ($f->status as $s) {
                 $statusClauses[] = match ($s) {
-                    'open'     => '(calls.canceled_flag = 0 AND (calls.close_datetime IS NULL OR calls.reopened_flag = 1) AND calls.create_datetime >= :stale_cutoff)',
-                    'closed'   => '(calls.canceled_flag = 0 AND ((calls.close_datetime IS NOT NULL AND calls.reopened_flag = 0) OR calls.create_datetime < :stale_cutoff))',
-                    'reopened' => '(calls.canceled_flag = 0 AND calls.reopened_flag = 1 AND calls.create_datetime >= :stale_cutoff)',
-                    'canceled' => '(calls.canceled_flag = 1)',
+                    'open'     => '(calls.canceled_flag = FALSE AND (calls.close_datetime IS NULL OR calls.reopened_flag = TRUE) AND calls.create_datetime >= :stale_cutoff)',
+                    'closed'   => '(calls.canceled_flag = FALSE AND ((calls.close_datetime IS NOT NULL AND calls.reopened_flag = FALSE) OR calls.create_datetime < :stale_cutoff))',
+                    'reopened' => '(calls.canceled_flag = FALSE AND calls.reopened_flag = TRUE AND calls.create_datetime >= :stale_cutoff)',
+                    'canceled' => '(calls.canceled_flag = TRUE)',
                 };
             }
             $clauses[] = '(' . implode(' OR ', $statusClauses) . ')';

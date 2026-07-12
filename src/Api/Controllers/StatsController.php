@@ -463,8 +463,8 @@ class StatsController
             // undefined. Averaging them against the cutoff (NOW-72h) would
             // skew the metric with a synthetic ceiling.
             $durationClauses = $whereClause !== ''
-                ? $whereClause . ' AND calls.close_datetime IS NOT NULL AND calls.reopened_flag = 0'
-                : 'WHERE calls.close_datetime IS NOT NULL AND calls.reopened_flag = 0';
+                ? $whereClause . ' AND calls.close_datetime IS NOT NULL AND calls.reopened_flag = FALSE'
+                : 'WHERE calls.close_datetime IS NOT NULL AND calls.reopened_flag = FALSE';
 
             $timestampDiff = DbHelper::timestampDiff('MINUTE', 'calls.create_datetime', 'calls.close_datetime');
             $querySql = "
@@ -623,7 +623,7 @@ class StatsController
             // Primary unit vs backup
             $sql = "
                 SELECT
-                    CASE WHEN u.is_primary = 1 THEN 'Primary' ELSE 'Backup' END as unit_role,
+                    CASE WHEN u.is_primary = TRUE THEN 'Primary' ELSE 'Backup' END as unit_role,
                     COUNT(*) as count
                 FROM units u
                 {$whereClause}
