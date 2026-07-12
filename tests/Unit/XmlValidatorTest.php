@@ -32,6 +32,17 @@ class XmlValidatorTest extends TestCase
         );
     }
 
+    public function testCallRootPasses(): void
+    {
+        // Real Aegis CAD exports are rooted at <Call>, not <CallExport>.
+        // Requiring <CallExport> (matching the synthetic fixtures) silently
+        // rejected every live document — guard against that regression.
+        $this->expectNotToPerformAssertions();
+        (new XmlValidator())->validate(
+            $this->xml('<CallId>1938439</CallId><CallNumber>104</CallNumber>', 'Call')
+        );
+    }
+
     public function testWrongRootIsRejected(): void
     {
         $this->expectException(InvalidXmlException::class);
