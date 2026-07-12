@@ -138,7 +138,7 @@ final class NotificationsController
 
                 $ins = $this->db->prepare(
                     "INSERT INTO notification_channels (name, type, enabled, base_url, config_json, last_updated_actor)
-                     VALUES (?, ?, 1, ?, ?, ?)"
+                     VALUES (?, ?, TRUE, ?, ?, ?)"
                 );
                 $ins->execute([$name, $type, $baseUrl, $defaultConfig, $actor]);
             } else {

@@ -95,7 +95,7 @@ switch ($cmd) {
             echo "Re-enabled channel {$name}\n";
         } else {
             $db->prepare("INSERT INTO notification_channels (name, type, enabled, base_url, config_json)
-                          VALUES (?, ?, 1, ?, ?)")->execute([$name, $type, $baseUrl, $defaultConfig]);
+                          VALUES (?, ?, TRUE, ?, ?)")->execute([$name, $type, $baseUrl, $defaultConfig]);
             echo "Created and enabled channel {$name}\n";
         }
         break;
