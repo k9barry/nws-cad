@@ -61,8 +61,7 @@ class NotificationSendLogTableTest extends TestCase
     {
         $row = self::$db->query(
             "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE()
-             AND TABLE_NAME = 'notification_send_log'
+             WHERE TABLE_NAME = 'notification_send_log'
              AND COLUMN_NAME = 'actor'"
         )->fetch();
 
