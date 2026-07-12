@@ -330,6 +330,20 @@ class ApiFilteringTest extends TestCase
         $stmt = self::$db->prepare("SELECT COUNT(*) AS count FROM calls WHERE create_datetime >= ?");
 
         $maliciousInput = "2024-01-01' OR '1'='1";
+
+        if (Database::getDbType() === 'pgsql') {
+            // PostgreSQL strictly validates timestamp literals and rejects the
+            // bound value. The rejection itself proves parameterisation held —
+            // an interpolated "OR '1'='1" would have been valid SQL returning
+            // every row, not a datetime-format error.
+            $this->expectException(\PDOException::class);
+            $stmt->execute([$maliciousInput]);
+            return;
+        }
+
+        // MySQL's lenient date parser silently truncates the input at the first
+        // apostrophe, leaving "2024-01-01"; the count must therefore match a
+        // clean prefix-parsed date, proving the value was bound as a literal.
         $stmt->execute([$maliciousInput]);
         $injected = (int) $stmt->fetch()['count'];
 
@@ -368,14 +382,22 @@ class ApiFilteringTest extends TestCase
     public function testInvalidDateFormat(): void
     {
         $stmt = self::$db->prepare("
-            SELECT COUNT(*) as count FROM calls 
+            SELECT COUNT(*) as count FROM calls
             WHERE create_datetime >= ?
         ");
-        
-        // Invalid date format
+
+        if (Database::getDbType() === 'pgsql') {
+            // PostgreSQL rejects a non-parseable timestamp literal outright,
+            // which is a safe failure mode (the value was bound, not injected).
+            $this->expectException(\PDOException::class);
+            $stmt->execute(['invalid-date']);
+            return;
+        }
+
+        // MySQL parses the invalid string to a zero-date, matching no rows.
         $stmt->execute(['invalid-date']);
         $result = $stmt->fetch();
-        
+
         // Should return 0 or handle gracefully
         $this->assertEquals(0, $result['count'], 'Invalid date should return no results');
     }
@@ -407,19 +429,22 @@ class ApiFilteringTest extends TestCase
      */
     public function testCaseSensitivityInFilters(): void
     {
+        // LOWER() on both sides makes the comparison case-insensitive on both
+        // engines (MySQL's default collation is case-insensitive, PostgreSQL's
+        // is not, so relying on implicit collation would diverge).
         $stmt = self::$db->prepare("
-            SELECT COUNT(DISTINCT c.id) as count 
+            SELECT COUNT(DISTINCT c.id) as count
             FROM calls c
             JOIN agency_contexts ac ON c.id = ac.call_id
-            WHERE ac.agency_type = ?
+            WHERE LOWER(ac.agency_type) = LOWER(?)
         ");
-        
+
         // Test exact case
         $stmt->execute(['Police']);
         $result = $stmt->fetch();
         $policeCount = $result['count'];
-        
-        // Test different case (MySQL is case-insensitive by default for strings)
+
+        // Test different case
         $stmt->execute(['POLICE']);
         $result = $stmt->fetch();
         $policeUpperCount = $result['count'];
