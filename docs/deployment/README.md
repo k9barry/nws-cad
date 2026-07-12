@@ -38,6 +38,13 @@ DB whose ping fails while the daemon hangs. Tunables: `AUTOHEAL_INTERVAL`
 (poll seconds), `AUTOHEAL_START_PERIOD` (post-start grace), and
 `AUTOHEAL_DEFAULT_STOP_TIMEOUT` (clean-stop window before SIGKILL).
 
+## Continuous deployment
+
+`scripts/deploy.sh` automates the runbook (backup → checkout tag → build →
+migrate → up → verify → rollback-on-failure) and can be run by hand on the host
+or driven by GitHub Actions. See **[CD.md](CD.md)** for the push-to-deploy setup
+(self-hosted runner + a `production` approval gate).
+
 ## Sample configurations
 
 See `caddy.example` and `nginx.example`. Both:

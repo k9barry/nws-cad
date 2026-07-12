@@ -198,6 +198,10 @@ them. Put Caddy or nginx in front (samples in
 ---
 
 ### Notes
+- **Automating this runbook:** `scripts/deploy.sh [tag]` runs every step below
+  (backup → checkout → build → migrate → up → verify) with automatic rollback on
+  failure, and is idempotent. It can be driven by GitHub Actions for
+  push-to-deploy — see `docs/deployment/CD.md`.
 - **Self-healing:** the stack runs a `willfarrell/autoheal` sidecar that restarts any
   container whose healthcheck flips to **unhealthy** (`app`, `api`, `mysql`, `postgres`
   are labeled `autoheal=true`). This complements `restart: unless-stopped`, which only
