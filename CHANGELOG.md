@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1] - 2026-07-12
+
+## Fixes
+
+- fix(import): accept &lt;Call&gt; root element in XmlValidator (real Aegis feed) (#63) (3e0875a)
+
+
 ## [2.1.0] - 2026-07-12
 
 ## Features
