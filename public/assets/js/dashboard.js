@@ -669,6 +669,8 @@ const Dashboard = {
             pill.classList.add('is-paused');
             text.textContent = 'Paused';
         }
+        const liveStatus = document.getElementById('dashboard-live-status');
+        if (liveStatus) liveStatus.textContent = text.textContent;
     }
 };
 

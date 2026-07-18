@@ -52,4 +52,42 @@ class HealthEndpointTest extends TestCase
             $payload['data']['timestamp']
         );
     }
+
+    public function testSystemReturnsExtendedHealthPayload(): void
+    {
+        $controller = new HealthController();
+        ob_start();
+        $controller->system();
+        $body = (string) ob_get_clean();
+        $payload = json_decode($body, true);
+
+        $this->assertIsArray($payload);
+        $this->assertTrue($payload['success']);
+
+        $data = $payload['data'];
+        $this->assertContains($data['status'], ['ok', 'warn', 'critical']);
+
+        // App / version block
+        $this->assertArrayHasKey('app', $data);
+        $this->assertArrayHasKey('version', $data['app']);
+        $this->assertSame(PHP_VERSION, $data['app']['php_version']);
+
+        // Database latency
+        $this->assertSame('ok', $data['db']['status']);
+        $this->assertIsNumeric($data['db']['latency_ms']);
+
+        // Disks is a list; memory is always present
+        $this->assertIsArray($data['disks']);
+        $this->assertArrayHasKey('php_usage_bytes', $data['memory']);
+        $this->assertArrayHasKey('status', $data['memory']);
+
+        // Watcher heartbeat section present with a known status keyword
+        $this->assertArrayHasKey('watcher', $data);
+        $this->assertContains($data['watcher']['status'], ['ok', 'warn', 'critical', 'unknown']);
+
+        $this->assertMatchesRegularExpression(
+            '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+\-]\d{2}:\d{2}$/',
+            $data['timestamp']
+        );
+    }
 }

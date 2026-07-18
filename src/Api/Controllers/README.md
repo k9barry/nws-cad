@@ -294,6 +294,53 @@ Get detailed response time analysis.
 
 ---
 
+### 5. HealthController
+
+Liveness and extended system-health probes. Used by the Docker `api`
+healthcheck and by the dashboard **System Status** modal.
+
+#### Endpoints
+
+##### `GET /api/health` - Liveness
+
+Runs `SELECT 1`. Returns `{status:"ok", db:"ok", timestamp}` on success, or
+`503` with `{success:false, error:"Database unreachable"}` when the DB is down.
+
+##### `GET /api/health/system` - Extended System Health
+
+Best-effort host/app metrics for the System Status modal. Every probe degrades
+gracefully (null / `"unknown"`) so one unavailable metric never fails the call.
+Each section carries a status keyword (`ok` / `warn` / `critical` / `unknown`);
+the top-level `status` is the worst of the DB, disk, and memory sections.
+
+```
+GET /api/health/system
+{
+  "success": true,
+  "data": {
+    "status": "ok",
+    "timestamp": "2026-07-18T12:00:00+00:00",
+    "app":     { "version": "2.1.4", "php_version": "8.3.x", "environment": "production" },
+    "db":      { "status": "ok", "latency_ms": 1.4 },
+    "disks":   [ { "label": "Data (watch)", "path": "...", "total_bytes": 0,
+                   "free_bytes": 0, "used_bytes": 0, "used_pct": 63.2, "status": "ok" } ],
+    "memory":  { "php_usage_bytes": 0, "php_peak_bytes": 0, "limit_bytes": 0,
+                 "used_pct": 12.5, "status": "ok" },
+    "load":    { "1m": 0.4, "5m": 0.5, "15m": 0.6, "cpus": 4 },
+    "watcher": { "heartbeat_age_seconds": 3, "threshold_seconds": 60, "status": "ok" },
+    "outbox":  { "pending": 0, "in_flight": 0, "retry": 0, "done": 0, "failed": 0, "total": 0 }
+  }
+}
+```
+
+Thresholds: disk `warn` ≥ 80% / `critical` ≥ 90%; memory `warn` ≥ 80% /
+`critical` ≥ 95%; watcher heartbeat `warn` ≥ 60s / `critical` ≥ 300s. `load` is
+informational (Linux-only; `null` elsewhere). `outbox` is `null` if the
+notifications module is not provisioned. Disk figures reflect the container
+mount, not the physical host.
+
+---
+
 ## Common Response Formats
 
 ### Success Response (Single Item)

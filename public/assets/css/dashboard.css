@@ -672,6 +672,33 @@ Timestamp: Wed Jan 28 01:35:28 UTC 2026
 }
 .live-pill.is-paused .dot { background: #94a3b8; animation: none; box-shadow: none; }
 .live-pill.is-error  .dot { background: #f87171; animation: none; box-shadow: none; }
+/* Clickable variant (opens the System Status modal) — resets native button chrome */
+.live-pill-btn { cursor: pointer; line-height: 1.2; font: inherit; font-size: 0.8rem; font-weight: 500; }
+.live-pill-btn:hover,
+.live-pill-btn:focus-visible { background: rgba(255, 255, 255, 0.30); outline: none; }
+.live-pill-btn:focus-visible { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6); }
+
+/* Footer API-status badge rendered as a button (opens System Status modal) */
+#api-status { cursor: pointer; border: 0; font: inherit; line-height: 1; padding: 0.35em 0.65em; }
+
+/* System Status modal layout */
+.system-status-section { margin-bottom: 1.1rem; }
+.system-status-section:last-child { margin-bottom: 0; }
+.system-status-heading {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid rgba(100, 116, 139, 0.18);
+}
+.system-status-item { margin-bottom: 0.85rem; }
+.system-status-item:last-child { margin-bottom: 0; }
+.system-status-kv { padding: 0.25rem 0; }
+.system-status-kv + .system-status-kv { border-top: 1px solid rgba(100, 116, 139, 0.12); }
+.system-status-meter { height: 0.6rem; border-radius: 999px; }
 @keyframes live-pulse {
     0%   { box-shadow: 0 0 6px rgba(0, 230, 118, 0.9), 0 0 0 0 rgba(0, 230, 118, 0.85); }
     70%  { box-shadow: 0 0 6px rgba(0, 230, 118, 0.9), 0 0 0 12px rgba(0, 230, 118, 0); }

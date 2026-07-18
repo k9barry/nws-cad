@@ -33,6 +33,9 @@ $router = new Router('/api');
 // Health Check Route (used by docker-compose api healthcheck)
 $router->get('/health', [HealthController::class, 'index']);
 
+// Extended system health (version, disk, memory, load, watcher, outbox)
+$router->get('/health/system', [HealthController::class, 'system']);
+
 // Filter Options Route
 $router->get('/filter-options', [FilterOptionsController::class, 'index']);
 
@@ -49,6 +52,7 @@ $router->get('/', function() {
             'stats' => '/api/stats',
             'notifications' => '/api/notifications/channels',
             'health' => '/api/health',
+            'health_system' => '/api/health/system',
             'docs' => '/api/docs'
         ]
     ]);

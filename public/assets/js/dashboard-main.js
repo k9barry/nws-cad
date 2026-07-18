@@ -84,6 +84,8 @@
             } else {
                 text.textContent = 'Live';
             }
+            const liveStatus = document.getElementById('dashboard-live-status');
+            if (liveStatus) liveStatus.textContent = text.textContent;
         }
 
         if (managers.MapManager) {

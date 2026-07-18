@@ -25,6 +25,10 @@ $apiBaseUrl = 'http://localhost:8080/api';
 // Get Dozzle port from environment (default 8081 - external Dozzle container)
 $dozzlePort = getenv('DOZZLE_PORT') ?: '8081';
 
+// App version (source of truth is the repo-root VERSION file, written by the
+// release workflow). Shown in the footer and the System Status modal.
+$appVersion = trim((string) @file_get_contents(__DIR__ . '/../VERSION')) ?: 'dev';
+
 // Define routes (dashboard-only)
 $routes = [
     '/' => 'dashboard',
@@ -100,10 +104,13 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
                     </li>
                 </ul>
                 <div class="d-flex align-items-center">
-                    <span class="live-pill" id="dashboard-live-pill" role="status" aria-live="polite">
+                    <button type="button" class="live-pill live-pill-btn" id="dashboard-live-pill"
+                            data-bs-toggle="modal" data-bs-target="#system-status-modal"
+                            title="View system status" aria-label="View system status">
                         <span class="dot" aria-hidden="true"></span>
                         <span id="dashboard-live-text">Live</span>
-                    </span>
+                    </button>
+                    <span class="visually-hidden" id="dashboard-live-status" role="status" aria-live="polite">Live</span>
                 </div>
             </div>
         </div>
@@ -121,13 +128,21 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
         ?>
     </main>
 
+    <!-- System Status modal (version + disk/server health) — shared across all pages -->
+    <?php include __DIR__ . '/../src/Dashboard/Views/partials/system-status-modal.php'; ?>
+
     <!-- Footer -->
     <footer class="bg-light py-3 mt-5 no-print">
         <div class="container-fluid text-center text-muted">
             <small>
-                NWS CAD Dashboard &copy; <?= date('Y') ?> | 
+                NWS CAD Dashboard &copy; <?= date('Y') ?> |
                 <a href="https://github.com/k9barry/nws-cad" target="_blank">Documentation</a> |
-                API Status: <span id="api-status" class="badge bg-secondary">Checking...</span>
+                API Status: <button type="button" id="api-status" class="badge bg-secondary border-0"
+                        data-bs-toggle="modal" data-bs-target="#system-status-modal"
+                        title="View system status">Checking...</button> |
+                <button type="button" class="btn btn-link btn-sm p-0 align-baseline"
+                        data-bs-toggle="modal" data-bs-target="#system-status-modal"
+                        title="View system status">v<?= htmlspecialchars($appVersion) ?></button>
             </small>
         </div>
     </footer>
@@ -185,7 +200,9 @@ $pageTitle = ucfirst(str_replace('-mobile', '', $page));
         console.log('APP_CONFIG initialized:', window.APP_CONFIG);
     </script>
     <script src="/assets/js/dashboard.js?v=<?= time() ?>"></script>
-    
+    <!-- System Status modal controller (shared across all pages) -->
+    <script src="/assets/js/system-status.js?v=<?= time() ?>"></script>
+
     <?php if ($isMobile): ?>
     <!-- Mobile-specific scripts -->
     <script src="/assets/js/mobile.js?v=<?= time() ?>"></script>
