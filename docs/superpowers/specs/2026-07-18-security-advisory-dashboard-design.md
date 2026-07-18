@@ -11,7 +11,7 @@ At the same time the stack is deployed in two places — on-premise at the **PSA
 
 ## Goal
 
-A single **super-admin dashboard page** that consolidates every program and library used across both the PSAP and cloud environments, checks each against reputable security-advisory sources, and renders the results **sorted by severity** and **grouped/filterable by application (`psap | cloud`)**. Advisory data is refreshed on a **schedule into a cache**; the page renders the cached results instantly and does not depend on outbound network access at view time.
+A single **super-admin dashboard page** that consolidates every program and library used across both the PSAP and cloud environments, checks each against reputable security-advisory sources, and renders the results **sorted by severity** and **grouped/filterable by application (`psap | cloud`)**. Advisory data is refreshed on a **schedule into a cache**; the page renders the cached results instantly and does not depend on outbound network access at view time. When the scan surfaces an advisory, its details are additionally **pushed to the super-admin over the existing notification transports** (ntfy / Pushover / webhook), deduplicated so each advisory fires once.
 
 ## Non-goals
 
@@ -138,6 +138,56 @@ Dashboard views have **zero auth today** — a super-admin page is exactly where
 - A freshness banner: "Last scanned <relative time>" with a warning style when older than the refresh cadence × 2.
 - All CAD-independent, but any interpolated value still goes through `Dashboard.safeHtml` per the JS conventions.
 
+## Advisory delivery to the super-admin (transport paths)
+
+When the scan surfaces an advisory, its details are also **pushed to the super-admin through the existing notification transports** (ntfy / Pushover / webhook) — not just rendered on the page. The operator finds out when a CVE lands, without watching the dashboard.
+
+### Why not the existing outbox
+
+The CAD notification outbox cannot be reused as-is:
+
+- `notification_outbox.db_call_id` is `BIGINT NOT NULL` with `FOREIGN KEY … REFERENCES calls(id) ON DELETE CASCADE` — every row must belong to a call. Advisories have no call.
+- `Channel::send(IncidentDto $incident, NotificationContext $context)` is shaped around a CAD incident.
+
+Forcing advisories through it means making `db_call_id` nullable, adding a `message_type` + `payload_json` column, and refactoring `send()` to accept a message abstraction — invasive changes to a load-bearing, well-tested path. **Recommended instead:** a dedicated `AdvisoryNotifier` that reuses the *transport primitives and operational plumbing* without touching the CAD schema (see decision 4).
+
+### What is reused vs new
+
+| Reused | New |
+|---|---|
+| `HttpPost` / `HttpPut` cURL wrappers (TLS-verified transports) | `AdvisoryNotifier` — formats + sends advisory messages |
+| Channel *config* (which channels enabled) + `Config::secret($envName)` for tokens | Super-admin target config (dedicated topic/user/URL) |
+| `notification_send_log` (auto-pruned) + `RedactingProcessor` scrubbing | `security_advisory_notifications` dedup/state table |
+| `TopicSanitizer` + `rawurlencode` for ntfy topics | Severity→priority mapping, advisory message template |
+
+### Where it runs
+
+Notification is an **on-box concern** (that's where channel secrets, the send-log, and redaction live), decoupled from where the scan runs. The CI scan writes `advisories.json`; the **watcher** (a slow-cadence step in the `FileWatcher` loop, guarded by `SECURITY_REFRESH_TTL_HOURS`) diffs the current cache against the `security_advisory_notifications` state and dispatches only what's new.
+
+### Trigger & dedup semantics
+
+- **Fire once per advisory**, keyed by `(advisory_id, component, environment)`. A row already in `security_advisory_notifications` is not re-sent on every scan.
+- **Re-fire only on severity escalation** (e.g. a MEDIUM re-scored HIGH) — the stored `severity` is compared.
+- **Severity gate:** only advisories at/above `SECURITY_NOTIFY_MIN_SEVERITY` (default `HIGH`) are delivered; everything is still shown on the page.
+- **`update-available` rows are never notified** — they'd be noise; they live on the page only.
+- **Optional resolved notice:** when a previously-notified advisory disappears from a later scan (post-upgrade), send a one-line "resolved" message and clear the state row. Off by default (`SECURITY_NOTIFY_RESOLVED`).
+
+### Message content & mapping
+
+One message per advisory, formatted as (redacted through `RedactingProcessor`):
+
+```
+[psap] HIGH — monolog/monolog 3.10.0
+CVE-2025-XXXX (CVSS 7.5): <summary>
+Fixed in 3.10.1 · https://osv.dev/vulnerability/GHSA-…
+```
+
+- **ntfy:** title = `"[<env>] <SEVERITY>: <component>"`, body as above, `Priority` header mapped `CRITICAL→5(urgent) · HIGH→4 · MEDIUM→3 · LOW→2`, topic from `SECURITY_NTFY_TOPIC` (sanitized + `rawurlencode`d).
+- **Pushover:** `priority` mapped the same (CRITICAL → emergency/2 with retry, HIGH → 1), sent to `SECURITY_PUSHOVER_USER` if set else the default user.
+- **Webhook:** the normalized advisory JSON row (§ Data shape) POSTed to `SECURITY_WEBHOOK_URL`.
+
+Which transports fire is `SECURITY_NOTIFY_CHANNELS` (csv, default = every enabled channel). Every send is recorded in `notification_send_log` with the same retry/backoff already implemented in the channel layer.
+
 ## Configuration
 
 | Var | Default | Purpose |
@@ -145,7 +195,14 @@ Dashboard views have **zero auth today** — a super-admin page is exactly where
 | `SUPERADMIN_USERS` | *(empty)* | CSV allowlist of identity-header users permitted to view the security page / API. Empty in prod = deny. |
 | `SECURITY_ADVISORIES_ENABLED` | `true` | Master switch for the page + API. |
 | `OSV_API_BASE` | `https://api.osv.dev` | OSV endpoint (override for testing/mirrors). |
-| `SECURITY_REFRESH_TTL_HOURS` | `24` | Runtime-refresh guard (only relevant if the optional tick refresh is enabled). |
+| `SECURITY_REFRESH_TTL_HOURS` | `24` | Runtime-refresh / notify-scan guard interval. |
+| `SECURITY_NOTIFY_ENABLED` | `true` | Master switch for pushing advisories to the super-admin over the transports. |
+| `SECURITY_NOTIFY_MIN_SEVERITY` | `HIGH` | Minimum severity that triggers a notification (page shows all regardless). |
+| `SECURITY_NOTIFY_CHANNELS` | *(all enabled)* | CSV of channels to fire (`ntfy,pushover,webhook`). |
+| `SECURITY_NTFY_TOPIC` | *(none)* | Dedicated ntfy topic for advisories (reuses `NTFY_AUTH_TOKEN`/`NTFY_BASE_URL`). |
+| `SECURITY_PUSHOVER_USER` | *(falls back to `PUSHOVER_USER`)* | Pushover recipient for advisories. |
+| `SECURITY_WEBHOOK_URL` | *(none)* | Webhook endpoint for advisory payloads. |
+| `SECURITY_NOTIFY_RESOLVED` | `false` | Also send a notice when an advisory clears after an upgrade. |
 
 ## Files to change
 
@@ -157,6 +214,9 @@ Dashboard views have **zero auth today** — a super-admin page is exactly where
 - `src/Security/Advisories/AdvisoryReport.php` — DTO + normalization/merge/sort.
 - `src/Security/Advisories/AdvisoryCache.php` — read/write `var/security/advisories.json`.
 - `bin/refresh-advisories.php` — CLI entry the Action (and optional tick) calls.
+- `src/Security/Advisories/AdvisoryNotifier.php` — diffs cache vs state, formats per-advisory messages, fans out to the enabled transports, records to `notification_send_log`.
+- `src/Security/Advisories/AdvisoryNotificationRepository.php` — DB access for `security_advisory_notifications` (dedup/escalation/resolve state).
+- `database/{mysql,postgres}/init.sql` + `database/schema.sql` — new `security_advisory_notifications` table (kept in sync across all three, per the schema-sync rule).
 - `src/Api/Controllers/SecurityController.php` — `GET /api/security/advisories`, `checkAccess()` gated, reads cache only.
 - `src/Dashboard/Views/security.php` (+ `-mobile` variant) — the page.
 - `public/assets/js/security.js` — fetch + render + filters.
@@ -167,7 +227,7 @@ Dashboard views have **zero auth today** — a super-admin page is exactly where
 - `public/index.php` — add `/security` route + gated nav entry.
 - `public/assets/vendor/VENDORED.md` — pin exact Choices/Flatpickr versions (prerequisite).
 - `src/Api/Router.php` — register the security route.
-- Optionally `src/watcher.php` / `FileWatcher` — wire the guarded optional runtime refresh.
+- `src/watcher.php` / `FileWatcher` — wire the guarded advisory-notify scan (and the optional runtime cache refresh) into the loop.
 
 ## Pros / cons & tradeoffs
 
@@ -190,12 +250,14 @@ Dashboard views have **zero auth today** — a super-admin page is exactly where
 1. **Cache delivery:** commit `var/security/advisories.json` into the repo from the Action, or publish it as a release artifact the deploy pulls? (Committing is simplest and works with zero deploy-time egress; artifact keeps the repo clean.)
 2. **Programs/images scope:** include OS packages + container images in v1 (noisier, NVD-based), or ship v1 with just the PHP + JS libraries (clean OSV coverage) and add programs in v2?
 3. **Runtime refresh:** ship the optional `FileWatcher`-tick refresh now, or CI-only for v1?
+4. **Notification reuse (recommended: dedicated `AdvisoryNotifier`):** keep the CAD outbox untouched and build a small advisory notifier over the transport primitives, **or** generalize `notification_outbox` (`db_call_id` nullable + `message_type`/`payload_json`) and `Channel::send()` to carry non-CAD messages? The former is safer for the load-bearing CAD path; the latter maximizes reuse of the retry/backoff queue.
 
 ## Rollout phases
 
 - **Phase 0 (prerequisite):** pin exact vendored JS versions in `VENDORED.md`; expose the real app version (read `VERSION`, fix the stale `1.0.0` in `public/api.php`).
 - **Phase 1:** inventory build + OSV/`composer audit` scan in a scheduled Action → cached JSON; authed `/api/security/advisories` + the page (libraries only). Delivers value with clean coverage.
 - **Phase 2:** add programs/images + the `update-available` signal, and the optional runtime refresh.
+- **Phase 3:** advisory delivery over the transports — `AdvisoryNotifier` + `security_advisory_notifications` state, wired into the watcher, gated by `SECURITY_NOTIFY_*`.
 
 ## Appendix A — seed inventory (from the repo as of this design)
 
