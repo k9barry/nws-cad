@@ -199,7 +199,7 @@ final class HealthController
     }
 
     /**
-     * @return array{1m:float,5m:float,15m:float,cpus:int|null}|null
+     * @return array{'1m':float,'5m':float,'15m':float,cpus:int|null}|null
      */
     private function probeLoad(): ?array
     {
