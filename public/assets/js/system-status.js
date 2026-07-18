@@ -16,6 +16,38 @@
         return;
     }
 
+    // Navbar "status light": color the live pill by overall system health.
+    const pill = document.getElementById('dashboard-live-pill');
+    const HEALTH_CLASSES = ['is-health-ok', 'is-health-warn', 'is-health-critical'];
+    const HEALTH_TITLE = {
+        ok:       'System health: OK — click for details',
+        warn:     'System health: Warning — click for details',
+        critical: 'System health: Critical — click for details',
+    };
+    const POLL_INTERVAL_MS = 60000;
+
+    function applyPillHealth(status) {
+        if (!pill) return;
+        pill.classList.remove(...HEALTH_CLASSES);
+        const key = HEALTH_TITLE[status] ? status : 'critical';
+        pill.classList.add(`is-health-${key}`);
+        pill.title = HEALTH_TITLE[key];
+    }
+
+    // Lightweight background poll (own fetch, so it never triggers the global
+    // Dashboard error toast). Drives only the navbar light.
+    async function pollPillHealth() {
+        if (!pill) return;
+        try {
+            const res = await fetch(`${Dashboard.config.apiBaseUrl}/health/system`, { cache: 'no-cache' });
+            const body = await res.json();
+            if (!res.ok || !body || !body.success) throw new Error('unhealthy');
+            applyPillHealth(body.data && body.data.status);
+        } catch (err) {
+            applyPillHealth('critical');
+        }
+    }
+
     const els = {
         loading: document.getElementById('system-status-loading'),
         content: document.getElementById('system-status-content'),
@@ -158,10 +190,11 @@
 
         els.content.innerHTML = parts.join('');
 
-        // Overall badge + timestamp
+        // Overall badge + timestamp (and keep the navbar light in sync)
         const meta = statusMeta(data.status);
         els.overall.className = `badge ${meta.cls}`;
         els.overall.textContent = meta.label;
+        applyPillHealth(data.status);
         if (data.timestamp) {
             const dt = new Date(data.timestamp);
             els.timestamp.textContent = isNaN(dt.getTime())
@@ -201,4 +234,8 @@
     if (els.refresh) {
         els.refresh.addEventListener('click', load);
     }
+
+    // Start the navbar health light: poll now, then on an interval.
+    pollPillHealth();
+    setInterval(pollPillHealth, POLL_INTERVAL_MS);
 })();
