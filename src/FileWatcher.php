@@ -64,9 +64,10 @@ class FileWatcher
         // and pump onTick (outbox drain) inside checkForNewFiles(). See
         // NOTIFICATION_YIELD_EVERY in CLAUDE.md. Values <= 0 disable the yield.
         // NB: `?:` would treat the string "0" as absent — must distinguish
-        // "genuinely unset" (false/null/empty) from an explicit "0".
+        // "genuinely unset" (false or empty) from an explicit "0".
+        // `??` eliminates null; getenv() returns string|false — no null branch.
         $rawYield = $_ENV['NOTIFICATION_YIELD_EVERY'] ?? getenv('NOTIFICATION_YIELD_EVERY');
-        $this->yieldEveryFiles = ($rawYield === false || $rawYield === null || $rawYield === '')
+        $this->yieldEveryFiles = ($rawYield === false || $rawYield === '')
             ? 25
             : (int) $rawYield;
 
