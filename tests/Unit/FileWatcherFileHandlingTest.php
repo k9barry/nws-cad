@@ -270,45 +270,77 @@ class FileWatcherFileHandlingTest extends TestCase
         $this->assertSame(3, $tickCount, 'skipped older-version files must still advance the yield counter');
     }
 
-    public function testConstructorParsesYieldZeroFromEnv(): void
+    /**
+     * Set NOTIFICATION_YIELD_EVERY in both $_ENV and process env (getenv),
+     * run $body, then restore. Prod code reads $_ENV ?? getenv() — leaving
+     * either source populated would let a CI-inherited value leak in and
+     * flip the assertion.
+     */
+    private function withYieldEnv(?string $value, callable $body): void
     {
-        // Regression: `?: 25` treats the string "0" as absent. An explicit
-        // NOTIFICATION_YIELD_EVERY=0 must yield the integer 0 (disable),
-        // not fall through to the default.
-        $prev = array_key_exists('NOTIFICATION_YIELD_EVERY', $_ENV)
+        $envPrev  = array_key_exists('NOTIFICATION_YIELD_EVERY', $_ENV)
             ? $_ENV['NOTIFICATION_YIELD_EVERY']
             : '__ABSENT__';
-        $_ENV['NOTIFICATION_YIELD_EVERY'] = '0';
+        $procPrev = getenv('NOTIFICATION_YIELD_EVERY');
+
+        if ($value === null) {
+            unset($_ENV['NOTIFICATION_YIELD_EVERY']);
+            putenv('NOTIFICATION_YIELD_EVERY');
+        } else {
+            $_ENV['NOTIFICATION_YIELD_EVERY'] = $value;
+            putenv('NOTIFICATION_YIELD_EVERY=' . $value);
+        }
+
         try {
-            $w = $this->makeWatcher(new RecordingParser());
-            $prop = new ReflectionProperty(FileWatcher::class, 'yieldEveryFiles');
-            $prop->setAccessible(true);
-            $this->assertSame(0, $prop->getValue($w));
+            $body();
         } finally {
-            if ($prev === '__ABSENT__') {
+            if ($envPrev === '__ABSENT__') {
                 unset($_ENV['NOTIFICATION_YIELD_EVERY']);
             } else {
-                $_ENV['NOTIFICATION_YIELD_EVERY'] = $prev;
+                $_ENV['NOTIFICATION_YIELD_EVERY'] = $envPrev;
+            }
+            if ($procPrev === false) {
+                putenv('NOTIFICATION_YIELD_EVERY');
+            } else {
+                putenv('NOTIFICATION_YIELD_EVERY=' . $procPrev);
             }
         }
     }
 
+    private function assertYieldPropSame(FileWatcher $w, int $expected): void
+    {
+        $prop = new ReflectionProperty(FileWatcher::class, 'yieldEveryFiles');
+        $prop->setAccessible(true);
+        $this->assertSame($expected, $prop->getValue($w));
+    }
+
+    public function testConstructorParsesYieldZeroFromEnv(): void
+    {
+        // Regression: `?: 25` treated the string "0" as absent. An explicit
+        // NOTIFICATION_YIELD_EVERY=0 must yield integer 0 (disable), not
+        // fall through to the default.
+        $this->withYieldEnv('0', function (): void {
+            $w = $this->makeWatcher(new RecordingParser());
+            $this->assertYieldPropSame($w, 0);
+        });
+    }
+
     public function testConstructorDefaultsYieldToTwentyFiveWhenEnvAbsent(): void
     {
-        $prev = array_key_exists('NOTIFICATION_YIELD_EVERY', $_ENV)
-            ? $_ENV['NOTIFICATION_YIELD_EVERY']
-            : '__ABSENT__';
-        unset($_ENV['NOTIFICATION_YIELD_EVERY']);
-        try {
+        $this->withYieldEnv(null, function (): void {
             $w = $this->makeWatcher(new RecordingParser());
-            $prop = new ReflectionProperty(FileWatcher::class, 'yieldEveryFiles');
-            $prop->setAccessible(true);
-            $this->assertSame(25, $prop->getValue($w));
-        } finally {
-            if ($prev !== '__ABSENT__') {
-                $_ENV['NOTIFICATION_YIELD_EVERY'] = $prev;
-            }
-        }
+            $this->assertYieldPropSame($w, 25);
+        });
+    }
+
+    public function testConstructorFallsBackToDefaultOnMalformedYieldEnv(): void
+    {
+        // `(int)"abc"` would silently yield 0 and disable the safety net.
+        // Malformed values must instead fall back to the 25 default.
+        $this->withYieldEnv('abc', function (): void {
+            $w = $this->makeWatcher(new RecordingParser());
+            $this->assertYieldPropSame($w, 25);
+        });
     }
 
     public function testProcessedFileMemoryIsPrunedToOneThousand(): void

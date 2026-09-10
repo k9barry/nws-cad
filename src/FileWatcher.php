@@ -63,13 +63,23 @@ class FileWatcher
         // Files-per-yield during a long scan: how often to touch the heartbeat
         // and pump onTick (outbox drain) inside checkForNewFiles(). See
         // NOTIFICATION_YIELD_EVERY in CLAUDE.md. Values <= 0 disable the yield.
-        // NB: `?:` would treat the string "0" as absent — must distinguish
-        // "genuinely unset" (false or empty) from an explicit "0".
-        // `??` eliminates null; getenv() returns string|false — no null branch.
+        // Validate as an integer: `(int)"abc"` would silently yield 0 and
+        // disable the safety net; a malformed value falls back to 25 and logs.
         $rawYield = $_ENV['NOTIFICATION_YIELD_EVERY'] ?? getenv('NOTIFICATION_YIELD_EVERY');
-        $this->yieldEveryFiles = ($rawYield === false || $rawYield === '')
-            ? 25
-            : (int) $rawYield;
+        if ($rawYield === false || $rawYield === '') {
+            $this->yieldEveryFiles = 25;
+        } else {
+            $parsed = filter_var($rawYield, FILTER_VALIDATE_INT);
+            if ($parsed === false) {
+                $this->logger->warning("Invalid NOTIFICATION_YIELD_EVERY, using default", [
+                    'raw'     => (string) $rawYield,
+                    'default' => 25,
+                ]);
+                $this->yieldEveryFiles = 25;
+            } else {
+                $this->yieldEveryFiles = $parsed;
+            }
+        }
 
         if ($config !== null) {
             // Injection mode: caller supplies configuration and (optionally) a
