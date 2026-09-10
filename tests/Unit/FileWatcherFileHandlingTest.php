@@ -189,6 +189,59 @@ class FileWatcherFileHandlingTest extends TestCase
         $this->assertFalse($running->getValue($w), 'a shutdown signal must clear the running flag');
     }
 
+    public function testMidScanYieldFiresOnTickAndTouchesHeartbeatEveryNFiles(): void
+    {
+        // Write 10 parseable files with unique call numbers so none are
+        // deduped by FilenameParser's version-select logic.
+        for ($i = 0; $i < 10; $i++) {
+            $callNum = 300 + $i;
+            $this->writeFile("{$callNum}_2026010112000000.xml", '<xml/>');
+        }
+
+        $w = $this->makeWatcher(new RecordingParser(true));
+
+        // Force yield-every-3 for the test — with 10 files we expect 3 yields
+        // (after files 3, 6, and 9).
+        $yieldProp = new ReflectionProperty(FileWatcher::class, 'yieldEveryFiles');
+        $yieldProp->setAccessible(true);
+        $yieldProp->setValue($w, 3);
+
+        $tickCount = 0;
+        $w->setOnTick(static function () use (&$tickCount): void { $tickCount++; });
+
+        $hbPath = $this->watchDir . '/.hb';
+        // Age the heartbeat so we can prove it was touched during the scan.
+        touch($hbPath, time() - 3600);
+        $before = filemtime($hbPath);
+
+        self::invoke($w, 'checkForNewFiles');
+
+        $this->assertSame(3, $tickCount, 'onTick should fire once per completed yield window');
+        clearstatcache(true, $hbPath);
+        $this->assertGreaterThan($before, filemtime($hbPath), 'heartbeat must be refreshed mid-scan');
+    }
+
+    public function testMidScanYieldDisabledWhenYieldEveryIsZero(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $callNum = 400 + $i;
+            $this->writeFile("{$callNum}_2026010112000000.xml", '<xml/>');
+        }
+
+        $w = $this->makeWatcher(new RecordingParser(true));
+
+        $yieldProp = new ReflectionProperty(FileWatcher::class, 'yieldEveryFiles');
+        $yieldProp->setAccessible(true);
+        $yieldProp->setValue($w, 0);
+
+        $tickCount = 0;
+        $w->setOnTick(static function () use (&$tickCount): void { $tickCount++; });
+
+        self::invoke($w, 'checkForNewFiles');
+
+        $this->assertSame(0, $tickCount, 'yield <= 0 must disable the mid-scan onTick');
+    }
+
     public function testProcessedFileMemoryIsPrunedToOneThousand(): void
     {
         $this->writeFile('200_2026010112000000.xml', '<xml/>');

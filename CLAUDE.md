@@ -188,6 +188,7 @@ After `gh pr create`, wait for qodo (typically ≤ 2 minutes), then run the qodo
 | `WATCHER_INTERVAL` (seconds) | File-watcher poll interval |
 | `LOG_LEVEL`, `APP_ENV` | Logging and environment selection |
 | `NOTIFICATION_DELTA_SECONDS` (default 900) | Delta-time gate evaluated at outbox-write time |
+| `NOTIFICATION_YIELD_EVERY` (default 25) | Files-per-yield inside a long scan. Every N files `FileWatcher::checkForNewFiles()` pauses to touch `.watcher-heartbeat` (keeps the compose healthcheck green during a large backlog drain) and fire `onTick` so `OutboxProcessor::tick()` drains queued notifications without waiting for the whole scan to finish. `≤0` disables the mid-scan yield (legacy behavior). |
 | `OUTBOX_BATCH_SIZE` (default 10) | Max outbox rows claimed per FileWatcher tick |
 | `OUTBOX_MAX_ATTEMPTS` (default 5) | Permanent-failure threshold for outbox rows |
 | `LOGS_ADMIN_USERS` (csv, default empty) | Allowlist of identity-header users permitted to read `/api/logs` in production. Empty in prod = denied (fail-secure). Ignored outside prod. |
