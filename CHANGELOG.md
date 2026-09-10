@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.5] - 2026-09-10
+
+## Fixes
+
+- fix(watcher): drain outbox and refresh heartbeat mid-scan (#69) (5c0ef3a)
+
+
 ## [2.1.4] - 2026-07-12
 
 ## Fixes
