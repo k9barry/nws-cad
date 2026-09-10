@@ -27,6 +27,7 @@ class FileWatcher
     private $onTick = null;
     /** @var callable(int):void */
     private $sleep;
+    private int $yieldEveryFiles;
 
     public function setOnTick(?callable $cb): void
     {
@@ -59,6 +60,26 @@ class FileWatcher
         $this->sleep = $sleep ?? static function (int $seconds): void {
             sleep($seconds);
         };
+        // Files-per-yield during a long scan: how often to touch the heartbeat
+        // and pump onTick (outbox drain) inside checkForNewFiles(). See
+        // NOTIFICATION_YIELD_EVERY in CLAUDE.md. Values <= 0 disable the yield.
+        // Validate as an integer: `(int)"abc"` would silently yield 0 and
+        // disable the safety net; a malformed value falls back to 25 and logs.
+        $rawYield = $_ENV['NOTIFICATION_YIELD_EVERY'] ?? getenv('NOTIFICATION_YIELD_EVERY');
+        if ($rawYield === false || $rawYield === '') {
+            $this->yieldEveryFiles = 25;
+        } else {
+            $parsed = filter_var($rawYield, FILTER_VALIDATE_INT);
+            if ($parsed === false) {
+                $this->logger->warning("Invalid NOTIFICATION_YIELD_EVERY, using default", [
+                    'raw'     => (string) $rawYield,
+                    'default' => 25,
+                ]);
+                $this->yieldEveryFiles = 25;
+            } else {
+                $this->yieldEveryFiles = $parsed;
+            }
+        }
 
         if ($config !== null) {
             // Injection mode: caller supplies configuration and (optionally) a
@@ -299,25 +320,49 @@ class FileWatcher
         $skippedCount = 0;
         $versionSkippedCount = count($filesToSkip);
         $unparseableCount = count($unparseableFilenames);
-        
+
+        // During a large backlog scan this foreach can run for many minutes.
+        // Refresh the heartbeat and pump onTick (outbox drain) every N files so
+        // (a) the container healthcheck doesn't flip to unhealthy mid-scan and
+        // (b) freshly-queued notifications don't sit in `pending` until the
+        // whole scan finishes. Tunable via NOTIFICATION_YIELD_EVERY (0 disables).
+        $yieldEvery = $this->yieldEveryFiles;
+        $iter = 0;
+
         foreach ($files as $file) {
             $filename = basename($file);
-            
-            // Skip if this is an older version
+
+            // Skip if this is an older version. NB: still count toward the
+            // yield boundary below — a backlog of historical versions must not
+            // bypass the heartbeat + onTick pump.
             if (in_array($filename, $filesToSkip)) {
                 $skippedCount++;
-                continue;
-            }
-            
-            $this->logger->debug("Checking file: {$filename}");
-            
-            if ($this->shouldProcessFile($file)) {
-                $this->logger->info("Processing file: {$filename}");
-                $this->processFile($file);
-                $processedCount++;
             } else {
-                $this->logger->debug("File skipped (already processed or unstable): {$filename}");
-                $skippedCount++;
+                $this->logger->debug("Checking file: {$filename}");
+
+                if ($this->shouldProcessFile($file)) {
+                    $this->logger->info("Processing file: {$filename}");
+                    $this->processFile($file);
+                    $processedCount++;
+                } else {
+                    $this->logger->debug("File skipped (already processed or unstable): {$filename}");
+                    $skippedCount++;
+                }
+            }
+
+            if ($yieldEvery > 0 && (++$iter % $yieldEvery) === 0) {
+                $this->touchHeartbeat();
+                if ($this->onTick !== null) {
+                    try {
+                        ($this->onTick)();
+                    } catch (\Throwable $t) {
+                        $this->logger->error("onTick callback failed mid-scan", [
+                            'exception' => get_class($t),
+                            'message'   => $t->getMessage(),
+                            'trace'     => $t->getTraceAsString(),
+                        ]);
+                    }
+                }
             }
         }
 
