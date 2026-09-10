@@ -242,6 +242,75 @@ class FileWatcherFileHandlingTest extends TestCase
         $this->assertSame(0, $tickCount, 'yield <= 0 must disable the mid-scan onTick');
     }
 
+    public function testMidScanYieldCountsOlderVersionsTowardBoundary(): void
+    {
+        // 5 call numbers × 2 timestamped versions each = 10 files, where 5
+        // are filtered out as older versions by FilenameParser. The yield
+        // counter must still advance for skipped files so a backlog full of
+        // historical versions can't bypass heartbeat + onTick.
+        for ($i = 0; $i < 5; $i++) {
+            $callNum = 500 + $i;
+            $this->writeFile("{$callNum}_2026010112000000.xml", '<xml/>'); // older
+            $this->writeFile("{$callNum}_2026010112000010.xml", '<xml/>'); // newer
+        }
+
+        $w = $this->makeWatcher(new RecordingParser(true));
+
+        $yieldProp = new ReflectionProperty(FileWatcher::class, 'yieldEveryFiles');
+        $yieldProp->setAccessible(true);
+        $yieldProp->setValue($w, 3);
+
+        $tickCount = 0;
+        $w->setOnTick(static function () use (&$tickCount): void { $tickCount++; });
+
+        self::invoke($w, 'checkForNewFiles');
+
+        // 10 files iterated / yield-every-3 = 3 yields, regardless of how many
+        // were skipped as older versions.
+        $this->assertSame(3, $tickCount, 'skipped older-version files must still advance the yield counter');
+    }
+
+    public function testConstructorParsesYieldZeroFromEnv(): void
+    {
+        // Regression: `?: 25` treats the string "0" as absent. An explicit
+        // NOTIFICATION_YIELD_EVERY=0 must yield the integer 0 (disable),
+        // not fall through to the default.
+        $prev = array_key_exists('NOTIFICATION_YIELD_EVERY', $_ENV)
+            ? $_ENV['NOTIFICATION_YIELD_EVERY']
+            : '__ABSENT__';
+        $_ENV['NOTIFICATION_YIELD_EVERY'] = '0';
+        try {
+            $w = $this->makeWatcher(new RecordingParser());
+            $prop = new ReflectionProperty(FileWatcher::class, 'yieldEveryFiles');
+            $prop->setAccessible(true);
+            $this->assertSame(0, $prop->getValue($w));
+        } finally {
+            if ($prev === '__ABSENT__') {
+                unset($_ENV['NOTIFICATION_YIELD_EVERY']);
+            } else {
+                $_ENV['NOTIFICATION_YIELD_EVERY'] = $prev;
+            }
+        }
+    }
+
+    public function testConstructorDefaultsYieldToTwentyFiveWhenEnvAbsent(): void
+    {
+        $prev = array_key_exists('NOTIFICATION_YIELD_EVERY', $_ENV)
+            ? $_ENV['NOTIFICATION_YIELD_EVERY']
+            : '__ABSENT__';
+        unset($_ENV['NOTIFICATION_YIELD_EVERY']);
+        try {
+            $w = $this->makeWatcher(new RecordingParser());
+            $prop = new ReflectionProperty(FileWatcher::class, 'yieldEveryFiles');
+            $prop->setAccessible(true);
+            $this->assertSame(25, $prop->getValue($w));
+        } finally {
+            if ($prev !== '__ABSENT__') {
+                $_ENV['NOTIFICATION_YIELD_EVERY'] = $prev;
+            }
+        }
+    }
+
     public function testProcessedFileMemoryIsPrunedToOneThousand(): void
     {
         $this->writeFile('200_2026010112000000.xml', '<xml/>');

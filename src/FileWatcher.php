@@ -63,8 +63,12 @@ class FileWatcher
         // Files-per-yield during a long scan: how often to touch the heartbeat
         // and pump onTick (outbox drain) inside checkForNewFiles(). See
         // NOTIFICATION_YIELD_EVERY in CLAUDE.md. Values <= 0 disable the yield.
-        $this->yieldEveryFiles = (int) ($_ENV['NOTIFICATION_YIELD_EVERY']
-            ?? getenv('NOTIFICATION_YIELD_EVERY') ?: 25);
+        // NB: `?:` would treat the string "0" as absent — must distinguish
+        // "genuinely unset" (false/null/empty) from an explicit "0".
+        $rawYield = $_ENV['NOTIFICATION_YIELD_EVERY'] ?? getenv('NOTIFICATION_YIELD_EVERY');
+        $this->yieldEveryFiles = ($rawYield === false || $rawYield === null || $rawYield === '')
+            ? 25
+            : (int) $rawYield;
 
         if ($config !== null) {
             // Injection mode: caller supplies configuration and (optionally) a
@@ -317,21 +321,22 @@ class FileWatcher
         foreach ($files as $file) {
             $filename = basename($file);
 
-            // Skip if this is an older version
+            // Skip if this is an older version. NB: still count toward the
+            // yield boundary below — a backlog of historical versions must not
+            // bypass the heartbeat + onTick pump.
             if (in_array($filename, $filesToSkip)) {
                 $skippedCount++;
-                continue;
-            }
-
-            $this->logger->debug("Checking file: {$filename}");
-
-            if ($this->shouldProcessFile($file)) {
-                $this->logger->info("Processing file: {$filename}");
-                $this->processFile($file);
-                $processedCount++;
             } else {
-                $this->logger->debug("File skipped (already processed or unstable): {$filename}");
-                $skippedCount++;
+                $this->logger->debug("Checking file: {$filename}");
+
+                if ($this->shouldProcessFile($file)) {
+                    $this->logger->info("Processing file: {$filename}");
+                    $this->processFile($file);
+                    $processedCount++;
+                } else {
+                    $this->logger->debug("File skipped (already processed or unstable): {$filename}");
+                    $skippedCount++;
+                }
             }
 
             if ($yieldEvery > 0 && (++$iter % $yieldEvery) === 0) {
@@ -340,7 +345,11 @@ class FileWatcher
                     try {
                         ($this->onTick)();
                     } catch (\Throwable $t) {
-                        $this->logger->error("onTick callback failed mid-scan: " . $t->getMessage());
+                        $this->logger->error("onTick callback failed mid-scan", [
+                            'exception' => get_class($t),
+                            'message'   => $t->getMessage(),
+                            'trace'     => $t->getTraceAsString(),
+                        ]);
                     }
                 }
             }
