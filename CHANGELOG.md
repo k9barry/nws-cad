@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0] - 2026-10-07
+
+## Features
+
+- feat(watcher): watchfolder retention (#70) + fix ntfy publishes rejected by Actions header (#72) (60ebef5)
+
+
 ## [2.1.7] - 2026-10-07
 
 ## Fixes
