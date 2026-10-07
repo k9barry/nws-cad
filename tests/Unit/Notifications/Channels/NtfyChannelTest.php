@@ -93,6 +93,56 @@ class NtfyChannelTest extends TestCase
         $this->assertSame('https://ntfy.example/Fire_MCFD_x', $capturedUrl);
     }
 
+    public function testMapUrlSentAsClickAndActionNotAttach(): void
+    {
+        $headers = $this->captureHeaders($this->dto());
+
+        $mapUrl = $this->dto()->mapUrl();
+        $this->assertSame($mapUrl, $headers['Click']);
+        $this->assertSame('view, Driving Directions, ' . $mapUrl, $headers['Actions']);
+        $this->assertArrayNotHasKey('Attach', $headers);
+    }
+
+    public function testNoMapHeadersWithoutCoordinates(): void
+    {
+        $dto = IncidentDto::fromRow([
+            'id' => 1, 'call_id' => 100, 'call_number' => 'C-100',
+            'call_type' => 'Structure Fire', 'agency_type' => 'Fire',
+            'jurisdiction' => 'MCFD', 'units' => 'ENGINE1',
+            'full_address' => '123 Main', 'alarm_level' => 2,
+            'create_datetime' => '2026-05-07 12:00:00',
+        ]);
+        $headers = $this->captureHeaders($dto);
+
+        $this->assertArrayNotHasKey('Click', $headers);
+        $this->assertArrayNotHasKey('Actions', $headers);
+        $this->assertArrayNotHasKey('Attach', $headers);
+    }
+
+    /** @return array<string,string> */
+    private function captureHeaders(IncidentDto $dto): array
+    {
+        $http = Mockery::mock(\NwsCad\Notifications\Channels\HttpPut::class);
+        $captured = [];
+        $http->shouldReceive('put')
+            ->once()
+            ->with(Mockery::any(), Mockery::on(function ($h) use (&$captured): bool {
+                $captured = $h;
+                return true;
+            }), Mockery::any(), Mockery::any())
+            ->andReturn(['status' => 200, 'body' => '']);
+
+        $channel = new NtfyChannel(
+            baseUrl: 'https://ntfy.example',
+            authToken: '******',
+            config: [],
+            http: $http,
+        );
+        $channel->send($dto, new NotificationContext(Intent::Created, false, ['T'], []));
+
+        return $captured;
+    }
+
     public function testRetriesOn5xxAndEventuallySucceeds(): void
     {
         $http = Mockery::mock(\NwsCad\Notifications\Channels\HttpPut::class);
