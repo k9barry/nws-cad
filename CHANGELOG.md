@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.6] - 2026-10-07
+
+## Fixes
+
+- fix(notifications): use ntfy Click/Actions instead of Attach for map link (9f87966)
+
+
 ## [2.1.5] - 2026-09-10
 
 ## Fixes
