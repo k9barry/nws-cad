@@ -99,8 +99,13 @@ final class NtfyChannel implements NotificationChannel
                 'Tags' => $tags,
                 'Priority' => (string) $priority,
             ];
-            if ($incident->mapUrl() !== null) {
-                $headers['Attach'] = $incident->mapUrl();
+            $mapUrl = $incident->mapUrl();
+            if ($mapUrl !== null) {
+                // "Attach" makes ntfy treat the URL as a file attachment
+                // ("Not Downloaded" / blank page). Use Click (tap notification
+                // to open) and a "view" action button instead.
+                $headers['Click'] = $mapUrl;
+                $headers['Actions'] = 'view, Driving Directions, ' . $mapUrl;
             }
 
             $results[] = $this->sendWithRetry($url, $headers, $messageBody, $sanitized);
@@ -179,7 +184,7 @@ final class NtfyChannel implements NotificationChannel
         return implode("\n", [
             'C-Name: ' . ($i->commonName ?? ''),
             'Loc: ' . ($i->fullAddress ?? ''),
-            'Inc: ' . ($i->callType ?? ''),
+            'Inc: ' . ($i->nearestCrossStreets !== null ? $i->callType ?? '' : $i->callType ?? ''),
             'Nature: ' . ($i->natureOfCall ?? ''),
             'Cross Rd: ' . ($i->nearestCrossStreets ?? ''),
             'Beat: ' . ($i->policeBeat ?? ''),
