@@ -186,6 +186,7 @@ After `gh pr create`, wait for qodo (typically ≤ 2 minutes), then run the qodo
 | `MYSQL_*` / `POSTGRES_*` | Connection details (host/port/database/user/password) |
 | `API_PORT` (default 8080) | API server port |
 | `WATCHER_INTERVAL` (seconds) | File-watcher poll interval |
+| `WATCHER_RETENTION_DAYS` (default 15) | Once a day the watcher deletes `*.xml` older than this (mtime) from the watchfolder's `processed/` and `failed/`. Superseded versions of a call are moved from the root to `processed/` so they age out too. `0` keeps files forever. |
 | `LOG_LEVEL`, `APP_ENV` | Logging and environment selection |
 | `NOTIFICATION_DELTA_SECONDS` (default 900) | Delta-time gate evaluated at outbox-write time |
 | `NOTIFICATION_YIELD_EVERY` (default 25) | Files-per-yield inside a long scan. Every N files `FileWatcher::checkForNewFiles()` pauses to touch `.watcher-heartbeat` (keeps the compose healthcheck green during a large backlog drain) and fire `onTick` so `OutboxProcessor::tick()` drains queued notifications without waiting for the whole scan to finish. `≤0` disables the mid-scan yield (legacy behavior). |

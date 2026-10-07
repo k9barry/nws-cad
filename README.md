@@ -180,6 +180,7 @@ nws-cad/
 | `MYSQL_PASSWORD` | Database password | - |
 | `API_PORT` | API server port | `8080` |
 | `WATCHER_INTERVAL` | File check interval (seconds) | `5` |
+| `WATCHER_RETENTION_DAYS` | Days to keep XML files in the watchfolder's `processed/` and `failed/` subfolders; older files are deleted once a day. `0` keeps them forever | `15` |
 | `LOG_LEVEL` | Logging level | `debug` |
 | `APP_ENV` | Environment (`production`/`development`) | `development` |
 

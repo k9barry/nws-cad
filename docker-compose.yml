@@ -49,6 +49,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-debug}
       - WATCHER_INTERVAL=${WATCHER_INTERVAL:-5}
       - WATCHER_FILE_PATTERN=${WATCHER_FILE_PATTERN:-*.xml}
+      - WATCHER_RETENTION_DAYS=${WATCHER_RETENTION_DAYS:-15}
     depends_on:
       mysql:
         condition: service_healthy
