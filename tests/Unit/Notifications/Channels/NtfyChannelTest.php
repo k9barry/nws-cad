@@ -99,7 +99,12 @@ class NtfyChannelTest extends TestCase
 
         $mapUrl = $this->dto()->mapUrl();
         $this->assertSame($mapUrl, $headers['Click']);
-        $this->assertSame('view, Driving Directions, ' . $mapUrl, $headers['Actions']);
+        $this->assertSame(
+            'view, Driving Directions, ' . str_replace(',', '%2C', $mapUrl),
+            $headers['Actions'],
+        );
+        // Exactly three comma-separated fields, or ntfy rejects the publish.
+        $this->assertCount(3, explode(',', $headers['Actions']));
         $this->assertArrayNotHasKey('Attach', $headers);
     }
 
