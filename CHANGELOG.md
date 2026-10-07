@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.7] - 2026-10-07
+
+## Fixes
+
+- Add tests for ntfy map link headers (Click/Actions instead of Attach) (#71) (230505d)
+
+
 ## [2.1.6] - 2026-10-07
 
 ## Fixes
