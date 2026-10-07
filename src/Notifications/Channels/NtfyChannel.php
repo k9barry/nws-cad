@@ -104,8 +104,11 @@ final class NtfyChannel implements NotificationChannel
                 // "Attach" makes ntfy treat the URL as a file attachment
                 // ("Not Downloaded" / blank page). Use Click (tap notification
                 // to open) and a "view" action button instead.
+                // The simple Actions format is comma-separated, and the map
+                // URL carries "lat,lng" — a raw comma splits it into an extra
+                // unknown field and ntfy rejects the whole publish with 400.
                 $headers['Click'] = $mapUrl;
-                $headers['Actions'] = 'view, Driving Directions, ' . $mapUrl;
+                $headers['Actions'] = 'view, Driving Directions, ' . str_replace(',', '%2C', $mapUrl);
             }
 
             $results[] = $this->sendWithRetry($url, $headers, $messageBody, $sanitized);
@@ -184,7 +187,7 @@ final class NtfyChannel implements NotificationChannel
         return implode("\n", [
             'C-Name: ' . ($i->commonName ?? ''),
             'Loc: ' . ($i->fullAddress ?? ''),
-            'Inc: ' . ($i->nearestCrossStreets !== null ? $i->callType ?? '' : $i->callType ?? ''),
+            'Inc: ' . ($i->callType ?? ''),
             'Nature: ' . ($i->natureOfCall ?? ''),
             'Cross Rd: ' . ($i->nearestCrossStreets ?? ''),
             'Beat: ' . ($i->policeBeat ?? ''),

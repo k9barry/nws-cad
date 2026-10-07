@@ -47,8 +47,11 @@ class FileWatcherFileHandlingTest extends TestCase
      * Build a watcher wired to a fake parser and this test's temp watch dir,
      * with sleeps neutralized so file-stability checks are instant.
      */
-    private function makeWatcher(RecordingParser $parser, string $pattern = '*.xml'): FileWatcher
-    {
+    private function makeWatcher(
+        RecordingParser $parser,
+        string $pattern = '*.xml',
+        int $retentionDays = 15
+    ): FileWatcher {
         return new FileWatcher(
             $parser,
             [
@@ -56,6 +59,7 @@ class FileWatcherFileHandlingTest extends TestCase
                 'interval' => 0,
                 'file_pattern' => $pattern,
                 'heartbeat_path' => $this->watchDir . '/.hb',
+                'retention_days' => $retentionDays,
             ],
             static function (int $seconds): void {
                 // no-op: do not actually sleep during tests
@@ -268,6 +272,88 @@ class FileWatcherFileHandlingTest extends TestCase
         // 10 files iterated / yield-every-3 = 3 yields, regardless of how many
         // were skipped as older versions.
         $this->assertSame(3, $tickCount, 'skipped older-version files must still advance the yield counter');
+    }
+
+    public function testSupersededVersionsLeaveRootAfterLatestIsProcessed(): void
+    {
+        $this->writeFile('600_2026010112000000.xml'); // older
+        $this->writeFile('600_2026010112000005.xml'); // older
+        $this->writeFile('600_2026010112000010.xml'); // latest
+        $parser = new RecordingParser(true);
+        $w = $this->makeWatcher($parser);
+
+        self::invoke($w, 'checkForNewFiles');
+
+        $this->assertSame(
+            [$this->watchDir . '/600_2026010112000010.xml'],
+            $parser->processed,
+            'only the latest version is parsed'
+        );
+        foreach (['600_2026010112000000.xml', '600_2026010112000005.xml', '600_2026010112000010.xml'] as $name) {
+            $this->assertFileDoesNotExist($this->watchDir . '/' . $name, "{$name} must leave the watch root");
+            $this->assertFileExists($this->watchDir . '/processed/' . $name);
+        }
+    }
+
+    /**
+     * Write $name under $sub/ (or the root when $sub is '') with an mtime
+     * $ageDays days before $now.
+     */
+    private function writeAged(string $sub, string $name, int $now, int $ageDays): string
+    {
+        $dir = $sub === '' ? $this->watchDir : $this->watchDir . '/' . $sub;
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+        $path = $dir . '/' . $name;
+        file_put_contents($path, '<xml/>');
+        touch($path, $now - $ageDays * 86400);
+        return $path;
+    }
+
+    public function testRetentionSweepDeletesOnlyFilesPastTheWindow(): void
+    {
+        $now = 1_800_000_000;
+        $oldProcessed = $this->writeAged('processed', '700_old.xml', $now, 16);
+        $oldFailed    = $this->writeAged('failed', '701_old.xml', $now, 30);
+        $freshProc    = $this->writeAged('processed', '702_new.xml', $now, 14);
+        $freshFailed  = $this->writeAged('failed', '703_new.xml', $now, 1);
+        $oldRoot      = $this->writeAged('', '704_old.xml', $now, 60);
+        $oldNonXml    = $this->writeAged('processed', 'notes.txt', $now, 60);
+
+        $w = $this->makeWatcher(new RecordingParser(true));
+
+        $this->assertSame(2, $w->sweepRetention($now));
+        $this->assertFileDoesNotExist($oldProcessed);
+        $this->assertFileDoesNotExist($oldFailed);
+        $this->assertFileExists($freshProc);
+        $this->assertFileExists($freshFailed);
+        $this->assertFileExists($oldRoot, 'the watch root is never swept');
+        $this->assertFileExists($oldNonXml, 'only *.xml is swept');
+    }
+
+    public function testRetentionZeroDisablesSweep(): void
+    {
+        $now = 1_800_000_000;
+        $old = $this->writeAged('processed', '710_old.xml', $now, 365);
+
+        $w = $this->makeWatcher(new RecordingParser(true), '*.xml', 0);
+
+        $this->assertSame(0, $w->sweepRetention($now));
+        $this->assertFileExists($old);
+    }
+
+    public function testRetentionSweepRunsAtMostOncePerDay(): void
+    {
+        $w = $this->makeWatcher(new RecordingParser(true));
+        $old = $this->writeAged('processed', '720_old.xml', time(), 20);
+
+        self::invoke($w, 'maybeSweepRetention');
+        $this->assertFileDoesNotExist($old, 'first call sweeps');
+
+        $again = $this->writeAged('processed', '721_old.xml', time(), 20);
+        self::invoke($w, 'maybeSweepRetention');
+        $this->assertFileExists($again, 'a second call within 24h is a no-op');
     }
 
     /**

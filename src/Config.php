@@ -89,6 +89,7 @@ class Config
                 'folder' => $this->env('WATCH_FOLDER', __DIR__ . '/../var/watch'),
                 'interval' => (int)$this->env('WATCHER_INTERVAL', '5'),
                 'file_pattern' => $this->env('WATCHER_FILE_PATTERN', '*.xml'),
+                'retention_days' => (int)$this->env('WATCHER_RETENTION_DAYS', '15'),
             ],
             'paths' => [
                 // Runtime state lives under var/ (modern PHP layout). WATCH_FOLDER

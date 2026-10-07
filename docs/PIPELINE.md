@@ -351,6 +351,7 @@ If logs show the watcher is alive but stuck: most likely a slow channel `send()`
 |---|---|---|---|
 | `WATCHER_INTERVAL` | 5 | 1 | Seconds between file-scan + outbox-tick iterations |
 | `WATCHER_FILE_PATTERN` | `*.xml` | 1 | Glob for files to ingest |
+| `WATCHER_RETENTION_DAYS` | 15 | 1 | Daily sweep deletes `*.xml` in `processed/` and `failed/` older than this (by mtime); `0` disables |
 | `NOTIFICATION_DELTA_SECONDS` | 900 | 5 | Drop events older than this at outbox-write time |
 | `OUTBOX_BATCH_SIZE` | 10 | 7 | Max outbox rows claimed per tick |
 | `OUTBOX_MAX_ATTEMPTS` | 5 | 7 | Permanent-failure threshold |

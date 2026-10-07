@@ -28,6 +28,12 @@ class FileWatcher
     /** @var callable(int):void */
     private $sleep;
     private int $yieldEveryFiles;
+    /** Days to keep files in processed/ and failed/; 0 = keep forever. */
+    private int $retentionDays;
+    /** Unix time of the last retention sweep (0 = never). */
+    private int $lastRetentionSweep = 0;
+
+    private const RETENTION_SWEEP_INTERVAL = 86400;
 
     public function setOnTick(?callable $cb): void
     {
@@ -90,6 +96,7 @@ class FileWatcher
             $this->filePattern = (string) ($config['file_pattern'] ?? '*.xml');
             $this->heartbeatPath = (string) ($config['heartbeat_path']
                 ?? rtrim($this->watchFolder, '/') . '/.watcher-heartbeat');
+            $this->retentionDays = max(0, (int) ($config['retention_days'] ?? 15));
             // A caller that supplies config but no parser still gets a real
             // AegisXmlParser, which connects to the database on construction —
             // so we must wait for the DB here too, exactly as the production
@@ -107,6 +114,7 @@ class FileWatcher
             $this->interval = $configSingleton->get('watcher.interval');
             $this->filePattern = $configSingleton->get('watcher.file_pattern');
             $this->heartbeatPath = rtrim($configSingleton->get('paths.logs'), '/') . '/.watcher-heartbeat';
+            $this->retentionDays = max(0, (int) $configSingleton->get('watcher.retention_days', 15));
 
             $this->logger->info("Initializing File Watcher Service");
             $this->logger->debug("Loading configuration from Config singleton");
@@ -183,6 +191,7 @@ class FileWatcher
                 $this->touchHeartbeat();
                 $this->logger->debug("=== Check #{$checkCount} - Starting folder scan ===");
                 $this->checkForNewFiles();
+                $this->maybeSweepRetention();
 
                 if ($this->onTick !== null) {
                     try {
@@ -332,11 +341,16 @@ class FileWatcher
         foreach ($files as $file) {
             $filename = basename($file);
 
-            // Skip if this is an older version. NB: still count toward the
-            // yield boundary below — a backlog of historical versions must not
-            // bypass the heartbeat + onTick pump.
+            // Older version of a call that has a newer file: it will never be
+            // imported, so move it out of the root to processed/ (where the
+            // retention sweep ages it out) instead of rescanning it forever.
+            // NB: still count toward the yield boundary below — a backlog of
+            // historical versions must not bypass the heartbeat + onTick pump.
             if (in_array($filename, $filesToSkip)) {
                 $skippedCount++;
+                if (file_exists($file)) {
+                    $this->moveToProcessed($file);
+                }
             } else {
                 $this->logger->debug("Checking file: {$filename}");
 
@@ -376,6 +390,79 @@ class FileWatcher
             $this->processedFiles = array_slice($this->processedFiles, -1000, 1000, true);
             $this->logger->debug("Memory cleanup: removed {$removed} old file entries from tracking");
         }
+    }
+
+    /**
+     * Run the retention sweep if it is enabled and a day has passed since the
+     * last one. Called once per watch-loop iteration.
+     */
+    private function maybeSweepRetention(): void
+    {
+        if ($this->retentionDays <= 0) {
+            return;
+        }
+        $now = time();
+        if ($now - $this->lastRetentionSweep < self::RETENTION_SWEEP_INTERVAL) {
+            return;
+        }
+        $this->lastRetentionSweep = $now;
+        $this->sweepRetention($now);
+    }
+
+    /**
+     * Delete files in processed/ and failed/ whose mtime is older than the
+     * retention window. rename() preserves mtime, so the age is the exporter's
+     * write time. The watch root is never touched.
+     *
+     * @param int|null $now Unix time to measure age from (test seam); null → time().
+     * @return int Number of files deleted (0 when retention is disabled).
+     */
+    public function sweepRetention(?int $now = null): int
+    {
+        if ($this->retentionDays <= 0) {
+            return 0;
+        }
+        $cutoff = ($now ?? time()) - $this->retentionDays * 86400;
+        $deleted = 0;
+        $errors = 0;
+
+        foreach (['processed', 'failed'] as $sub) {
+            $dir = $this->watchFolder . '/' . $sub;
+            if (!is_dir($dir)) {
+                continue;
+            }
+            $items = scandir($dir);
+            if ($items === false) {
+                $this->logger->error("Retention sweep: failed to scan {$sub}/");
+                continue;
+            }
+            foreach ($items as $item) {
+                if (!preg_match('/\.xml$/i', $item)) {
+                    continue;
+                }
+                $path = $dir . '/' . $item;
+                if (!is_file($path)) {
+                    continue;
+                }
+                $mtime = @filemtime($path);
+                if ($mtime === false || $mtime >= $cutoff) {
+                    continue;
+                }
+                if (@unlink($path)) {
+                    $deleted++;
+                } else {
+                    $errors++;
+                }
+            }
+        }
+
+        $this->logger->info("Retention sweep complete", [
+            'deleted'        => $deleted,
+            'errors'         => $errors,
+            'retention_days' => $this->retentionDays,
+        ]);
+
+        return $deleted;
     }
 
     /**
