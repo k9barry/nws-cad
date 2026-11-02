@@ -10,7 +10,7 @@ and the PR/release workflow in [`CLAUDE.md`](../CLAUDE.md) at the repository roo
 - Cross-DB SQL rules and the three schema files that must stay in sync
 - Coding conventions (strict types, prepared statements, XXE protection, DTO mapping)
 - Test conventions that are load-bearing for CI (strict coverage metadata, `@covers`/`@uses`)
-- The conventional-commit release policy and the qodo PR review protocol
+- The conventional-commit release policy and the PR merge gate (green CI on the current head)
 - Key environment variables
 
 This file intentionally stays thin to avoid drift; do not duplicate `CLAUDE.md` content here.

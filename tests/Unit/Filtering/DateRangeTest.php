@@ -25,9 +25,14 @@ final class DateRangeTest extends TestCase
     {
         $tz = new \DateTimeZone('America/Indiana/Indianapolis');
         $r = DateRange::fromPreset('last_7_days', $tz);
-        $diff = $r->to->getTimestamp() - $r->from->getTimestamp();
-        $this->assertGreaterThan(6 * 86400, $diff);
-        $this->assertLessThanOrEqual(7 * 86400, $diff);
+        // Assert calendar days, not seconds: a window that crosses a DST
+        // change is legitimately 7 days ± 1 hour long in elapsed time.
+        $now = new DateTimeImmutable('now', $tz);
+        $this->assertSame(
+            $now->modify('-6 days')->format('Y-m-d') . ' 00:00:00',
+            $r->from->format('Y-m-d H:i:s'),
+        );
+        $this->assertSame($now->format('Y-m-d') . ' 23:59:59', $r->to->format('Y-m-d H:i:s'));
     }
 
     public function testFromExplicitDateOnlyExpandsToEndOfDay(): void

@@ -88,6 +88,17 @@ class XmlLoadGuardsTest extends TestCase
         $this->assertFalse($this->load($path), 'a DOCTYPE declaration must be rejected outright');
     }
 
+    public function testUtf16DoctypeIsRejected(): void
+    {
+        // Byte regex can't see "<!DOCTYPE" in UTF-16 (interleaved NULs); the
+        // post-parse DTD check must still reject it.
+        $xml = "<?xml version=\"1.0\" encoding=\"UTF-16\"?>\n"
+            . "<!DOCTYPE foo [<!ENTITY b \"boom\">]>\n"
+            . '<CallExport><CallId>&b;</CallId></CallExport>';
+        $path = $this->writeTmp("\xFF\xFE" . mb_convert_encoding($xml, 'UTF-16LE', 'UTF-8'));
+        $this->assertFalse($this->load($path), 'a UTF-16 DOCTYPE must be rejected too');
+    }
+
     public function testMissingFileIsRejected(): void
     {
         $this->assertFalse($this->load(sys_get_temp_dir() . '/does_not_exist_' . uniqid() . '.xml'));

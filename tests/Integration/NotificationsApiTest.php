@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\Api\Controllers\NotificationsController
+ * @uses \NwsCad\Notifications\Channels\HeaderSanitizer
  * @uses \NwsCad\Api\Response
  * @uses \NwsCad\Database
  * @uses \NwsCad\Config

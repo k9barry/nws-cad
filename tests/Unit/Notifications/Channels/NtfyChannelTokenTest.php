@@ -14,6 +14,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\Notifications\Channels\NtfyChannel
+ * @uses \NwsCad\Notifications\Channels\HeaderSanitizer
  * @uses \NwsCad\Notifications\IncidentDto
  * @uses \NwsCad\Notifications\NotificationContext
  * @uses \NwsCad\Notifications\SendResult

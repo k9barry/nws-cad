@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(PushoverChannel::class)]
+#[\PHPUnit\Framework\Attributes\UsesClass(\NwsCad\Notifications\Channels\HeaderSanitizer::class)]
 #[UsesClass(ChannelDescriptor::class)]
 final class PushoverChannelDescriptorTest extends TestCase
 {

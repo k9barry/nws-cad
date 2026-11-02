@@ -179,7 +179,10 @@ final class NtfyChannel implements NotificationChannel
 
     private function buildTitle(IncidentDto $i): string
     {
-        return sprintf('Call: %s %s', $i->callNumber, $i->callType ?? '');
+        // CAD-derived; strip CR/LF so a crafted export cannot inject headers.
+        return HeaderSanitizer::cleanValue(
+            sprintf('Call: %s %s', $i->callNumber, $i->callType ?? '')
+        );
     }
 
     private function buildBody(IncidentDto $i): string

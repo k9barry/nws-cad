@@ -1,4 +1,7 @@
-ARG PHP_VERSION=8.3
+# Pinned to the 8.3.36 security release (21 Oct 2026: CVE-2026-109618 /
+# CVE-2026-109619, unauthenticated RCE). A floating `8.3` tag can resolve to a
+# stale cached image, so bump this explicitly on each PHP security release.
+ARG PHP_VERSION=8.3.36
 FROM php:${PHP_VERSION}-cli
 
 # Timezone — provided as a build arg from docker-compose (sourced from .env).
@@ -46,6 +49,18 @@ RUN mkdir -p /var/www/var/watch /var/www/var/log \
 # Set PHP configuration
 RUN echo "memory_limit = 512M" > /usr/local/etc/php/conf.d/memory-limit.ini \
     && echo "date.timezone = ${TZ}" > /usr/local/etc/php/conf.d/timezone.ini
+
+# Production PHP hardening (both CLI SAPI processes: watcher and `php -S` API).
+#  - display_errors off: warnings must never reach API response bodies.
+#  - session.upload_progress off: the app uses no sessions; disables the
+#    CVE-2026-115560 attack surface outright.
+RUN { \
+      echo "expose_php = Off"; \
+      echo "display_errors = Off"; \
+      echo "display_startup_errors = Off"; \
+      echo "log_errors = On"; \
+      echo "session.upload_progress.enabled = 0"; \
+    } > /usr/local/etc/php/conf.d/zz-security.ini
 
 # Drop root at runtime: the entrypoint (running as root) fixes ownership of the
 # writable paths — including host bind mounts used by docker-compose — then

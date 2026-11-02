@@ -431,6 +431,13 @@ class FileWatcher
             if (!is_dir($dir)) {
                 continue;
             }
+            // A symlinked processed/ or failed/ (anyone who can write the
+            // watch folder can plant one) would point the delete loop at an
+            // arbitrary directory. Never follow it.
+            if (is_link($dir)) {
+                $this->logger->warning("Retention sweep: refusing symlinked {$sub}/");
+                continue;
+            }
             $items = scandir($dir);
             if ($items === false) {
                 $this->logger->error("Retention sweep: failed to scan {$sub}/");
@@ -441,7 +448,7 @@ class FileWatcher
                     continue;
                 }
                 $path = $dir . '/' . $item;
-                if (!is_file($path)) {
+                if (is_link($path) || !is_file($path)) {
                     continue;
                 }
                 $mtime = @filemtime($path);
@@ -497,6 +504,14 @@ class FileWatcher
                 
                 $fullPath = $directory . '/' . $item;
                 
+                // Never follow symlinks: a planted link (e.g. evil.xml ->
+                // /some/secret.xml) would make the parser read, and the
+                // mover relocate, files outside the watch folder.
+                if (is_link($fullPath)) {
+                    $this->logger->warning("  Skipping symlink in watch folder: {$item}");
+                    continue;
+                }
+
                 // Skip directories (including processed/failed)
                 if (is_dir($fullPath)) {
                     $this->logger->debug("  Skipping subdirectory: {$item}");
@@ -638,6 +653,10 @@ class FileWatcher
     private function moveToProcessed(string $filePath): void
     {
         $processedFolder = $this->watchFolder . '/processed';
+        if (is_link($processedFolder)) {
+            $this->logger->error("Refusing to move file: processed/ is a symlink");
+            return;
+        }
         if (!is_dir($processedFolder)) {
             mkdir($processedFolder, 0755, true);
             $this->logger->debug("Created processed folder: {$processedFolder}");
@@ -663,6 +682,10 @@ class FileWatcher
     private function moveToFailed(string $filePath): void
     {
         $failedFolder = $this->watchFolder . '/failed';
+        if (is_link($failedFolder)) {
+            $this->logger->error("Refusing to move file: failed/ is a symlink");
+            return;
+        }
         if (!is_dir($failedFolder)) {
             mkdir($failedFolder, 0755, true);
             $this->logger->debug("Created failed folder: {$failedFolder}");

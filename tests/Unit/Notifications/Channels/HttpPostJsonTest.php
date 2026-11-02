@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(HttpPost::class)]
+#[\PHPUnit\Framework\Attributes\UsesClass(\NwsCad\Notifications\Channels\HeaderSanitizer::class)]
 final class HttpPostJsonTest extends TestCase
 {
     protected function setUp(): void

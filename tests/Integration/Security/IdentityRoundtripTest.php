@@ -13,6 +13,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\Security\Identity
+ * @uses \NwsCad\Notifications\Channels\HeaderSanitizer
  * @uses \NwsCad\Api\Controllers\NotificationsController
  * @uses \NwsCad\Api\Response
  * @uses \NwsCad\Config

@@ -13,7 +13,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        PHP_VERSION: ${PHP_VERSION:-8.3}
+        PHP_VERSION: ${PHP_VERSION:-8.3.36}
         TZ: ${TZ:-UTC}
     container_name: nws-cad-app
     restart: unless-stopped
@@ -75,6 +75,7 @@ services:
       context: .
       dockerfile: docker/api/Dockerfile
       args:
+        PHP_VERSION: ${PHP_VERSION:-8.3.36}
         TZ: ${TZ:-UTC}
     container_name: nws-cad-api
     restart: unless-stopped

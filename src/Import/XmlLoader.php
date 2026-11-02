@@ -96,6 +96,16 @@ final class XmlLoader
                 return false;
             }
 
+            // The byte-level DOCTYPE regex above can be evaded by a UTF-16
+            // encoded document (libxml transcodes it, the regex sees NULs).
+            // Check the parsed tree too so a DTD is rejected in any encoding.
+            $dom = dom_import_simplexml($xml);
+            if ($dom->ownerDocument !== null && $dom->ownerDocument->doctype !== null) {
+                libxml_clear_errors();
+                $this->logger->error("Rejected XML containing a DOCTYPE declaration: {$filePath}");
+                return false;
+            }
+
             $this->logger->debug("XML parsed successfully");
             libxml_clear_errors();
             return $xml;

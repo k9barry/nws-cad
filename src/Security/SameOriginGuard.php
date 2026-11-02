@@ -39,8 +39,18 @@ final class SameOriginGuard
         // Prefer the browser-supplied Sec-Fetch-Site signal when present.
         $fetchSite = $_SERVER['HTTP_SEC_FETCH_SITE'] ?? null;
         if ($fetchSite !== null && $fetchSite !== '') {
-            if (in_array($fetchSite, ['same-origin', 'same-site', 'none'], true)) {
+            if (in_array($fetchSite, ['same-origin', 'none'], true)) {
                 return;
+            }
+            // `same-site` also covers sibling subdomains and other ports on
+            // the same registrable domain (e.g. a compromised
+            // other.example.gov), so it is not proof of same-origin. Accept
+            // it only when the Origin is our own authority or allowlisted.
+            if ($fetchSite === 'same-site') {
+                $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+                if ($origin !== '' && self::originAllowed($origin, $cfg)) {
+                    return;
+                }
             }
             self::reject($method, 'sec-fetch-site=' . $fetchSite);
             return;
@@ -53,16 +63,21 @@ final class SameOriginGuard
             return;
         }
 
-        $allowed = $cfg->get('cors.allowed_origins', []);
-        if (is_array($allowed) && in_array($origin, $allowed, true)) {
-            return;
-        }
-
-        if (self::originMatchesHost($origin)) {
+        if (self::originAllowed($origin, $cfg)) {
             return;
         }
 
         self::reject($method, 'origin=' . $origin);
+    }
+
+    private static function originAllowed(string $origin, Config $cfg): bool
+    {
+        $allowed = $cfg->get('cors.allowed_origins', []);
+        if (is_array($allowed) && in_array($origin, $allowed, true)) {
+            return true;
+        }
+
+        return self::originMatchesHost($origin);
     }
 
     /**
