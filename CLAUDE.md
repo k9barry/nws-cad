@@ -161,11 +161,7 @@ Every push to `main` triggers `.github/workflows/release.yml`, which derives the
 
 The latest `v*` tag is the version source of truth; the `VERSION` file is derived output written by the release commit (`chore(release): vX.Y.Z [skip ci]`). Release notes and `CHANGELOG.md` entries are grouped by type. A `workflow_dispatch` run with `dry_run: true` prints the computed bump without releasing; `force_bump` overrides detection. There is still no draft stage — any releasable merge ships, so keep PRs coherent.
 
-**Reviews run through qodo only** (Copilot review is not used):
-
-- **qodo-code-review** — posts a walkthrough summary plus a "Code Review by Qodo" comment with a `🐞 Bugs (N)` count. `N > 0` means there are findings to address; walkthrough-only summaries with no findings are fine to skip.
-
-After `gh pr create`, wait for qodo (typically ≤ 2 minutes), then run the qodo review loop (`qodo-skills:qodo-pr-resolver`): read the findings, fix genuine ones and push to the same branch (qodo re-reviews on new commits), reply to any false positives with justification, and only merge once qodo is clean. Do **not** request or wait for the Copilot reviewer. The wait-for-review discipline was established after v1.1.16 (PR #40) shipped a regression a reviewer had flagged but that was merged before the review appeared, forcing v1.1.17 (PR #41) the same day.
+**No automated review bot is used** (neither qodo nor Copilot review). The merge gate is CI: every check on the PR's current head must be green before merging. That means `PHP 8.3 Tests` (MySQL), `PostgreSQL 8.3 Tests`, and the security workflow jobs (`sast`, `container-scan`, `dependency-check`, `security-summary`, GitGuardian). Wait for the runs on the latest push to finish; don't merge on an earlier commit's results. This wait discipline dates from v1.1.16 (PR #40), which was merged before a flagged problem surfaced and shipped a regression that forced v1.1.17 (PR #41) the same day.
 
 ## Test conventions (load-bearing for CI)
 
