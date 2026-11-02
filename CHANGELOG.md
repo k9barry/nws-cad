@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1] - 2026-11-02
+
+## Fixes
+
+- fix(security): patch PHP 8.3 CVEs and harden notifications, watcher, and API (#73) (fa0eb8c)
+
+
 ## [2.2.0] - 2026-10-07
 
 ## Features
