@@ -16,6 +16,7 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversClass(WebhookChannel::class)]
+#[\PHPUnit\Framework\Attributes\UsesClass(\NwsCad\Notifications\Channels\HeaderSanitizer::class)]
 #[UsesClass(ChannelDescriptor::class)]
 #[UsesClass(IncidentDto::class)]
 #[UsesClass(NotificationContext::class)]
@@ -126,6 +127,18 @@ final class WebhookChannelTest extends TestCase
             baseUrl: 'https://example.test/hook',
             config: ['template' => ['text' => 'x']],
             authToken: "ok\r\nInjected: header",
+        );
+    }
+
+    public function testInvalidAuthHeaderNameRejected(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('invalid auth_header');
+
+        new WebhookChannel(
+            baseUrl: 'https://example.test/hook',
+            config: ['template' => ['text' => 'x'], 'auth_header' => "X-Key\r\nInjected"],
+            authToken: 'tok',
         );
     }
 }

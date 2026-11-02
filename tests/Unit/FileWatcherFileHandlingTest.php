@@ -450,6 +450,77 @@ class FileWatcherFileHandlingTest extends TestCase
             'in-memory processed-file tracking must be capped');
     }
 
+    public function testRetentionSweepRefusesSymlinkedSubfolder(): void
+    {
+        $now = 1_800_000_000;
+        $outside = sys_get_temp_dir() . '/fw_outside_' . uniqid('', true);
+        mkdir($outside, 0777, true);
+        $victim = $outside . '/victim.xml';
+        file_put_contents($victim, '<xml/>');
+        touch($victim, $now - 365 * 86400);
+        symlink($outside, $this->watchDir . '/processed');
+
+        try {
+            $w = $this->makeWatcher(new RecordingParser(true));
+            $this->assertSame(0, $w->sweepRetention($now));
+            $this->assertFileExists($victim, 'sweep must not follow a symlinked processed/');
+        } finally {
+            @unlink($victim);
+            @rmdir($outside);
+        }
+    }
+
+    public function testRetentionSweepSkipsSymlinkedFiles(): void
+    {
+        $now = 1_800_000_000;
+        mkdir($this->watchDir . '/failed');
+        $target = $this->watchDir . '/target.dat';
+        file_put_contents($target, 'x');
+        touch($target, $now - 365 * 86400);
+        symlink($target, $this->watchDir . '/failed/link.xml');
+
+        $w = $this->makeWatcher(new RecordingParser(true));
+        $this->assertSame(0, $w->sweepRetention($now));
+        $this->assertTrue(is_link($this->watchDir . '/failed/link.xml'));
+    }
+
+    public function testSymlinkInWatchRootIsNotParsed(): void
+    {
+        $outside = sys_get_temp_dir() . '/fw_secret_' . uniqid('', true) . '.xml';
+        file_put_contents($outside, '<secret/>');
+        symlink($outside, $this->watchDir . '/200_2026010112000000.xml');
+
+        try {
+            $parser = new RecordingParser(true);
+            $w = $this->makeWatcher($parser);
+            self::invoke($w, 'checkForNewFiles');
+
+            $this->assertSame([], $parser->processed, 'symlinks in the watch root must be ignored');
+            $this->assertFileExists($outside);
+        } finally {
+            @unlink($this->watchDir . '/200_2026010112000000.xml');
+            @unlink($outside);
+        }
+    }
+
+    public function testMoveRefusesSymlinkedDestinationFolder(): void
+    {
+        $outside = sys_get_temp_dir() . '/fw_dest_' . uniqid('', true);
+        mkdir($outside, 0777, true);
+        symlink($outside, $this->watchDir . '/processed');
+        $this->writeFile('300_2026010112000000.xml', '<xml/>');
+
+        try {
+            $w = $this->makeWatcher(new RecordingParser(true));
+            self::invoke($w, 'checkForNewFiles');
+
+            $this->assertFileExists($this->watchDir . '/300_2026010112000000.xml');
+            $this->assertSame(['.', '..'], scandir($outside));
+        } finally {
+            @rmdir($outside);
+        }
+    }
+
     private function rrmdir(string $dir): void
     {
         if (!is_dir($dir)) {
@@ -461,7 +532,7 @@ class FileWatcherFileHandlingTest extends TestCase
                 continue;
             }
             $path = $dir . '/' . $item;
-            is_dir($path) ? $this->rrmdir($path) : @unlink($path);
+            (is_dir($path) && !is_link($path)) ? $this->rrmdir($path) : @unlink($path);
         }
         @rmdir($dir);
     }

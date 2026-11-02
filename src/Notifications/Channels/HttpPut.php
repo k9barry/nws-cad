@@ -16,10 +16,7 @@ class HttpPut
         if ($ch === false) {
             return ['status' => 0, 'body' => 'curl_init failed'];
         }
-        $headerLines = [];
-        foreach ($headers as $k => $v) {
-            $headerLines[] = "{$k}: {$v}";
-        }
+        $headerLines = HeaderSanitizer::lines($headers);
         curl_setopt_array($ch, [
             CURLOPT_URL => $url,
             CURLOPT_CUSTOMREQUEST => 'PUT',

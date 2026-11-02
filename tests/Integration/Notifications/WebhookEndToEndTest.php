@@ -26,6 +26,7 @@ use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 
 #[CoversNothing]
+#[\PHPUnit\Framework\Attributes\UsesClass(\NwsCad\Notifications\Channels\HeaderSanitizer::class)]
 #[UsesClass(WebhookChannel::class)]
 #[UsesClass(ChannelRegistry::class)]
 #[UsesClass(ChannelDescriptor::class)]

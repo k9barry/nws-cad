@@ -41,6 +41,9 @@ final class WebhookChannel implements NotificationChannel
         $this->template = $template;
 
         $this->authHeader = isset($config['auth_header']) ? (string) $config['auth_header'] : null;
+        if ($this->authHeader !== null && ! HeaderSanitizer::isValidName($this->authHeader)) {
+            throw new InvalidArgumentException('webhook: invalid auth_header name');
+        }
 
         if ($authToken !== null && preg_match('/[\r\n]/', $authToken) === 1) {
             throw new InvalidArgumentException('webhook: auth token contains CR/LF');

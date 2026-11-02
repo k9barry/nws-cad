@@ -57,6 +57,11 @@ class HttpPost
 
         $headerLines = ['Content-Type: application/json'];
         foreach ($headers as $k => $v) {
+            $k = (string) $k;
+            if (! HeaderSanitizer::isValidName($k)) {
+                continue;
+            }
+            $v = HeaderSanitizer::cleanValue((string) $v);
             // Allow user-supplied Content-Type to override the default.
             if (strcasecmp($k, 'Content-Type') === 0) {
                 $headerLines[0] = "Content-Type: {$v}";

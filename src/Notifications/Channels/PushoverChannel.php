@@ -60,13 +60,16 @@ final class PushoverChannel implements NotificationChannel
             'token' => $this->token,
             'user' => $this->user,
             'title' => sprintf('Call: %s %s', $incident->callNumber, $incident->callType ?? ''),
+            // html=1 below makes Pushover render <b>/<i>/<a href>/<font> tags,
+            // so CAD-derived text must be escaped or a crafted narrative could
+            // inject clickable links into the responder's notification.
             'message' => implode("\n", [
-                'Loc: ' . ($incident->fullAddress ?? ''),
-                'Inc: ' . ($incident->callType ?? ''),
-                'Nature: ' . ($incident->natureOfCall ?? ''),
-                'Unit: ' . $incident->units,
-                'Time: ' . $incident->createDateTime,
-                'Narr: ' . ($incident->narrative ?? ''),
+                'Loc: ' . self::esc($incident->fullAddress),
+                'Inc: ' . self::esc($incident->callType),
+                'Nature: ' . self::esc($incident->natureOfCall),
+                'Unit: ' . self::esc($incident->units),
+                'Time: ' . self::esc($incident->createDateTime),
+                'Narr: ' . self::esc($incident->narrative),
             ]),
             'sound' => $this->config['sound'] ?? 'bike',
             'html' => '1',
@@ -116,5 +119,10 @@ final class PushoverChannel implements NotificationChannel
             'error' => substr($lastError, 0, 500),
         ]);
         return [SendResult::fail($lastStatus, $duration, $lastError ?: 'retries exhausted')];
+    }
+
+    private static function esc(?string $value): string
+    {
+        return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }

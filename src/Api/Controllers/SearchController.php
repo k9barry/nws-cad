@@ -86,7 +86,7 @@ class SearchController
                     "l.full_address LIKE :search"
                 ];
                 $where[] = '(' . implode(' OR ', $searchConditions) . ')';
-                $params[':search'] = '%' . $search . '%';
+                $params[':search'] = self::likeContains($search);
             }
 
             // Specific filters
@@ -97,22 +97,22 @@ class SearchController
 
             if (isset($filters['nature_of_call'])) {
                 $where[] = "c.nature_of_call LIKE :nature_of_call";
-                $params[':nature_of_call'] = '%' . $filters['nature_of_call'] . '%';
+                $params[':nature_of_call'] = self::likeContains($filters['nature_of_call']);
             }
 
             if (isset($filters['caller_name'])) {
                 $where[] = "c.caller_name LIKE :caller_name";
-                $params[':caller_name'] = '%' . $filters['caller_name'] . '%';
+                $params[':caller_name'] = self::likeContains($filters['caller_name']);
             }
 
             if (isset($filters['caller_phone'])) {
                 $where[] = "c.caller_phone LIKE :caller_phone";
-                $params[':caller_phone'] = '%' . $filters['caller_phone'] . '%';
+                $params[':caller_phone'] = self::likeContains($filters['caller_phone']);
             }
 
             if (isset($filters['address'])) {
                 $where[] = "l.full_address LIKE :address";
-                $params[':address'] = '%' . $filters['address'] . '%';
+                $params[':address'] = self::likeContains($filters['address']);
             }
 
             if (isset($filters['city'])) {
@@ -154,7 +154,7 @@ class SearchController
                 $joins['persons'] = true;
                 $personFullName = DbHelper::concatName('p.first_name', 'p.middle_name', 'p.last_name');
                 $where[] = "{$personFullName} LIKE :person_name";
-                $params[':person_name'] = '%' . $filters['person_name'] . '%';
+                $params[':person_name'] = self::likeContains($filters['person_name']);
             }
 
             if (isset($filters['date_from'])) {
@@ -315,7 +315,7 @@ class SearchController
             // Address search
             if (isset($filters['address'])) {
                 $where[] = "l.full_address LIKE :address";
-                $params[':address'] = '%' . $filters['address'] . '%';
+                $params[':address'] = self::likeContains($filters['address']);
             }
 
             if (isset($filters['city'])) {
@@ -498,7 +498,7 @@ class SearchController
             // General search
             if ($search) {
                 $where[] = "u.unit_number LIKE :search";
-                $params[':search'] = '%' . $search . '%';
+                $params[':search'] = self::likeContains($search);
             }
 
             // Specific filters
@@ -521,7 +521,7 @@ class SearchController
                 $joins['personnel'] = true;
                 $personnelFullName = DbHelper::concatName('up.first_name', 'up.middle_name', 'up.last_name');
                 $where[] = "{$personnelFullName} LIKE :personnel_name";
-                $params[':personnel_name'] = '%' . $filters['personnel_name'] . '%';
+                $params[':personnel_name'] = self::likeContains($filters['personnel_name']);
             }
 
             if (isset($filters['personnel_id'])) {
@@ -619,5 +619,17 @@ class SearchController
         } catch (Exception $e) {
             Response::serverErrorFromException($e, 'Unit search failed');
         }
+    }
+
+    /**
+     * Build a "contains" LIKE pattern with user wildcards escaped, so input
+     * like `%_%_%` is matched literally instead of forcing expensive scans.
+     * Backslash is the default LIKE escape character in MySQL and PostgreSQL.
+     * Non-scalar input (e.g. ?address[]=x) becomes an empty match string.
+     */
+    private static function likeContains(mixed $value): string
+    {
+        $value = is_scalar($value) ? (string) $value : '';
+        return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value) . '%';
     }
 }

@@ -70,7 +70,11 @@ class Router
     private function convertPathToPattern(string $path): string
     {
         // Convert {id} to named capture group
-        $pattern = preg_replace('/\{([a-zA-Z0-9_]+)\}/', '(?P<$1>[^/]+)', $path);
+        // {id} is always a numeric primary key: constrain it to digits so
+        // "abc"/"1e3" never reach an int-typed handler (TypeError -> 500, or
+        // silent numeric-string coercion). Other params keep [^/]+.
+        $pattern = preg_replace('/\{id\}/', '(?P<id>[0-9]{1,18})', $path);
+        $pattern = preg_replace('/\{([a-zA-Z0-9_]+)\}/', '(?P<$1>[^/]+)', $pattern);
         return '#^' . $this->basePath . $pattern . '$#';
     }
 

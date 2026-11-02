@@ -30,6 +30,9 @@ use Exception;
  */
 class LogsController
 {
+    /** Max bytes of a log file read by show(). */
+    private const MAX_SHOW_BYTES = 8 * 1024 * 1024;
+
     /**
      * Allowed log levels for filtering
      * 
@@ -224,7 +227,7 @@ class LogsController
             }
             
             // Ensure file is within log directory
-            if (strpos($realFilePath, $realLogPath) !== 0) {
+            if (strpos($realFilePath, rtrim($realLogPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR) !== 0) {
                 Response::error('Access denied', 403);
                 return;
             }
@@ -242,8 +245,17 @@ class LogsController
             // Get and validate log level filter
             $levelFilter = $this->validateLogLevel(Request::query('level'));
             
-            // Read file in reverse order (newest first)
-            $content = file_get_contents($filePath);
+            // Read file in reverse order (newest first). Only the newest
+            // MAX_SHOW_BYTES are loaded: reading a multi-hundred-MB log whole
+            // (then exploding + reversing it) lets one request exhaust memory.
+            $size = (int) @filesize($filePath);
+            $offset = max(0, $size - self::MAX_SHOW_BYTES);
+            $content = (string) file_get_contents($filePath, false, null, $offset);
+            if ($offset > 0) {
+                // Drop the partial first line of the window.
+                $nl = strpos($content, "\n");
+                $content = $nl === false ? '' : substr($content, $nl + 1);
+            }
             $allLines = explode("\n", $content);
             $allLines = array_reverse($allLines);
             

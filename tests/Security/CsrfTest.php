@@ -84,6 +84,27 @@ class CsrfTest extends TestCase
         $this->assertRejected();
     }
 
+    public function testSameSiteFromSiblingSubdomainIsRejected(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['HTTP_SEC_FETCH_SITE'] = 'same-site';
+        $_SERVER['HTTP_HOST'] = 'cad.example.gov';
+        $_SERVER['HTTP_ORIGIN'] = 'https://other.example.gov';
+        SameOriginGuard::guard(Config::getInstance());
+        $this->assertRejected();
+    }
+
+    public function testSameSiteMatchingOwnAuthorityIsAllowed(): void
+    {
+        // e.g. an http->https hop on the same host reports same-site.
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['HTTP_SEC_FETCH_SITE'] = 'same-site';
+        $_SERVER['HTTP_HOST'] = 'cad.example.gov:8080';
+        $_SERVER['HTTP_ORIGIN'] = 'http://cad.example.gov:8080';
+        SameOriginGuard::guard(Config::getInstance());
+        $this->assertAllowed();
+    }
+
     public function testSameOriginUnsafeMethodIsAllowed(): void
     {
         $_SERVER['REQUEST_METHOD'] = 'POST';

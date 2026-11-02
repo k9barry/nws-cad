@@ -106,8 +106,10 @@ class Request
     public static function pagination(): array
     {
         return [
-            'page' => max(1, (int)self::query('page', 1)),
-            'per_page' => min(100, max(1, (int)self::query('per_page', 30)))
+            // Upper bound keeps (page - 1) * per_page from overflowing into a
+            // DB error on absurd values.
+            'page' => min(1_000_000, max(1, self::intQuery('page', 1))),
+            'per_page' => min(100, max(1, self::intQuery('per_page', 30)))
         ];
     }
 
@@ -121,7 +123,8 @@ class Request
     public static function search(): ?string
     {
         $search = self::query('search') ?: self::query('q');
-        return $search !== null ? (string)$search : null;
+        // ?search[]=x would make this an array; never cast arrays to string.
+        return is_scalar($search) ? (string)$search : null;
     }
 
     /**
@@ -145,8 +148,21 @@ class Request
 
         return [
             'sort' => $sort,
-            'order' => strtolower((string)self::query('order', $defaultOrder)) === 'asc' ? 'ASC' : 'DESC'
+            'order' => strtolower(self::scalarQuery('order', $defaultOrder)) === 'asc' ? 'ASC' : 'DESC'
         ];
+    }
+
+    /** Scalar query value as string; arrays (e.g. ?x[]=1) fall back to $default. */
+    private static function scalarQuery(string $key, string $default): string
+    {
+        $v = self::query($key, $default);
+        return is_scalar($v) ? (string)$v : $default;
+    }
+
+    private static function intQuery(string $key, int $default): int
+    {
+        $v = self::query($key, $default);
+        return is_scalar($v) ? (int)$v : $default;
     }
     
     /**

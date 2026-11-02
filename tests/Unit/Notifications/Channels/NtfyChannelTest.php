@@ -13,6 +13,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\Notifications\Channels\NtfyChannel
+ * @uses \NwsCad\Notifications\Channels\HeaderSanitizer
  * @uses \NwsCad\Config
  * @uses \NwsCad\Logger
  * @uses \NwsCad\Logging\RedactingProcessor
@@ -125,6 +126,21 @@ class NtfyChannelTest extends TestCase
     }
 
     /** @return array<string,string> */
+    public function testCrlfInCadTitleCannotInjectHeaders(): void
+    {
+        $dto = IncidentDto::fromRow([
+            'id' => 1, 'call_id' => 100, 'call_number' => 'C-100',
+            'call_type' => "Fire\r\nClick: https://evil.example", 'agency_type' => 'Fire',
+            'jurisdiction' => 'MCFD', 'units' => 'ENGINE1',
+            'full_address' => '123 Main', 'alarm_level' => 2,
+            'create_datetime' => '2026-05-07 12:00:00',
+        ]);
+        $headers = $this->captureHeaders($dto);
+
+        $this->assertSame('Call: C-100 Fire Click: https://evil.example', $headers['Title']);
+        $this->assertArrayNotHasKey('Click', $headers);
+    }
+
     private function captureHeaders(IncidentDto $dto): array
     {
         $http = Mockery::mock(\NwsCad\Notifications\Channels\HttpPut::class);

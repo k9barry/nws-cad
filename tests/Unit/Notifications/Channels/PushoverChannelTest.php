@@ -14,6 +14,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * @covers \NwsCad\Notifications\Channels\PushoverChannel
+ * @uses \NwsCad\Notifications\Channels\HeaderSanitizer
  * @uses \NwsCad\Config
  * @uses \NwsCad\Logger
  * @uses \NwsCad\Logging\RedactingProcessor
@@ -38,6 +39,35 @@ class PushoverChannelTest extends TestCase
             'create_datetime' => '2026-05-07 12:00:00',
             'latitude' => 39.7, 'longitude' => -86.1,
         ]);
+    }
+
+    public function testCadTextIsHtmlEscapedBecauseHtmlModeIsOn(): void
+    {
+        $captured = [];
+        $http = Mockery::mock(HttpPost::class);
+        $http->shouldReceive('post')
+            ->once()
+            ->with(Mockery::any(), Mockery::on(function ($f) use (&$captured): bool {
+                $captured = $f;
+                return true;
+            }), Mockery::any())
+            ->andReturn(['status' => 200, 'body' => '{"status":1}']);
+
+        $dto = IncidentDto::fromRow([
+            'id' => 1, 'call_id' => 100, 'call_number' => 'C-100',
+            'call_type' => 'Fire', 'units' => 'E1', 'alarm_level' => 1,
+            'create_datetime' => '2026-05-07 12:00:00',
+            'narrative' => '<a href="https://evil.example">call me</a>',
+        ]);
+        $channel = new PushoverChannel(
+            baseUrl: 'u', token: 't', user: 'u', config: [], http: $http,
+            sleeper: fn (int $ms) => null,
+        );
+        $channel->send($dto, new NotificationContext(Intent::Created, false, [], []));
+
+        $this->assertSame('1', $captured['html']);
+        $this->assertStringNotContainsString('<a ', $captured['message']);
+        $this->assertStringContainsString('&lt;a href=&quot;https://evil.example&quot;&gt;', $captured['message']);
     }
 
     public function testSuccessReturnsOk(): void
